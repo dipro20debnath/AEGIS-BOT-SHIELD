@@ -1,0 +1,13 @@
+{
+  "name": "express-basic-example",
+  "version": "1.0.0",
+  "description": "Simple Express.js app protected with AEGIS",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "@aegis/shield": "file:../../packages/shield"
+  }
+}

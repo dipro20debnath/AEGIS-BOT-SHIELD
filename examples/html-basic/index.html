@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AEGIS Protected HTML Form</title>
+    <!-- AEGIS JS SDK Integration -->
+    <script>
+        // Mock SDK for example
+        console.log("[AEGIS] Initializing SDK for Layer 2 & 3 data collection.");
+        window.AEGIS = {
+            getToken: async () => "mock_token_abc123"
+        };
+    </script>
+    <style>
+        body { font-family: sans-serif; padding: 2rem; background: #f4f4f5; }
+        .container { background: white; padding: 2rem; border-radius: 8px; max-width: 400px; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        input { display: block; width: 100%; margin-bottom: 1rem; padding: 0.5rem; }
+        button { background: #00ff88; color: #000; border: none; padding: 0.5rem 1rem; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Login Form</h1>
+        <p>This form is protected by the AEGIS JS SDK.</p>
+        <form id="loginForm">
+            <input type="text" placeholder="Username" required>
+            <input type="password" placeholder="Password" required>
+            <input type="hidden" id="aegisToken" name="aegisToken">
+            <button type="submit">Secure Login</button>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            // Obtain token from AEGIS before submitting
+            const token = await window.AEGIS.getToken();
+            document.getElementById('aegisToken').value = token;
+            console.log("Form submitted with AEGIS token:", token);
+            alert("Form submitted securely!");
+        });
+    </script>
+</body>
+</html>

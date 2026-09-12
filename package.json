@@ -1,0 +1,17 @@
+{
+  "name": "@aegis/bot-shield",
+  "version": "1.0.0",
+  "description": "AEGIS BOT SHIELD - International-grade bot defense SDK",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces",
+    "clean": "npm run clean --workspaces"
+  },
+  "author": "dipro20debnath",
+  "license": "MIT"
+}

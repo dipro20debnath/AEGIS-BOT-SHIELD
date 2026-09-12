@@ -1,0 +1,17 @@
+{
+  "name": "@aegis/js-sdk",
+  "version": "1.0.0",
+  "description": "Client-side JavaScript SDK for AEGIS BOT SHIELD",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
