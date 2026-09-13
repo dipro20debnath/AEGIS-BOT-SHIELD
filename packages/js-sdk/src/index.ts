@@ -1,19 +1,7 @@
-import { AegisClient } from './AegisClient';
 export * from './types';
-
-export { AegisClient };
-
-// Auto-init logic
-if (typeof window !== 'undefined') {
-  (window as any).AegisClient = AegisClient;
-  
-  const scriptTag = document.querySelector('script[data-aegis-site-key]');
-  if (scriptTag) {
-    const siteKey = scriptTag.getAttribute('data-aegis-site-key');
-    if (siteKey) {
-      const client = new AegisClient({ siteKey });
-      client.init().then(() => client.protect());
-      (window as any).aegis = client;
-    }
-  }
-}
+export * from './AegisClient';
+export * from './detection/HeadlessDetector';
+export * from './challenges/ProofOfWork';
+export * from './challenges/ChallengeManager';
+export * from './network/TokenManager';
+export * from './network/RequestInterceptor';

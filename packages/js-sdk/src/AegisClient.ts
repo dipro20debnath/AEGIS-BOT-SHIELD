@@ -1,60 +1,100 @@
-import { AegisClientConfig } from './types';
-import { MouseCollector } from './collectors/MouseCollector';
-import { KeyboardCollector } from './collectors/KeyboardCollector';
-import { ScrollCollector } from './collectors/ScrollCollector';
-import { TouchCollector } from './collectors/TouchCollector';
-import { DeviceFingerprinter } from './fingerprint/DeviceFingerprinter';
+import { AegisClientConfig, HeadlessDetectionResult } from './types';
 import { HeadlessDetector } from './detection/HeadlessDetector';
-import { TokenManager } from './transport/TokenManager';
-import { RequestInterceptor } from './transport/RequestInterceptor';
+import { ChallengeManager } from './challenges/ChallengeManager';
+import { TokenManager } from './network/TokenManager';
+import { RequestInterceptor } from './network/RequestInterceptor';
 
 export class AegisClient {
   private config: AegisClientConfig;
-  private mouseCollector: MouseCollector;
-  private keyboardCollector: KeyboardCollector;
-  private scrollCollector: ScrollCollector;
-  private touchCollector: TouchCollector;
+  private headlessDetector: HeadlessDetector;
+  private challengeManager: ChallengeManager;
   private tokenManager: TokenManager;
   private requestInterceptor: RequestInterceptor;
+  private initialized = false;
+  private eventHandlers: Map<string, Function[]> = new Map();
+  private detectionResult: HeadlessDetectionResult | null = null;
 
   constructor(config: AegisClientConfig) {
-    this.config = config;
-    this.mouseCollector = new MouseCollector();
-    this.keyboardCollector = new KeyboardCollector();
-    this.scrollCollector = new ScrollCollector();
-    this.touchCollector = new TouchCollector();
-    this.tokenManager = new TokenManager();
-    this.requestInterceptor = new RequestInterceptor(this.tokenManager);
-  }
-
-  public async init() {
-    if (this.config.collectors?.mouse !== false) this.mouseCollector.start();
-    if (this.config.collectors?.keyboard !== false) this.keyboardCollector.start();
-    if (this.config.collectors?.scroll !== false) this.scrollCollector.start();
-    if (this.config.collectors?.touch !== false) this.touchCollector.start();
-    
-    if (this.config.autoIntercept !== false) {
-      this.requestInterceptor.enable();
-    }
-  }
-
-  public async protect() {
-    const isHeadless = new HeadlessDetector().detect();
-    let fingerprint = '';
-    if (this.config.fingerprinting !== false) {
-      fingerprint = await new DeviceFingerprinter().getFingerprint();
-    }
-
-    const payload = {
-      isHeadless,
-      fingerprint,
-      mouse: this.mouseCollector.getData(),
-      keyboard: this.keyboardCollector.getData(),
-      scroll: this.scrollCollector.getData(),
-      touch: this.touchCollector.getData(),
-      timestamp: Date.now()
+    this.config = {
+      autoStart: true,
+      autoIntercept: true,
+      ...config
     };
+    
+    this.headlessDetector = new HeadlessDetector();
+    this.challengeManager = new ChallengeManager();
+    this.tokenManager = new TokenManager();
+    this.requestInterceptor = new RequestInterceptor(this, this.config.interceptHeaders || []);
+  }
 
+  public async start(): Promise<void> {
+    if (this.initialized) return;
+    try {
+      this.detectionResult = await this.headlessDetector.detect();
+      if (this.config.autoIntercept) {
+        this.requestInterceptor.enable();
+      }
+      this.initialized = true;
+      this.emit('ready', { success: true });
+    } catch (e) {
+      this.emit('error', e);
+    }
+  }
+
+  public stop(): void {
+    if (!this.initialized) return;
+    if (this.config.autoIntercept) {
+      this.requestInterceptor.disable();
+    }
+    this.initialized = false;
+    this.emit('stopped');
+  }
+
+  public async getToken(): Promise<string> {
+    if (!this.initialized) await this.start();
+    
+    const payload = {
+      timestamp: Date.now(),
+      detection: this.detectionResult,
+      siteKey: this.config.siteKey
+    };
+    
     return this.tokenManager.generateToken(payload);
+  }
+
+  public async solveChallenge(challenge: any): Promise<any> {
+    return this.challengeManager.solve(challenge);
+  }
+
+  public reset(): void {
+    this.detectionResult = null;
+    this.tokenManager.clear();
+  }
+
+  public on(event: string, handler: Function): void {
+    if (!this.eventHandlers.has(event)) {
+      this.eventHandlers.set(event, []);
+    }
+    this.eventHandlers.get(event)!.push(handler);
+  }
+
+  public off(event: string, handler: Function): void {
+    const handlers = this.eventHandlers.get(event);
+    if (handlers) {
+      this.eventHandlers.set(event, handlers.filter(h => h !== handler));
+    }
+  }
+
+  private emit(event: string, data?: any): void {
+    const handlers = this.eventHandlers.get(event);
+    if (handlers) {
+      handlers.forEach(h => {
+        try {
+          h(data);
+        } catch (e) {
+          console.error(`Error in Aegis event handler for ${event}`, e);
+        }
+      });
+    }
   }
 }

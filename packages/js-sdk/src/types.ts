@@ -1,42 +1,44 @@
-/**
- * Configuration options for the AegisClient.
- */
 export interface AegisClientConfig {
-  endpoint?: string;
   siteKey: string;
+  endpoint?: string;
+  autoStart?: boolean;
   autoIntercept?: boolean;
-  collectors?: {
-    mouse?: boolean;
-    keyboard?: boolean;
-    scroll?: boolean;
-    touch?: boolean;
-  };
-  fingerprinting?: boolean;
+  interceptHeaders?: string[];
+  collectMouse?: boolean;
+  collectKeyboard?: boolean;
+  collectScroll?: boolean;
+  collectTouch?: boolean;
+  fingerprint?: boolean;
+  detectHeadless?: boolean;
+  debug?: boolean;
 }
 
-export interface CollectorData {
-  timestamp: number;
-  type: string;
-  data: any;
+export interface HeadlessDetectionResult {
+  isHeadless: boolean;
+  confidence: number;
+  tests: DetectionTest[];
+  detectedCount: number;
+  totalTests: number;
 }
 
-export interface BehavioralSignals {
-  mouse?: any;
-  keyboard?: any;
-  scroll?: any;
-  touch?: any;
+export interface DetectionTest {
+  name: string;
+  detected: boolean;
+  confidence: number;
+  details: string;
 }
 
-export interface DeviceInfo {
-  canvas?: string;
-  webgl?: string;
-  audio?: string;
-  fonts?: string[];
-  screen?: any;
+export interface ChallengeRequest {
+  id: string;
+  type: 'pow' | 'wasm' | 'interactive';
+  payload: any;
+  difficulty?: number;
 }
 
-export interface ChallengeResult {
-  challengeId: string;
-  solution: any;
-  duration: number;
+export interface ChallengeResponse {
+  id: string;
+  solved: boolean;
+  result?: any;
+  error?: string;
+  timeMs?: number;
 }
