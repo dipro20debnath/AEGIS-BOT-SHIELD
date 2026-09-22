@@ -1,7 +1,7 @@
-export * from './types';
-export { aegisProtect } from './middleware/express';
-export { aegisFastifyPlugin } from './middleware/fastify';
-export { createGenericAegisMiddleware } from './middleware/generic';
-export { TokenVerifier } from './verifier/TokenVerifier';
-export { AegisServer } from './AegisServer';
-export { createAegisRoutes } from './api/routes';
+export * from './middleware/express.js';
+export * from './middleware/fastify.js';
+export * from './middleware/generic.js';
+export * from './TokenVerifier.js';
+export * from './AegisServer.js';
+export * from './routes.js';
+export * from './types.js';

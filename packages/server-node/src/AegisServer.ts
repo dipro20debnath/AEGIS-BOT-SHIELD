@@ -1,36 +1,38 @@
 import express, { Express } from 'express';
-import { createAegisRoutes } from './api/routes';
-import { AegisServerConfig } from './types';
+import { aegisExpress, AegisExpressOptions } from './middleware/express.js';
+import { aegisRoutes } from './routes.js';
+import { Logger } from '@aegis/core';
 
 export class AegisServer {
-    private app: Express;
-    private config: AegisServerConfig;
-    private server: any;
+  private app: Express;
+  private logger: Logger;
+  private options: AegisExpressOptions;
 
-    constructor(config: AegisServerConfig) {
-        this.config = config;
-        this.app = express();
-        
-        this.app.use(express.json());
-        this.app.use('/aegis', createAegisRoutes(this.config.secretKey));
-    }
+  constructor(options: AegisExpressOptions) {
+    this.options = options;
+    this.app = express();
+    this.logger = new Logger('AegisServer');
 
-    public start(port: number = 8080): Promise<void> {
-        return new Promise((resolve) => {
-            this.server = this.app.listen(port, () => {
-                console.log(`Aegis Microservice running on port ${port}`);
-                resolve();
-            });
-        });
-    }
+    this.setupMiddleware();
+    this.setupRoutes();
+  }
 
-    public stop(): Promise<void> {
-        return new Promise((resolve) => {
-            if (this.server) {
-                this.server.close(() => resolve());
-            } else {
-                resolve();
-            }
-        });
-    }
+  private setupMiddleware() {
+    this.app.use(express.json());
+    this.app.use(aegisExpress(this.options));
+  }
+
+  private setupRoutes() {
+    this.app.use(aegisRoutes(this.options));
+  }
+
+  public getApp(): Express {
+    return this.app;
+  }
+
+  public start(port: number = 3000): void {
+    this.app.listen(port, () => {
+      this.logger.info(`AEGIS Server listening on port ${port}`);
+    });
+  }
 }
