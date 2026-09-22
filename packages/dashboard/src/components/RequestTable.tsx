@@ -1,54 +1,84 @@
 import React from 'react';
-import ThreatBadge from './ThreatBadge';
 
-interface Request {
+interface Log {
   id: string;
   time: string;
   ip: string;
   path: string;
-  threatType?: string;
-  action: 'allowed' | 'blocked' | 'challenged';
+  userAgent: string;
+  verdict: string;
+  riskScore: number;
+  signals: string[];
 }
 
-interface RequestTableProps {
-  requests: Request[];
+interface Props {
+  logs: Log[];
+  isDarkTheme: boolean;
 }
 
-export default function RequestTable({ requests }: RequestTableProps) {
+const RequestTable: React.FC<Props> = ({ logs, isDarkTheme }) => {
+  const getVerdictStyle = (verdict: string) => {
+    switch(verdict) {
+      case 'Block': return { bg: '#ffe5e5', color: '#ff4d4f' };
+      case 'Challenge': return { bg: '#fff1b8', color: '#faad14' };
+      default: return { bg: '#e6f7ff', color: '#1890ff' };
+    }
+  };
+
+  const getScoreColor = (score: number) => {
+    if (score > 80) return '#ff4d4f';
+    if (score > 50) return '#faad14';
+    return '#00C49F';
+  };
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left border-collapse">
-        <thead>
-          <tr className="border-b border-gray-800 text-aegis-muted text-sm">
-            <th className="py-3 px-4 font-medium">Time</th>
-            <th className="py-3 px-4 font-medium">IP Address</th>
-            <th className="py-3 px-4 font-medium">Path</th>
-            <th className="py-3 px-4 font-medium">Threat</th>
-            <th className="py-3 px-4 font-medium">Action</th>
-          </tr>
-        </thead>
-        <tbody className="text-sm">
-          {requests.map((req) => (
-            <tr key={req.id} className="border-b border-gray-800/50 hover:bg-gray-800/20 transition-colors">
-              <td className="py-3 px-4 text-aegis-muted">{req.time}</td>
-              <td className="py-3 px-4 font-mono">{req.ip}</td>
-              <td className="py-3 px-4 text-gray-300">{req.path}</td>
-              <td className="py-3 px-4">
-                {req.threatType ? <ThreatBadge type={req.threatType} /> : <span className="text-gray-500">-</span>}
+    <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', fontSize: '14px' }}>
+      <thead>
+        <tr style={{ borderBottom: `2px solid ${isDarkTheme ? '#444' : '#ccc'}`, color: isDarkTheme ? '#aaa' : '#555' }}>
+          <th style={{ padding: '12px' }}>Time</th>
+          <th style={{ padding: '12px' }}>IP / Path</th>
+          <th style={{ padding: '12px' }}>Verdict</th>
+          <th style={{ padding: '12px' }}>Risk Score</th>
+          <th style={{ padding: '12px' }}>Signals</th>
+        </tr>
+      </thead>
+      <tbody>
+        {logs.map((log) => {
+          const vStyle = getVerdictStyle(log.verdict);
+          const scoreColor = getScoreColor(log.riskScore);
+          return (
+            <tr key={log.id} style={{ borderBottom: `1px solid ${isDarkTheme ? '#333' : '#eee'}` }}>
+              <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>{log.time}</td>
+              <td style={{ padding: '12px' }}>
+                <div style={{ fontWeight: 'bold' }}>{log.ip}</div>
+                <div style={{ color: isDarkTheme ? '#888' : '#888', fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>{log.path}</div>
               </td>
-              <td className="py-3 px-4">
-                <span className={\`px-2 py-1 rounded text-xs font-medium \${
-                  req.action === 'blocked' ? 'text-red-400 bg-red-400/10' :
-                  req.action === 'allowed' ? 'text-green-400 bg-green-400/10' :
-                  'text-yellow-400 bg-yellow-400/10'
-                }\`}>
-                  {req.action.toUpperCase()}
+              <td style={{ padding: '12px' }}>
+                <span style={{ backgroundColor: vStyle.bg, color: vStyle.color, padding: '4px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
+                  {log.verdict}
                 </span>
               </td>
+              <td style={{ padding: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ width: '30px', fontWeight: 'bold', color: scoreColor }}>{log.riskScore}</span>
+                  <div style={{ width: '100px', height: '8px', backgroundColor: isDarkTheme ? '#444' : '#eee', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ width: `${log.riskScore}%`, height: '100%', backgroundColor: scoreColor }}></div>
+                  </div>
+                </div>
+              </td>
+              <td style={{ padding: '12px' }}>
+                {log.signals.length > 0 ? log.signals.map((sig, idx) => (
+                  <span key={idx} style={{ display: 'inline-block', backgroundColor: isDarkTheme ? '#333' : '#f0f0f0', border: `1px solid ${isDarkTheme ? '#555' : '#ccc'}`, padding: '2px 6px', borderRadius: '4px', marginRight: '4px', marginBottom: '4px', fontSize: '12px' }}>
+                    {sig}
+                  </span>
+                )) : <span style={{ color: isDarkTheme ? '#777' : '#aaa' }}>None</span>}
+              </td>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          );
+        })}
+      </tbody>
+    </table>
   );
-}
+};
+
+export default RequestTable;

@@ -1,33 +1,41 @@
 import React from 'react';
-import { LucideIcon } from 'lucide-react';
 
-interface StatsCardProps {
+interface Props {
   title: string;
-  value: string;
-  icon: LucideIcon;
+  value: string | number;
   trend: number;
-  trendLabel?: string;
-  color?: string;
+  isGood: boolean;
+  isDarkTheme: boolean;
 }
 
-export default function StatsCard({ title, value, icon: Icon, trend, trendLabel, color = 'text-aegis-blue' }: StatsCardProps) {
-  const isPositive = trend > 0;
-  
+const StatsCard: React.FC<Props> = ({ title, value, trend, isGood, isDarkTheme }) => {
+  const cardStyle = {
+    backgroundColor: isDarkTheme ? '#1e1e1e' : '#ffffff',
+    padding: '20px',
+    borderRadius: '8px',
+    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    justifyContent: 'center'
+  };
+
+  const trendColor = isGood ? (trend >= 0 ? '#00C49F' : '#ff4d4f') : (trend >= 0 ? '#ff4d4f' : '#00C49F');
+  const arrow = trend >= 0 ? '↑' : '↓';
+
   return (
-    <div className="bg-aegis-panel p-6 rounded-lg border border-gray-800">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-aegis-muted text-sm font-medium">{title}</h3>
-        <Icon className={\`w-5 h-5 \${color}\`} />
+    <div style={cardStyle}>
+      <div style={{ color: isDarkTheme ? '#aaa' : '#666', fontSize: '14px', marginBottom: '8px', fontWeight: 'bold' }}>
+        {title.toUpperCase()}
       </div>
-      <div className="flex items-baseline space-x-2">
-        <span className="text-2xl font-bold">{value}</span>
-        <span className={\`text-xs font-medium \${isPositive ? 'text-aegis-red' : 'text-aegis-green'}\`}>
-          {isPositive ? '+' : ''}{trend}%
-        </span>
+      <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '8px' }}>
+        {value}
       </div>
-      {trendLabel && (
-        <div className="text-xs text-aegis-muted mt-1">{trendLabel}</div>
-      )}
+      <div style={{ fontSize: '14px', color: trendColor, fontWeight: 'bold' }}>
+        {arrow} {Math.abs(trend)}% from last week
+      </div>
     </div>
   );
-}
+};
+
+export default StatsCard;

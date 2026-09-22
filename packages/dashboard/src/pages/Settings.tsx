@@ -1,56 +1,81 @@
 import React from 'react';
 
-export default function Settings() {
+interface Props {
+  isDarkTheme: boolean;
+}
+
+const Settings: React.FC<Props> = ({ isDarkTheme }) => {
+  const cardStyle = {
+    backgroundColor: isDarkTheme ? '#1e1e1e' : '#ffffff',
+    padding: '20px',
+    borderRadius: '8px',
+    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+    marginBottom: '20px',
+    maxWidth: '800px'
+  };
+
+  const labelStyle = {
+    display: 'block',
+    marginBottom: '8px',
+    fontWeight: 'bold',
+    color: isDarkTheme ? '#ccc' : '#333'
+  };
+
+  const inputStyle = {
+    width: '100%',
+    padding: '10px',
+    borderRadius: '4px',
+    border: `1px solid ${isDarkTheme ? '#444' : '#ccc'}`,
+    backgroundColor: isDarkTheme ? '#333' : '#fff',
+    color: isDarkTheme ? '#fff' : '#000',
+    marginBottom: '20px'
+  };
+
   return (
-    <div className="space-y-6 max-w-4xl">
-      <h1 className="text-2xl font-bold">Configuration</h1>
+    <div style={{ padding: '20px' }}>
+      <h1 style={{ marginBottom: '20px' }}>Protection Settings</h1>
       
-      <div className="bg-aegis-panel p-6 rounded-lg border border-gray-800">
-        <h2 className="text-lg font-semibold mb-4">Protection Mode</h2>
-        <div className="space-y-4">
-          <label className="flex items-center space-x-3 p-3 border border-gray-700 rounded cursor-pointer hover:bg-gray-800/50">
-            <input type="radio" name="mode" className="text-aegis-blue focus:ring-aegis-blue bg-gray-900 border-gray-700" />
-            <div>
-              <div className="font-medium">Monitor Mode</div>
-              <div className="text-sm text-aegis-muted">Log threats but do not block traffic.</div>
-            </div>
-          </label>
-          <label className="flex items-center space-x-3 p-3 border border-aegis-green/30 bg-aegis-green/5 rounded cursor-pointer">
-            <input type="radio" name="mode" defaultChecked className="text-aegis-green focus:ring-aegis-green bg-gray-900 border-gray-700" />
-            <div>
-              <div className="font-medium text-aegis-green">Enforce Mode (Recommended)</div>
-              <div className="text-sm text-aegis-muted">Block high-risk bots and challenge suspicious traffic.</div>
-            </div>
-          </label>
-          <label className="flex items-center space-x-3 p-3 border border-gray-700 rounded cursor-pointer hover:bg-gray-800/50">
-            <input type="radio" name="mode" className="text-red-500 focus:ring-red-500 bg-gray-900 border-gray-700" />
-            <div>
-              <div className="font-medium text-red-400">Strict Mode</div>
-              <div className="text-sm text-aegis-muted">Block all suspicious traffic. May impact legitimate users.</div>
-            </div>
-          </label>
-        </div>
+      <div style={cardStyle}>
+        <h3>General Configuration</h3>
+        <hr style={{ borderTop: `1px solid ${isDarkTheme ? '#333' : '#eee'}`, margin: '15px 0' }} />
+        
+        <label style={labelStyle}>Protection Mode</label>
+        <select style={inputStyle} defaultValue="balanced">
+          <option value="lax">Lax (Monitor Only)</option>
+          <option value="balanced">Balanced (Recommended)</option>
+          <option value="strict">Strict (High False Positives possible)</option>
+          <option value="paranoia">Paranoia (Block almost everything suspicious)</option>
+        </select>
+
+        <label style={labelStyle}>Challenge Type</label>
+        <select style={inputStyle} defaultValue="invisible">
+          <option value="invisible">Invisible PoW (Proof of Work)</option>
+          <option value="captcha">Interactive CAPTCHA</option>
+          <option value="js">JavaScript Challenge</option>
+        </select>
       </div>
 
-      <div className="bg-aegis-panel p-6 rounded-lg border border-gray-800">
-        <h2 className="text-lg font-semibold mb-4">Rate Limiting</h2>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">Max Requests</label>
-            <input type="number" defaultValue={100} className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white focus:border-aegis-blue focus:outline-none" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">Window (seconds)</label>
-            <input type="number" defaultValue={60} className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white focus:border-aegis-blue focus:outline-none" />
-          </div>
+      <div style={cardStyle}>
+        <h3>Machine Learning Engine</h3>
+        <hr style={{ borderTop: `1px solid ${isDarkTheme ? '#333' : '#eee'}`, margin: '15px 0' }} />
+        
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
+          <input type="checkbox" id="auto_update" defaultChecked style={{ marginRight: '10px', transform: 'scale(1.2)' }} />
+          <label htmlFor="auto_update" style={{ color: isDarkTheme ? '#ccc' : '#333', fontWeight: 'bold' }}>Enable Auto-Model Updates (Continuous Learning)</label>
         </div>
+
+        <label style={labelStyle}>Risk Score Threshold for Block (0-100)</label>
+        <input type="range" min="0" max="100" defaultValue="85" style={{ width: '100%', marginBottom: '20px' }} />
+        
+        <label style={labelStyle}>Risk Score Threshold for Challenge (0-100)</label>
+        <input type="range" min="0" max="100" defaultValue="50" style={{ width: '100%', marginBottom: '20px' }} />
       </div>
 
-      <div className="flex justify-end">
-        <button className="bg-aegis-blue text-white px-4 py-2 rounded font-medium hover:bg-blue-600 transition-colors">
-          Save Changes
-        </button>
-      </div>
+      <button style={{ padding: '12px 24px', backgroundColor: '#1890ff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>
+        Save Changes
+      </button>
     </div>
   );
-}
+};
+
+export default Settings;

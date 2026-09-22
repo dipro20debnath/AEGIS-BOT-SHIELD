@@ -1,46 +1,77 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, LineChart, ShieldAlert, Settings, FileText, Shield } from 'lucide-react';
 
-export default function Sidebar() {
-  const navItems = [
-    { name: 'Overview', path: '/', icon: LayoutDashboard },
-    { name: 'Analytics', path: '/analytics', icon: LineChart },
-    { name: 'Threats', path: '/threats', icon: ShieldAlert },
-    { name: 'Logs', path: '/logs', icon: FileText },
-    { name: 'Settings', path: '/settings', icon: Settings },
+interface Props {
+  isDarkTheme: boolean;
+}
+
+const Sidebar: React.FC<Props> = ({ isDarkTheme }) => {
+  const sidebarStyle = {
+    width: '250px',
+    backgroundColor: isDarkTheme ? '#1e1e1e' : '#ffffff',
+    borderRight: `1px solid ${isDarkTheme ? '#333' : '#e0e0e0'}`,
+    padding: '20px 0',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    height: 'calc(100vh - 60px)',
+    position: 'sticky' as const,
+    top: '60px'
+  };
+
+  const navItemStyle = (isActive: boolean) => ({
+    padding: '15px 20px',
+    color: isActive ? '#1890ff' : (isDarkTheme ? '#ccc' : '#333'),
+    textDecoration: 'none',
+    fontWeight: isActive ? 'bold' : 'normal',
+    backgroundColor: isActive ? (isDarkTheme ? '#333' : '#e6f7ff') : 'transparent',
+    borderRight: isActive ? '3px solid #1890ff' : 'none',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    transition: 'all 0.2s'
+  });
+
+  const links = [
+    { to: "/", label: "Overview", icon: "📊" },
+    { to: "/analytics", label: "Analytics", icon: "📈" },
+    { to: "/threats", label: "Threat Intelligence", icon: "🛡️" },
+    { to: "/logs", label: "Request Logs", icon: "📝" },
+    { to: "/ml-performance", label: "ML Engine", icon: "🧠" },
+    { to: "/settings", label: "Settings", icon: "⚙️" },
   ];
 
   return (
-    <div className="w-64 bg-aegis-panel border-r border-gray-800 flex flex-col">
-      <div className="h-16 flex items-center px-6 border-b border-gray-800">
-        <Shield className="text-aegis-green w-8 h-8 mr-2" />
-        <span className="text-xl font-bold tracking-wider">AEGIS</span>
+    <aside style={sidebarStyle}>
+      <div style={{ marginBottom: '20px', padding: '0 20px', fontSize: '12px', color: isDarkTheme ? '#888' : '#888', fontWeight: 'bold' }}>
+        MAIN NAVIGATION
       </div>
-      <nav className="flex-1 py-4">
-        <ul>
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <li key={item.name} className="px-3 mb-1">
-                <NavLink
-                  to={item.path}
-                  className={({ isActive }) =>
-                    \`flex items-center px-3 py-2 rounded-md transition-colors \${
-                      isActive 
-                        ? 'bg-blue-600/20 text-aegis-blue' 
-                        : 'text-aegis-muted hover:bg-gray-800 hover:text-white'
-                    }\`
-                  }
-                >
-                  <Icon className="w-5 h-5 mr-3" />
-                  {item.name}
-                </NavLink>
-              </li>
-            );
-          })}
-        </ul>
+      <nav style={{ display: 'flex', flexDirection: 'column' }}>
+        {links.map((link) => (
+          <NavLink 
+            key={link.to} 
+            to={link.to} 
+            style={({ isActive }) => navItemStyle(isActive)}
+          >
+            <span>{link.icon}</span> {link.label}
+          </NavLink>
+        ))}
       </nav>
-    </div>
+      
+      <div style={{ marginTop: 'auto', padding: '20px' }}>
+        <div style={{ 
+          backgroundColor: isDarkTheme ? '#333' : '#f5f5f5', 
+          padding: '15px', 
+          borderRadius: '8px',
+          textAlign: 'center'
+        }}>
+          <div style={{ fontSize: '12px', color: isDarkTheme ? '#aaa' : '#666', marginBottom: '5px' }}>AEGIS Engine Status</div>
+          <div style={{ color: '#00C49F', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+            <span style={{ width: '8px', height: '8px', backgroundColor: '#00C49F', borderRadius: '50%', display: 'inline-block' }}></span> Active
+          </div>
+        </div>
+      </div>
+    </aside>
   );
-}
+};
+
+export default Sidebar;

@@ -1,36 +1,46 @@
 import React from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-interface TrafficChartProps {
-  data: any[];
+interface Props {
+  isDarkTheme: boolean;
 }
 
-export default function TrafficChart({ data }: TrafficChartProps) {
+const data = [
+  { time: '00:00', human: 4000, bot: 8400 },
+  { time: '04:00', human: 3000, bot: 9398 },
+  { time: '08:00', human: 12000, bot: 3800 },
+  { time: '12:00', human: 27800, bot: 3908 },
+  { time: '16:00', human: 18900, bot: 4800 },
+  { time: '20:00', human: 23900, bot: 3800 },
+  { time: '24:00', human: 3490, bot: 7300 },
+];
+
+const TrafficChart: React.FC<Props> = ({ isDarkTheme }) => {
   return (
-    <div className="h-[300px] w-full">
+    <div style={{ height: '300px', width: '100%' }}>
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-          <defs>
-            <linearGradient id="colorHuman" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#00ff88" stopOpacity={0.3}/>
-              <stop offset="95%" stopColor="#00ff88" stopOpacity={0}/>
-            </linearGradient>
-            <linearGradient id="colorBot" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#ff3366" stopOpacity={0.3}/>
-              <stop offset="95%" stopColor="#ff3366" stopOpacity={0}/>
-            </linearGradient>
-          </defs>
-          <XAxis dataKey="time" stroke="#a1a1aa" fontSize={12} tickLine={false} axisLine={false} />
-          <YAxis stroke="#a1a1aa" fontSize={12} tickLine={false} axisLine={false} />
-          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+        <LineChart
+          data={data}
+          margin={{
+            top: 5,
+            right: 30,
+            left: 20,
+            bottom: 5,
+          }}
+        >
+          <CartesianGrid strokeDasharray="3 3" stroke={isDarkTheme ? '#333' : '#ccc'} />
+          <XAxis dataKey="time" stroke={isDarkTheme ? '#ccc' : '#333'} />
+          <YAxis stroke={isDarkTheme ? '#ccc' : '#333'} />
           <Tooltip 
-            contentStyle={{ backgroundColor: '#15151e', borderColor: '#27272a', color: '#f4f4f5' }}
-            itemStyle={{ color: '#f4f4f5' }}
+            contentStyle={{ backgroundColor: isDarkTheme ? '#333' : '#fff', color: isDarkTheme ? '#fff' : '#000', border: 'none' }}
           />
-          <Area type="monotone" dataKey="human" stroke="#00ff88" fillOpacity={1} fill="url(#colorHuman)" />
-          <Area type="monotone" dataKey="bot" stroke="#ff3366" fillOpacity={1} fill="url(#colorBot)" />
-        </AreaChart>
+          <Legend />
+          <Line type="monotone" dataKey="human" stroke="#00C49F" activeDot={{ r: 8 }} name="Human Traffic" strokeWidth={2} />
+          <Line type="monotone" dataKey="bot" stroke="#ff4d4f" name="Bot Traffic" strokeWidth={2} />
+        </LineChart>
       </ResponsiveContainer>
     </div>
   );
-}
+};
+
+export default TrafficChart;
