@@ -3,42 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AEGIS Protected HTML Form</title>
-    <!-- AEGIS JS SDK Integration -->
-    <script>
-        // Mock SDK for example
-        console.log("[AEGIS] Initializing SDK for Layer 2 & 3 data collection.");
-        window.AEGIS = {
-            getToken: async () => "mock_token_abc123"
-        };
-    </script>
+    <title>AEGIS BOT SHIELD - Protected Login</title>
     <style>
-        body { font-family: sans-serif; padding: 2rem; background: #f4f4f5; }
-        .container { background: white; padding: 2rem; border-radius: 8px; max-width: 400px; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        input { display: block; width: 100%; margin-bottom: 1rem; padding: 0.5rem; }
-        button { background: #00ff88; color: #000; border: none; padding: 0.5rem 1rem; cursor: pointer; font-weight: bold; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .login-container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            width: 300px;
+        }
+        h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #2c3e50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #1a252f;
+        }
+        #status-message {
+            margin-top: 15px;
+            text-align: center;
+            font-size: 14px;
+        }
     </style>
+    
+    <!-- Load AEGIS JS SDK -->
+    <!-- In production, this would be a CDN link or bundled with your app -->
+    <script src="../../packages/aegis-client/dist/aegis.min.js"></script>
 </head>
 <body>
-    <div class="container">
-        <h1>Login Form</h1>
-        <p>This form is protected by the AEGIS JS SDK.</p>
+
+    <div class="login-container">
+        <h2>Secure Login</h2>
         <form id="loginForm">
-            <input type="text" placeholder="Username" required>
-            <input type="password" placeholder="Password" required>
-            <input type="hidden" id="aegisToken" name="aegisToken">
-            <button type="submit">Secure Login</button>
+            <input type="text" id="username" placeholder="Username" required>
+            <input type="password" id="password" placeholder="Password" required>
+            <!-- Hidden field for the AEGIS telemetry token -->
+            <input type="hidden" id="aegis_token" name="aegis_token">
+            <button type="submit">Login</button>
         </form>
+        <div id="status-message"></div>
     </div>
 
     <script>
+        // Initialize AEGIS Client
+        const aegis = new window.AegisClient({
+            siteKey: 'test-site-key-12345',
+            debug: true
+        });
+        
+        aegis.init();
+
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            // Obtain token from AEGIS before submitting
-            const token = await window.AEGIS.getToken();
-            document.getElementById('aegisToken').value = token;
-            console.log("Form submitted with AEGIS token:", token);
-            alert("Form submitted securely!");
+            const statusDiv = document.getElementById('status-message');
+            statusDiv.textContent = 'Generating security token...';
+            statusDiv.style.color = '#666';
+
+            try {
+                // Generate the encrypted telemetry payload
+                const token = await aegis.getToken();
+                
+                statusDiv.textContent = 'Authenticating...';
+
+                // Send request to backend
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Aegis-Token': token // Can be sent in headers or body
+                    },
+                    body: JSON.stringify({
+                        username: document.getElementById('username').value,
+                        password: document.getElementById('password').value
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    statusDiv.textContent = data.message;
+                    statusDiv.style.color = 'green';
+                } else {
+                    statusDiv.textContent = data.message || 'Access Denied';
+                    statusDiv.style.color = 'red';
+                }
+            } catch (error) {
+                console.error("AEGIS Error:", error);
+                statusDiv.textContent = 'Security check failed. Please try again.';
+                statusDiv.style.color = 'red';
+            }
         });
     </script>
 </body>

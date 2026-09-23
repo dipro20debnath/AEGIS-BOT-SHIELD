@@ -1,40 +1,47 @@
-from flask import Flask, request, jsonify
+import os
+from flask import Flask, request, jsonify, render_template_string
+# In a real project: from aegis_python.flask import AegisMiddleware
+import sys
+sys.path.append('../../packages/aegis-python')
+from aegis_flask import AegisMiddleware
 
 app = Flask(__name__)
 
-# Mock AEGIS Middleware for example purposes
-class AegisMiddleware:
-    def __init__(self, app, api_key, mode='monitor'):
-        self.app = app
-        self.api_key = api_key
-        self.mode = mode
-
-    def __call__(self, environ, start_response):
-        path = environ.get('PATH_INFO', '')
-        print(f"[AEGIS] Analyzing request to {path}")
-        # In a real scenario, we would block or allow the request here based on AEGIS analysis.
-        return self.app(environ, start_response)
-
-# Apply AEGIS protection
-app.wsgi_app = AegisMiddleware(app.wsgi_app, api_key='EXAMPLE_KEY_123', mode='enforce')
+# Configure AEGIS Middleware
+aegis = AegisMiddleware(
+    app,
+    secret_key=os.environ.get('AEGIS_SECRET_KEY', 'dev-secret-key-123'),
+    action_on_bot='block', # Can be 'block', 'monitor', or 'challenge'
+    exempt_routes=['/health', '/static/']
+)
 
 @app.route('/')
-def home():
-    return "<h1>AEGIS Protected Flask App</h1><p>Protected by AEGIS BOT SHIELD.</p><a href='/login'>Go to Login</a>"
+def index():
+    return "AEGIS BOT SHIELD Flask Example. Try POSTing to /login."
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/health')
+def health():
+    # This route is exempt from AEGIS checks
+    return jsonify({"status": "healthy"})
+
+@app.route('/login', methods=['POST'])
+@aegis.protect() # Protect specific route
 def login():
-    if request.method == 'POST':
-        return jsonify({"success": True, "message": "Logged in securely (Request analyzed by AEGIS)"})
+    data = request.get_json() or request.form
+    username = data.get('username')
+    password = data.get('password')
+
+    # If the request reaches this function, AEGIS has cleared it as human
+    if username == 'admin' and password == 'password':
+        return jsonify({"success": True, "message": "Login successful. Human verified."})
     
-    return """
-        <h1>Login</h1>
-        <form action="/login" method="POST">
-            <input type="text" name="username" placeholder="Username" /><br/>
-            <input type="password" name="password" placeholder="Password" /><br/>
-            <button type="submit">Login</button>
-        </form>
-    """
+    return jsonify({"success": False, "message": "Invalid credentials."}), 401
+
+@app.route('/api/data', methods=['GET'])
+@aegis.protect()
+def sensitive_data():
+    return jsonify({"data": "This is sensitive data protected by AEGIS ML Engine."})
 
 if __name__ == '__main__':
-    app.run(port=5000)
+    print("Starting Flask server with AEGIS protection on port 5000...")
+    app.run(debug=True, port=5000)

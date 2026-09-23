@@ -1,152 +1,108 @@
-<h1 align="center">
-  🛡️ AEGIS BOT SHIELD 🛡️
-</h1>
+<div align="center">
+  <h1>🛡️ AEGIS BOT SHIELD</h1>
+  <p><strong>International-Grade Bot Defense & Fraud Prevention SDK</strong></p>
+  
+  [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+  [![Version](https://img.shields.io/badge/version-1.0.0-success.svg)](https://github.com/dipro20debnath/AEGIS-BOT-SHIELD)
+  [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
+  [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)]()
+  [![Node](https://img.shields.io/badge/Node-16+-green.svg)]()
+</div>
 
-<p align="center">
-  <b>Advanced Bot Defense & Threat Mitigation SDK</b>
-</p>
+---
 
-<p align="center">
-  <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status">
-  <img src="https://img.shields.io/badge/license-MIT-blue" alt="License">
-  <img src="https://img.shields.io/badge/npm-v1.0.0-red" alt="NPM Version">
-  <img src="https://img.shields.io/badge/python-v1.0.0-blue" alt="Python Version">
-  <img src="https://img.shields.io/badge/stars-5k%2B-yellow" alt="Stars">
-</p>
+AEGIS BOT SHIELD is a comprehensive, open-source bot detection framework that utilizes advanced machine learning, behavioral biometrics, and cryptographic proof-of-work to protect web applications and APIs from automated threats.
 
-## What is AEGIS?
+## ✨ Features
 
-AEGIS BOT SHIELD is an international-grade, high-performance bot defense system designed to protect web applications, APIs, and infrastructure from automated threats. It seamlessly identifies and blocks malicious bots while allowing legitimate human traffic to pass unharmed, ensuring optimal performance and robust security.
+- 🧠 **Machine Learning Engine:** Real-time Random Forest & XGBoost classifiers trained on behavioral data.
+- 🖐️ **Behavioral Biometrics:** Analyzes mouse movements, keystroke dynamics, and scroll patterns.
+- 🧬 **Advanced Fingerprinting:** WebGL, Canvas, and AudioContext fingerprinting to detect headless browsers (Puppeteer, Selenium).
+- 🧩 **Cryptographic Proof-of-Work:** Imposes computational costs on suspicious traffic.
+- ⚡ **Ultra-Low Latency:** Inference times < 10ms for minimal impact on legitimate users.
+- 🔒 **End-to-End Encryption:** AES-256-GCM encrypted telemetry payloads.
+- 🔌 **Plug & Play Middleware:** Native support for Express, FastAPI, Flask, and Django.
 
-## Key Features
+## 🏗️ Architecture Overview
 
-- 🤖 **Comprehensive Bot Detection**: Identifies automated traffic using behavior analysis and fingerprinting.
-- ⚡ **High Performance**: Minimal latency impact on legitimate traffic.
-- 🌍 **Global Threat Intelligence**: Leverages shared intelligence to block known malicious actors.
-- 🧩 **Multi-Layer Defense**: A 5-layer architecture ensuring robust protection.
-- 📊 **Real-time Analytics**: Interactive dashboard for monitoring and analyzing traffic.
-- 🔌 **Easy Integration**: Drop-in support for Express, Flask, HTML, and more.
+AEGIS employs a unique **5-Layer Defense Model**:
+1. **Static Rules:** HTTP headers, Threat Intel IPs, Rate Limiting.
+2. **Client Fingerprinting:** Hardware & Browser signatures.
+3. **Behavioral Analysis:** Interaction entropy and dynamics.
+4. **ML Classifier:** 50-dimensional feature vector evaluation.
+5. **Proof-of-Work Challenge:** Silent computational challenges for borderline scores.
 
-## Architecture
+*See the [Architecture Documentation](docs/ARCHITECTURE.md) for a deep dive.*
 
-AEGIS employs a robust 5-layer defense architecture to ensure maximum protection:
+## 🚀 Quick Start
 
-```mermaid
-graph TD
-    A[Client Request] --> B(Layer 1: Network & IP Reputation)
-    B --> C(Layer 2: Fingerprinting & Device ID)
-    C --> D(Layer 3: Behavioral Analysis)
-    D --> E(Layer 4: Threat Intelligence & Signatures)
-    E --> F(Layer 5: Challenge / CAPTCHA)
-    F --> G[Protected Application]
+### 1. Installation
+
+**Node.js (Express / Fastify)**
+```bash
+npm install @aegis-bot-shield/client @aegis-bot-shield/node
 ```
 
-## Quick Start
+**Python (FastAPI / Flask / Django)**
+```bash
+pip install aegis-bot-shield-python
+```
 
-### 1. JS Tag (HTML Integration)
+### 2. Frontend Integration
+
+Inject the AEGIS SDK into your HTML and generate a token before submitting sensitive requests.
 
 ```html
-<script src="https://cdn.aegisbotshield.com/sdk.js" data-aegis-key="YOUR_API_KEY"></script>
+<script src="https://cdn.aegis-shield.com/v1/aegis.min.js"></script>
+<script>
+  const aegis = new AegisClient({ siteKey: 'YOUR_SITE_KEY' });
+  aegis.init();
+
+  async function performAction() {
+      const token = await aegis.getToken();
+      fetch('/api/secure', {
+          headers: { 'X-Aegis-Token': token }
+      });
+  }
+</script>
 ```
 
-### 2. NPM Install (Node.js)
-
-```bash
-npm install @aegis/shield
-```
-
-### 3. Docker
-
-```bash
-docker pull aegisbotshield/node:latest
-docker run -p 8080:8080 -e AEGIS_API_KEY=YOUR_API_KEY aegisbotshield/node:latest
-```
-
-## Integration Examples
-
-### Express.js Middleware
+### 3. Backend Integration (Express.js Example)
 
 ```javascript
 const express = require('express');
-const { aegisMiddleware } = require('@aegis/shield');
+const { aegisExpress } = require('@aegis-bot-shield/node');
 
 const app = express();
-app.use(aegisMiddleware({ apiKey: 'YOUR_API_KEY' }));
 
-app.get('/', (req, res) => res.send('Protected by AEGIS!'));
-app.listen(3000);
+app.post('/api/login', aegisExpress({
+    secretKey: process.env.AEGIS_SECRET_KEY,
+    blockMode: true
+}), (req, res) => {
+    // If we reach here, the request is from a verified human
+    res.json({ success: true });
+});
 ```
 
-### Python Flask Middleware
+## 📚 Documentation
 
-```python
-from flask import Flask
-from aegis_shield import AegisMiddleware
+For complete documentation, check the `docs/` directory:
+- [API Reference](docs/API_REFERENCE.md)
+- [Integration Guide](docs/INTEGRATION_GUIDE.md)
+- [Machine Learning Model Guide](docs/ML_MODEL_GUIDE.md)
+- [Architecture Details](docs/ARCHITECTURE.md)
 
-app = Flask(__name__)
-app.wsgi_app = AegisMiddleware(app.wsgi_app, api_key='YOUR_API_KEY')
+## 🛠️ Technology Stack
 
-@app.route('/')
-def hello():
-    return "Protected by AEGIS!"
+- **Client:** TypeScript, Web APIs
+- **Core Engine:** Node.js, Python
+- **Machine Learning:** Scikit-learn, XGBoost, ONNX Runtime
+- **Cryptography:** WebCrypto API, PyCryptodome
 
-if __name__ == '__main__':
-    app.run()
-```
+## 🤝 Contributing
 
-## Defense Layers Explained
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on how to submit pull requests, report issues, and propose new features.
 
-1. **Network Layer**: Checks IP reputation against global blocklists.
-2. **Fingerprinting Layer**: Analyzes browser characteristics to identify anomalies.
-3. **Behavioral Layer**: Monitors interaction patterns (mouse movements, typing speed).
-4. **Threat Intelligence Layer**: Uses ML models to detect known attack signatures.
-5. **Challenge Layer**: Issues silent or interactive challenges (e.g., CAPTCHA) for suspicious traffic.
+## 📄 License
 
-## OWASP Coverage
-
-AEGIS protects against all 21 OWASP Automated Threat (OAT) categories, including:
-
-| Threat | Description | Coverage |
-|---|---|---|
-| OAT-001 | Credential Stuffing | ✅ |
-| OAT-002 | Web Scraping | ✅ |
-| OAT-008 | Scalping | ✅ |
-| OAT-011 | Scraping | ✅ |
-
-## Technology Stack
-
-| Component | Technology |
-|---|---|
-| Dashboard | React, Tailwind CSS, Recharts |
-| SDKs | TypeScript, Python |
-| Backend | Node.js, Express, Redis, MongoDB |
-
-## Dashboard Preview
-
-The AEGIS admin dashboard provides real-time insights into your application's traffic, highlighting blocked threats and traffic patterns.
-
-## API Reference
-
-- `POST /api/v1/analyze`: Analyze a request for bot activity.
-- `GET /api/v1/threats`: Retrieve a list of active threats.
-- `POST /api/v1/config`: Update protection settings.
-
-## Configuration
-
-Customize AEGIS with options like `mode` (Monitor, Enforce, Strict), `rateLimit`, and `allowlist`.
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute to the project.
-
-## Security
-
-Please refer to our [SECURITY.md](SECURITY.md) for vulnerability reporting.
-
-## License
-
-MIT License. See [LICENSE](LICENSE) for details.
-
-## Author
-
-dipro20debnath
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
