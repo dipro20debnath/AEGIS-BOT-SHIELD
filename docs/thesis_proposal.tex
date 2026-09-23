@@ -3,7 +3,7 @@
 % ============================================================
 % Packages
 % ============================================================
-\usepackage[margin=1in]{geometry}
+\usepackage[top=0.8in, bottom=0.8in, left=1in, right=1in]{geometry}
 \usepackage{titlesec}
 \usepackage{enumitem}
 \usepackage{hyperref}
@@ -16,121 +16,212 @@
 \usepackage{parskip}
 \usepackage{multicol}
 \usepackage{tikz}
-\usepackage[backend=biber, style=ieee, sorting=nyt]{biblatex}
+\usepackage{setspace}
+\usepackage{titling}
+\usepackage{float}
+\usepackage{wrapfig}
+\usepackage{tocloft}
+\usepackage{etoolbox}
+
+% ============================================================
+% Reduce spacing everywhere for compactness
+% ============================================================
+\setlength{\parskip}{4pt plus 1pt minus 1pt}
+\setlength{\parindent}{0pt}
+\setstretch{1.15}
+
+% Compact lists
+\setlist{noitemsep, topsep=2pt, parsep=1pt, partopsep=0pt}
+
+% Compact sections
+\titlespacing*{\section}{0pt}{10pt}{4pt}
+\titlespacing*{\subsection}{0pt}{8pt}{3pt}
+\titlespacing*{\subsubsection}{0pt}{6pt}{2pt}
+
+% Compact TOC
+\setlength{\cftbeforesecskip}{2pt}
+\setlength{\cftbeforesubsecskip}{1pt}
 
 % ============================================================
 % Colors & Styling
 % ============================================================
-\definecolor{metroBlue}{RGB}{0, 70, 140}
-\definecolor{darkGray}{RGB}{50, 50, 50}
+\definecolor{metroRed}{RGB}{200, 30, 30}
+\definecolor{metroBlue}{RGB}{0, 60, 120}
+\definecolor{metroGray}{RGB}{80, 80, 80}
+\definecolor{lightBg}{RGB}{245, 247, 250}
+\definecolor{accentGreen}{RGB}{34, 139, 34}
 
 \hypersetup{
     colorlinks=true,
     linkcolor=metroBlue,
-    urlcolor=metroBlue,
-    citecolor=metroBlue
+    urlcolor=metroRed,
+    citecolor=metroBlue,
+    pdfauthor={Dipro Debnath},
+    pdftitle={AEGIS BOT SHIELD - B.Sc. Thesis Proposal},
+    pdfsubject={Bot Detection and Defense},
 }
 
-\titleformat{\section}{\large\bfseries\color{metroBlue}}{\thesection.}{0.5em}{}[\vspace{-0.5em}\rule{\textwidth}{0.4pt}]
-\titleformat{\subsection}{\normalsize\bfseries\color{darkGray}}{\thesubsection}{0.5em}{}
+% Section styling — elegant blue with bottom rule
+\titleformat{\section}
+  {\large\bfseries\color{metroBlue}}
+  {\thesection.}{0.4em}{}
+  [\vspace{-0.3em}{\color{metroRed}\rule{\textwidth}{0.5pt}}]
+
+\titleformat{\subsection}
+  {\normalsize\bfseries\color{metroGray}}
+  {\thesubsection}{0.4em}{}
+
+\titleformat{\subsubsection}
+  {\small\bfseries\color{metroBlue!80}}
+  {\thesubsubsection}{0.4em}{}
 
 % ============================================================
 % Header / Footer
 % ============================================================
 \pagestyle{fancy}
 \fancyhf{}
-\rhead{\small\textcolor{gray}{B.Sc. Thesis Proposal}}
-\lhead{\small\textcolor{gray}{AEGIS BOT SHIELD}}
-\rfoot{\small\textcolor{gray}{Page \thepage}}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.2pt}
+\fancyhead[L]{\small\textcolor{metroGray}{\textit{AEGIS BOT SHIELD}}}
+\fancyhead[R]{\small\textcolor{metroGray}{\textit{B.Sc. Thesis Proposal}}}
+\fancyfoot[C]{\small\textcolor{metroGray}{\thepage}}
+\fancyfoot[R]{\small\textcolor{metroGray}{Metropolitan University, Sylhet}}
+
+% First page style
+\fancypagestyle{plain}{
+  \fancyhf{}
+  \renewcommand{\headrulewidth}{0pt}
+  \renewcommand{\footrulewidth}{0pt}
+}
 
 % ============================================================
-% Title Page
+% Document Begin
 % ============================================================
 \begin{document}
 
-\begin{titlepage}
+% ============================================================
+% TITLE PAGE
+% ============================================================
+\thispagestyle{plain}
+\begin{center}
+
+% University Logo
+\includegraphics[width=7cm]{metro_logo.png}
+
+\vspace{0.5cm}
+
+{\large\textbf{Department of Computer Science \& Engineering}}
+
+\vspace{0.3cm}
+
+{\color{metroGray}\rule{0.6\textwidth}{0.8pt}}
+
+\vspace{0.8cm}
+
+% Title Box
+\fcolorbox{metroBlue}{lightBg}{%
+\begin{minipage}{0.92\textwidth}
 \centering
+\vspace{0.5cm}
+{\small\textbf{\textcolor{metroRed}{B.Sc. THESIS PROPOSAL}}}\\[0.4cm]
+{\Large\bfseries\textcolor{metroBlue}{AEGIS BOT SHIELD:}}\\[0.2cm]
+{\large\bfseries\textcolor{metroBlue}{A Multi-Layered Intelligent Bot Detection and}}\\[0.15cm]
+{\large\bfseries\textcolor{metroBlue}{Defense Framework Using Ensemble Machine}}\\[0.15cm]
+{\large\bfseries\textcolor{metroBlue}{Learning and Behavioral Biometric Analysis}}
+\vspace{0.5cm}
+\end{minipage}%
+}
 
-\vspace*{1cm}
+\vspace{0.8cm}
 
-{\Large\textbf{Metropolitan University, Sylhet}}\\[0.3cm]
-{\large Department of Computer Science \& Engineering}\\[1.5cm]
+% Student & Supervisor Info — Side by Side
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\fcolorbox{metroBlue!30}{white}{%
+\begin{minipage}{0.9\textwidth}
+\centering
+\vspace{0.3cm}
+{\small\textbf{\textcolor{metroBlue}{SUBMITTED BY}}}\\[0.2cm]
+{\normalsize\textbf{Dipro Debnath}}\\[0.1cm]
+{\small Student ID: [Your Student ID]}\\
+{\small B.Sc. in CSE (Final Semester)}\\
+{\small Fall 2026}\\
+{\small\texttt{[your.email@metrouni.edu.bd]}}
+\vspace{0.3cm}
+\end{minipage}%
+}
+\end{minipage}%
+\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\fcolorbox{metroRed!30}{white}{%
+\begin{minipage}{0.9\textwidth}
+\centering
+\vspace{0.3cm}
+{\small\textbf{\textcolor{metroRed}{SUPERVISED BY}}}\\[0.2cm]
+{\normalsize\textbf{Rishad Amin Pulok}}\\[0.1cm]
+{\small Lecturer}\\
+{\small Dept. of CSE}\\
+{\small Metropolitan University, Sylhet}\\
+{\small\texttt{pulok@metrouni.edu.bd}}
+\vspace{0.3cm}
+\end{minipage}%
+}
+\end{minipage}
 
-\rule{\textwidth}{1.5pt}\\[0.6cm]
-{\LARGE\bfseries\color{metroBlue} B.Sc. Thesis Proposal}\\[0.3cm]
-\rule{\textwidth}{1.5pt}\\[1.5cm]
+\vspace{0.8cm}
 
-{\Large\bfseries AEGIS BOT SHIELD: A Multi-Layered Intelligent\\[0.2cm]
-Bot Detection and Defense Framework Using\\[0.2cm]
-Ensemble Machine Learning and\\[0.2cm]
-Behavioral Biometric Analysis}\\[2cm]
+{\color{metroGray}\rule{0.6\textwidth}{0.5pt}}
 
-\begin{tabular}{rl}
-\textbf{Submitted by:} & Dipro Debnath \\
-\textbf{Student ID:} & [Your Student ID] \\
-\textbf{Program:} & B.Sc. in Computer Science \& Engineering \\
-\textbf{Semester:} & Fall 2026 (Final Semester) \\
-\textbf{Email:} & [your.email@metrouni.edu.bd] \\[0.5cm]
-\textbf{Supervisor:} & Rishad Amin Pulok \\
-\textbf{Designation:} & Lecturer, Dept. of CSE \\
-\textbf{Email:} & pulok@metrouni.edu.bd \\
-\end{tabular}
+\vspace{0.3cm}
 
-\vfill
+{\small\textbf{Date of Submission:} \today}
 
-{\large\textbf{Date of Submission:} \today}
-
-\end{titlepage}
+\end{center}
 
 % ============================================================
-% Table of Contents
+% Table of Contents (same page, compact)
 % ============================================================
+\vspace{0.5cm}
+{\color{metroBlue}\rule{\textwidth}{0.5pt}}
+\vspace{-0.2cm}
+\renewcommand{\contentsname}{\normalsize\textcolor{metroBlue}{TABLE OF CONTENTS}}
 \tableofcontents
-\newpage
+\vspace{0.1cm}
+{\color{metroBlue}\rule{\textwidth}{0.5pt}}
 
 % ============================================================
 % 1. Introduction
 % ============================================================
 \section{Introduction}
 
-The rapid growth of web-based applications and services has been accompanied by an equally rapid evolution of automated bot attacks. According to the Imperva Bad Bot Report 2025, automated bot traffic now accounts for approximately 32.4\% of all internet traffic, with malicious bots constituting a significant portion~\cite{imperva2025}. These bots perform a wide range of harmful activities, including credential stuffing, web scraping, distributed denial-of-service (DDoS) attacks, account takeover (ATO), and fraudulent transactions~\cite{owasp_oat}.
+The rapid growth of web-based applications has been accompanied by an equally rapid evolution of automated bot attacks. According to the Imperva Bad Bot Report 2025, automated bot traffic now accounts for approximately 32.4\% of all internet traffic, with malicious bots constituting a significant and growing portion~\cite{imperva2025}. These bots perform a wide range of harmful activities including credential stuffing, web scraping, distributed denial-of-service (DDoS) attacks, account takeover (ATO), and fraudulent transactions~\cite{owasp_oat}.
 
-Traditional bot detection methods, such as CAPTCHAs and static rule-based systems, have become increasingly inadequate. Modern bots leverage headless browsers (e.g., Puppeteer, Playwright), residential proxy networks, and even large language models (LLMs) to mimic legitimate human behavior~\cite{jonker2019}. The arms race between bot operators and defense systems necessitates a paradigm shift toward \textit{intelligent, multi-layered defense architectures} that combine behavioral biometrics, network intelligence, and machine learning.
+Traditional bot detection methods such as CAPTCHAs and static rule-based systems have become increasingly inadequate. Modern bots leverage headless browsers (Puppeteer, Playwright), residential proxy networks, and even large language models (LLMs) to mimic legitimate human behavior~\cite{jonker2019}. This arms race necessitates a paradigm shift toward \textit{intelligent, multi-layered defense architectures} that combine behavioral biometrics, network intelligence, and machine learning.
 
-This thesis proposes \textbf{AEGIS BOT SHIELD}, a comprehensive, open-source bot detection and defense framework that integrates five distinct defense layers with an ensemble machine learning pipeline. The system collects over 50 behavioral features from client-side interactions (mouse dynamics, keystroke timing, scroll patterns) and combines them with server-side signals (IP intelligence, TLS fingerprinting, HTTP/2 analysis) to classify traffic as human or bot with high accuracy.
-
-The name \textit{AEGIS} derives from Greek mythology—the protective shield of Zeus—symbolizing robust, multi-layered protection for modern web applications.
+This thesis proposes \textbf{AEGIS BOT SHIELD}, a comprehensive, open-source bot detection and defense framework that integrates five distinct defense layers with an ensemble machine learning pipeline. The system collects over 50 behavioral features from client-side interactions (mouse dynamics, keystroke timing, scroll patterns) and combines them with server-side signals (IP intelligence, TLS fingerprinting, HTTP/2 analysis) to classify traffic as human or bot with high accuracy. The name \textit{AEGIS}---the protective shield of Zeus in Greek mythology---symbolizes robust, multi-layered protection for modern web applications.
 
 % ============================================================
 % 2. Problem Statement
 % ============================================================
 \section{Problem Statement}
 
-Despite significant advances in cybersecurity, automated bot attacks continue to inflict substantial damage on web services globally. The key challenges that motivate this research include:
+Despite significant advances in cybersecurity, automated bot attacks continue to inflict substantial damage on web services globally. The key challenges motivating this research:
 
 \begin{enumerate}[leftmargin=*, label=\textbf{C\arabic*.}]
-    \item \textbf{Evolving Bot Sophistication:} Modern bots employ anti-detection techniques such as residential proxy routing, browser fingerprint spoofing, and human-like behavioral emulation, rendering traditional detection methods ineffective~\cite{iliou2021}.
-
-    \item \textbf{CAPTCHA Degradation:} CAPTCHAs create user friction and are increasingly solvable by AI systems. Google's reCAPTCHA v3 operates silently but remains a black-box solution with no transparency into its decision-making process~\cite{akrout2019}.
-
-    \item \textbf{Single-Signal Limitations:} Existing research often focuses on individual detection signals (e.g., mouse dynamics alone or IP reputation alone). No comprehensive open-source framework combines \textit{all} major detection modalities into a unified decision engine.
-
-    \item \textbf{Lack of Contextual Research:} There is limited research on bot attack patterns in the context of South Asian web services, particularly in Bangladesh where e-commerce and digital services are rapidly expanding.
-
-    \item \textbf{Residential Proxy Blind Spot:} Traditional IP-based detection fails against residential proxy networks (e.g., Bright Data, Oxylabs) that route bot traffic through legitimate residential IPs, making IP reputation alone unreliable~\cite{mi2019}.
+    \item \textbf{Evolving Bot Sophistication:} Modern bots employ anti-detection techniques---residential proxy routing, browser fingerprint spoofing, and human-like behavioral emulation---rendering traditional methods ineffective~\cite{iliou2021}.
+    \item \textbf{CAPTCHA Degradation:} CAPTCHAs create user friction and are increasingly solvable by AI. Google's reCAPTCHA~v3 operates silently but remains a black-box with no decision transparency~\cite{akrout2019}.
+    \item \textbf{Single-Signal Limitations:} Existing research often focuses on individual detection signals (e.g., mouse dynamics alone). No comprehensive open-source framework combines \textit{all} major detection modalities into a unified engine.
+    \item \textbf{Lack of Contextual Research:} There is limited research on bot attack patterns in South Asian web services, particularly in Bangladesh where digital services are rapidly expanding.
+    \item \textbf{Residential Proxy Blind Spot:} Traditional IP-based detection fails against residential proxy networks that route bot traffic through legitimate residential IPs~\cite{mi2019}.
 \end{enumerate}
 
 \subsection{Research Questions}
 
-This thesis seeks to answer the following research questions:
-
 \begin{enumerate}[leftmargin=*, label=\textbf{RQ\arabic*.}]
-    \item How effectively can an ensemble of machine learning models (XGBoost, Random Forest, Logistic Regression) distinguish between human and bot traffic using multi-modal behavioral features?
-
-    \item Which behavioral signal categories (mouse dynamics, keystroke timing, scroll patterns, network fingerprints) contribute most significantly to bot detection accuracy?
-
-    \item Can a multi-layered defense architecture achieve higher detection rates than single-layer approaches while maintaining low false-positive rates ($<$2\%)?
-
+    \item How effectively can an ensemble of ML models (XGBoost, Random Forest, Logistic Regression) distinguish between human and bot traffic using multi-modal behavioral features?
+    \item Which behavioral signal categories (mouse, keyboard, scroll, network fingerprints) contribute most significantly to bot detection accuracy?
+    \item Can a multi-layered defense architecture achieve higher detection rates than single-layer approaches while maintaining false-positive rates below 2\%?
     \item How resilient is the proposed system against sophisticated evasion techniques, including residential proxy routing and headless browser automation?
 \end{enumerate}
 
@@ -140,55 +231,43 @@ This thesis seeks to answer the following research questions:
 \section{Research Objectives}
 
 \subsection{Primary Objectives}
-
 \begin{enumerate}[leftmargin=*, label=\textbf{O\arabic*.}]
-    \item \textbf{Design and implement} a multi-layered bot defense framework (AEGIS BOT SHIELD) integrating five defense layers: network analysis, protocol fingerprinting, behavioral biometrics, machine learning, and active challenges.
-
-    \item \textbf{Develop an ensemble ML pipeline} combining XGBoost Gradient Boosted Trees, Random Forest, and Logistic Regression with a meta-learner for stacked generalization.
-
-    \item \textbf{Extract and evaluate 50+ behavioral features} across seven categories (mouse, keyboard, scroll, touch, session, network, fingerprint) and conduct a category-wise ablation study.
-
-    \item \textbf{Evaluate the system} using standard metrics (Accuracy, Precision, Recall, F1-Score, AUC-ROC) with 5-fold stratified cross-validation.
-
-    \item \textbf{Deploy and test} the framework on a real web application to validate detection performance with live traffic data.
+    \item \textbf{Design and implement} a multi-layered bot defense framework integrating five defense layers: network analysis, protocol fingerprinting, behavioral biometrics, machine learning, and active challenges.
+    \item \textbf{Develop an ensemble ML pipeline} combining XGBoost, Random Forest, and Logistic Regression with a stacked generalization meta-learner.
+    \item \textbf{Extract and evaluate 50+ behavioral features} across seven categories and conduct a comprehensive category-wise ablation study.
+    \item \textbf{Evaluate the system} using Accuracy, Precision, Recall, F1-Score, and AUC-ROC with 5-fold stratified cross-validation.
+    \item \textbf{Deploy and test} the framework on a real web application to validate detection performance with live traffic.
 \end{enumerate}
 
 \subsection{Secondary Objectives}
-
 \begin{itemize}[leftmargin=*]
     \item Implement novel residential proxy detection using latency-distance analysis, subnet velocity tracking, and MSS/MTU tunnel detection.
-    \item Integrate AI/LLM-targeted honeypot traps as a novel detection technique.
-    \item Publish findings as a conference paper at a recognized venue (e.g., IEEE ICCIT, ECCE, or ICIEV).
+    \item Integrate AI/LLM-targeted honeypot traps as a novel bot detection technique.
+    \item Publish findings at a recognized conference (IEEE ICCIT, ECCE, or ICIEV).
 \end{itemize}
 
 % ============================================================
-% 4. Literature Review (Summary)
+% 4. Literature Review
 % ============================================================
 \section{Literature Review}
 
 \subsection{Mouse Dynamics for Bot Detection}
-
-Ahmed and Traore~\cite{ahmed2007} pioneered the use of mouse dynamics for user authentication, demonstrating that features such as movement velocity, acceleration, curvature, and click precision can distinguish individual users. Subsequent work by Shen et al.~\cite{shen2013} showed that mouse movement features achieve 95\%+ accuracy in user verification tasks. The Balabit Mouse Dynamics Challenge dataset~\cite{balabit2016} has become a benchmark for mouse-based behavioral analysis.
+Ahmed and Traore~\cite{ahmed2007} pioneered mouse dynamics for user authentication, demonstrating that movement velocity, acceleration, curvature, and click precision can distinguish individual users. Shen et al.~\cite{shen2013} achieved 95\%+ accuracy in user verification using mouse features. The Balabit Mouse Dynamics Challenge dataset~\cite{balabit2016} has become a standard benchmark for mouse-based behavioral analysis.
 
 \subsection{Keystroke Dynamics}
-
-Monrose and Rubin~\cite{monrose2000} established that keystroke timing patterns (dwell time, flight time) are distinctive biometric identifiers. Recent work has applied deep learning to keystroke dynamics with promising results for continuous authentication~\cite{lu2020}.
+Monrose and Rubin~\cite{monrose2000} established that keystroke timing patterns (dwell time, flight time) are distinctive biometric identifiers. Lu et al.~\cite{lu2020} applied deep learning to keystroke dynamics with promising results for continuous authentication.
 
 \subsection{Bot Detection Using Machine Learning}
-
-Iliou et al.~\cite{iliou2021} conducted a comprehensive survey of bot detection techniques, categorizing approaches into behavioral, challenge-based, and fingerprint-based methods. Jonker et al.~\cite{jonker2019} demonstrated that combining multiple detection signals significantly improves accuracy over single-signal approaches.
+Iliou et al.~\cite{iliou2021} surveyed bot detection techniques, categorizing approaches into behavioral, challenge-based, and fingerprint-based methods. Jonker et al.~\cite{jonker2019} demonstrated that combining multiple detection signals significantly improves accuracy over single-signal approaches.
 
 \subsection{TLS and Network Fingerprinting}
-
-The JA3 TLS fingerprinting technique~\cite{ja3_2017} enabled passive identification of client applications based on TLS Client Hello parameters. The newer JA4+ suite~\cite{ja4_2024} extends this to include HTTP, TCP, and X.509 certificate fingerprints, providing higher granularity.
+The JA3 technique~\cite{ja3_2017} enabled passive identification of client applications based on TLS Client Hello parameters. The newer JA4+ suite~\cite{ja4_2024} extends this to HTTP, TCP, and X.509 certificate fingerprints with higher granularity.
 
 \subsection{Residential Proxy Detection}
-
-Mi et al.~\cite{mi2019} analyzed the ecosystem of residential proxy services, finding that millions of residential IPs are used to mask bot traffic. Detection of residential proxies requires multi-signal analysis combining latency measurements, ASN classification, and traffic pattern analysis.
+Mi et al.~\cite{mi2019} analyzed residential proxy ecosystems, finding millions of residential IPs used to mask bot traffic. Detection requires multi-signal analysis combining latency measurements, ASN classification, and traffic pattern analysis.
 
 \subsection{Research Gap}
-
-While individual techniques have been well-studied, \textbf{no existing open-source framework} combines all major detection modalities (behavioral biometrics, network intelligence, device fingerprinting, ML classification, and active challenges) into a unified, production-ready system. Furthermore, there is \textbf{no published research} evaluating such a multi-layered system specifically in the context of South Asian web services.
+While individual techniques have been well-studied, \textbf{no existing open-source framework} combines all major detection modalities---behavioral biometrics, network intelligence, device fingerprinting, ML classification, and active challenges---into a unified, production-ready system. Furthermore, \textbf{no published research} evaluates such a multi-layered system in the context of South Asian web services.
 
 % ============================================================
 % 5. Proposed Methodology
@@ -197,49 +276,51 @@ While individual techniques have been well-studied, \textbf{no existing open-sou
 
 \subsection{System Architecture}
 
-AEGIS BOT SHIELD employs a five-layer defense architecture, as illustrated in Figure~\ref{fig:arch}.
+AEGIS BOT SHIELD employs a five-layer defense architecture:
 
-\begin{figure}[h]
+\begin{figure}[H]
 \centering
 \begin{tikzpicture}[
-    layer/.style={draw, rounded corners, minimum width=12cm, minimum height=0.9cm, font=\small\bfseries},
-    arrow/.style={->, thick, >=stealth}
+    layer/.style={draw, rounded corners=3pt, minimum width=13cm, minimum height=0.75cm, font=\small\bfseries, thick},
+    arrow/.style={->, thick, >=stealth, color=metroGray}
 ]
-    \node[layer, fill=red!10] (l1) at (0, 4.5) {Layer 1: Network Analysis (IP Intelligence, GeoIP, Threat DB)};
-    \node[layer, fill=orange!10] (l2) at (0, 3.3) {Layer 2: Protocol Fingerprinting (JA4+, HTTP/2, Header Analysis)};
-    \node[layer, fill=yellow!10] (l3) at (0, 2.1) {Layer 3: Behavioral Biometrics (Mouse, Keyboard, Scroll, Touch)};
-    \node[layer, fill=green!10] (l4) at (0, 0.9) {Layer 4: ML/AI Classification (XGBoost + RF + LR Ensemble)};
-    \node[layer, fill=blue!10] (l5) at (0, -0.3) {Layer 5: Active Challenges (PoW, Honeypot, LLM Traps)};
+    \node[layer, fill=red!8, draw=red!40] (l1) at (0, 3.6) {\textcolor{metroRed}{Layer 1:} Network Analysis — IP Intelligence, GeoIP, Threat Database};
+    \node[layer, fill=orange!8, draw=orange!40] (l2) at (0, 2.7) {\textcolor{orange!70!black}{Layer 2:} Protocol Fingerprinting — JA4+, HTTP/2, Header Analysis};
+    \node[layer, fill=yellow!8, draw=yellow!60!black!40] (l3) at (0, 1.8) {\textcolor{yellow!60!black}{Layer 3:} Behavioral Biometrics — Mouse, Keyboard, Scroll, Touch};
+    \node[layer, fill=green!8, draw=green!40] (l4) at (0, 0.9) {\textcolor{accentGreen}{Layer 4:} ML/AI Classification — XGBoost + RF + LR Ensemble};
+    \node[layer, fill=blue!8, draw=metroBlue!40] (l5) at (0, 0) {\textcolor{metroBlue}{Layer 5:} Active Challenges — Proof-of-Work, Honeypot, LLM Traps};
 
-    \draw[arrow] (l1) -- (l2);
-    \draw[arrow] (l2) -- (l3);
-    \draw[arrow] (l3) -- (l4);
-    \draw[arrow] (l4) -- (l5);
+    \draw[arrow] (l1.south) -- (l2.north);
+    \draw[arrow] (l2.south) -- (l3.north);
+    \draw[arrow] (l3.south) -- (l4.north);
+    \draw[arrow] (l4.south) -- (l5.north);
+
+    % Side labels
+    \node[rotate=90, font=\footnotesize\bfseries, color=metroGray] at (-7.3, 1.8) {DEFENSE DEPTH};
+    \draw[->, thick, color=metroGray] (-7.0, 3.6) -- (-7.0, 0);
 \end{tikzpicture}
-\caption{AEGIS BOT SHIELD: Five-Layer Defense Architecture}
+\caption{AEGIS BOT SHIELD: Five-Layer Defense-in-Depth Architecture}
 \label{fig:arch}
 \end{figure}
 
-\subsection{Feature Extraction}
+\subsection{Feature Extraction (50 Features)}
 
-The system extracts 50 features across seven categories, as summarized in Table~\ref{tab:features}.
-
-\begin{table}[h]
+\begin{table}[H]
 \centering
-\caption{Feature Categories and Key Features}
+\caption{Feature Categories and Representative Features}
 \label{tab:features}
 \small
-\begin{tabularx}{\textwidth}{l c X}
+\begin{tabularx}{\textwidth}{@{}l c X@{}}
 \toprule
-\textbf{Category} & \textbf{Count} & \textbf{Key Features} \\
+\textbf{Category} & \textbf{\#} & \textbf{Key Features} \\
 \midrule
-Mouse Dynamics & 15 & Velocity (mean, std), acceleration, jerk, curvature, straightness index, Fitts' Law $R^2$, micro-tremor frequency, click precision \\
-Keyboard Dynamics & 10 & Dwell time, flight time, typing speed, cadence entropy, correction ratio \\
-Scroll Behavior & 5 & Velocity, direction changes, depth, momentum ratio \\
-Touch Behavior & 5 & Pressure, radius, swipe velocity, tap count \\
-Session Patterns & 5 & Duration, request count, unique paths, inter-request timing \\
-Network Signals & 5 & VPN/Tor/datacenter flags, residential proxy, IP reputation \\
-Device Fingerprint & 5 & WebGL, canvas, plugin count, headless detection confidence \\
+Mouse Dynamics & 15 & Velocity ($\mu$, $\sigma$), acceleration, jerk, curvature, straightness index, Fitts' Law $R^2$, micro-tremor frequency (8--12\,Hz), click precision \\[2pt]
+Keyboard Dynamics & 10 & Dwell time, flight time, typing speed (WPM), cadence entropy ($H$), correction ratio, paste detection \\[2pt]
+Scroll Behavior & 5 & Velocity, direction changes, depth ratio, momentum detection \\[2pt]
+Touch Behavior & 5 & Pressure, radius, swipe velocity, tap precision, multi-touch ratio \\[2pt]
+Session Patterns & 5 & Duration, request count, unique paths, inter-request timing \\[2pt]
+Network Signals & 5 & VPN/Tor/datacenter flags, residential proxy score, IP reputation \\[2pt]
+Device Fingerprint & 5 & WebGL hash, canvas hash, plugin count, headless confidence \\
 \midrule
 \textbf{Total} & \textbf{50} & \\
 \bottomrule
@@ -248,70 +329,64 @@ Device Fingerprint & 5 & WebGL, canvas, plugin count, headless detection confide
 
 \subsection{Machine Learning Pipeline}
 
-\subsubsection{Ensemble Architecture}
-
-The classification pipeline employs a \textit{stacked generalization} approach:
-
+\subsubsection{Ensemble Architecture (Stacked Generalization)}
 \begin{enumerate}[leftmargin=*]
     \item \textbf{Base Learners:}
     \begin{itemize}
-        \item XGBoost Gradient Boosted Trees (200 estimators, max\_depth=6)
-        \item Random Forest (200 estimators, max\_depth=10)
-        \item Logistic Regression (L2 regularization, as interpretable baseline)
+        \item \textit{XGBoost} Gradient Boosted Trees (200 estimators, max\_depth\,=\,6, learning\_rate\,=\,0.1)
+        \item \textit{Random Forest} (200 estimators, max\_depth\,=\,10, min\_samples\_split\,=\,5)
+        \item \textit{Logistic Regression} (L2 regularization---interpretable baseline)
     \end{itemize}
-    \item \textbf{Meta-Learner:} Logistic Regression trained on stacked predictions of base learners.
-    \item \textbf{Anomaly Detection:} Isolation Forest + Local Outlier Factor ensemble for zero-day bot detection (unsupervised component).
+    \item \textbf{Meta-Learner:} Logistic Regression trained on stacked base-learner predictions.
+    \item \textbf{Unsupervised Component:} Isolation Forest + Local Outlier Factor for zero-day bot detection.
 \end{enumerate}
 
 \subsubsection{Evaluation Methodology}
-
 \begin{itemize}[leftmargin=*]
-    \item \textbf{Data Split:} 70\% training / 15\% validation / 15\% test (stratified)
+    \item \textbf{Data Split:} 70\% train / 15\% validation / 15\% test (stratified)
     \item \textbf{Cross-Validation:} 5-fold stratified K-fold
-    \item \textbf{Metrics:} Accuracy, Precision, Recall, F1-Score, AUC-ROC
-    \item \textbf{Ablation Study:} Remove each feature category and measure accuracy drop
-    \item \textbf{Comparison:} Individual models vs. ensemble vs. baseline (rule-based)
+    \item \textbf{Metrics:} Accuracy, Precision, Recall, F1-Score, AUC-ROC, Confusion Matrix
+    \item \textbf{Ablation Study:} Remove each feature category → measure accuracy drop
+    \item \textbf{Comparison:} Individual models vs.\ Ensemble vs.\ Rule-based baseline
 \end{itemize}
 
 \subsection{Data Collection Strategy}
 
-\begin{enumerate}[leftmargin=*]
-    \item \textbf{Phase 1 — Synthetic Data (Initial Training):}
-    Research-grounded synthetic data generator producing human-like and bot-like behavioral samples with four bot difficulty levels (simple script, headless browser, sophisticated bot, crawler).
-
-    \item \textbf{Phase 2 — Real Data Collection:}
-    Deploy AEGIS on a test web application and collect:
-    \begin{itemize}
-        \item \textit{Human data:} Recruit 30--50 participants to perform browsing tasks (requires Ethics/IRB approval).
-        \item \textit{Bot data:} Generate automated traffic using Selenium, Puppeteer, Playwright, curl, and custom Python scripts with varying sophistication levels.
-    \end{itemize}
-
-    \item \textbf{Phase 3 — Labeling:}
-    All data is automatically labeled based on the collection source (human participants = 0, automation tools = 1).
-\end{enumerate}
-
-\textbf{Note:} Ethics/IRB approval will be obtained from the university's ethics committee before collecting data from human participants. All collected data will be anonymized, and participants will provide informed consent.
+\begin{table}[H]
+\centering
+\caption{Three-Phase Data Collection Plan}
+\small
+\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\toprule
+\textbf{Phase} & \textbf{Type} & \textbf{Description} \\
+\midrule
+Phase 1 & Synthetic & Research-grounded generator with 4 bot difficulty levels (simple script, headless browser, sophisticated bot, crawler). Based on Ahmed~\&~Traore~\cite{ahmed2007} and Monrose~\&~Rubin~\cite{monrose2000} parameters. \\[3pt]
+Phase 2 & Real Human & Recruit 30--50 participants for browsing tasks. Requires \textbf{Ethics/IRB approval}. Informed consent obtained. Data anonymized. \\[3pt]
+Phase 3 & Real Bot & Automated traffic via Selenium, Puppeteer, Playwright, curl, and custom Python scripts at varying sophistication levels. \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
 % ============================================================
 % 6. Technology Stack
 % ============================================================
 \section{Technology Stack}
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
 \caption{Technology Stack}
 \small
-\begin{tabularx}{\textwidth}{l X}
+\begin{tabularx}{\textwidth}{@{}l X@{}}
 \toprule
 \textbf{Component} & \textbf{Technologies} \\
 \midrule
-Core Detection Engine & TypeScript, Node.js (ESM modules) \\
-Client-Side SDK & TypeScript (browser), Canvas API, WebGL, SubtleCrypto \\
-Server Middleware & Node.js (Express, Fastify), Python (Django, Flask, FastAPI) \\
-ML Engine & Python, scikit-learn, XGBoost, NumPy, Pandas \\
+Core Detection Engine & TypeScript, Node.js (ESM), 13 detection modules \\
+Client-Side SDK & TypeScript (browser), Canvas API, WebGL, AudioContext, SubtleCrypto \\
+Server Middleware & Express.js, Fastify (Node.js) {\textbar} Django, Flask, FastAPI (Python) \\
+ML Engine & Python, scikit-learn~\cite{sklearn}, XGBoost~\cite{xgboost}, NumPy, Pandas \\
 Dashboard & React, TypeScript, Recharts \\
-Infrastructure & Docker, GitHub Actions CI/CD, Redis (caching) \\
-Cryptography & AES-256-GCM, HMAC-SHA256, Proof-of-Work (SHA-256) \\
+Infrastructure & Docker, GitHub Actions CI/CD, Redis \\
+Cryptography & AES-256-GCM (payload encryption), HMAC-SHA256 (token signing), SHA-256 PoW \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -322,54 +397,36 @@ Cryptography & AES-256-GCM, HMAC-SHA256, Proof-of-Work (SHA-256) \\
 \section{Expected Contributions}
 
 \begin{enumerate}[leftmargin=*, label=\textbf{EC\arabic*.}]
-    \item \textbf{Multi-Layered Framework:} An open-source, production-ready bot defense framework combining five complementary defense layers—the first of its kind as an integrated SDK.
-
-    \item \textbf{Comprehensive Feature Set:} A curated set of 50 behavioral features with empirical evaluation of each category's contribution through ablation analysis.
-
-    \item \textbf{Ensemble ML Pipeline:} A stacked generalization approach combining XGBoost, Random Forest, and Logistic Regression, benchmarked against individual models.
-
+    \item \textbf{Multi-Layered Open-Source Framework:} The first integrated, production-ready SDK combining five complementary defense layers for bot detection.
+    \item \textbf{Comprehensive Feature Engineering:} A curated set of 50 behavioral features with empirical evaluation of each category's contribution through ablation analysis.
+    \item \textbf{Ensemble ML Pipeline:} A stacked generalization approach benchmarked against individual models, demonstrating the value of model diversity.
     \item \textbf{Novel Detection Techniques:}
     \begin{itemize}
-        \item Residential proxy detection via latency-distance correlation and MSS/MTU tunnel analysis.
-        \item AI/LLM-targeted honeypot traps using prompt injection canaries.
-        \item Adaptive rate limiting with statistical attack pattern detection.
+        \item Residential proxy detection via latency-distance correlation and MSS/MTU tunnel analysis
+        \item AI/LLM-targeted honeypot traps using prompt injection canaries
+        \item Adaptive rate limiting with statistical attack pattern detection
     \end{itemize}
-
-    \item \textbf{Reproducible Research:} Fully open-source codebase on GitHub with synthetic data generator enabling reproduction of results.
+    \item \textbf{Reproducible Research:} Fully open-source on GitHub with synthetic data generator enabling complete reproduction of experimental results.
 \end{enumerate}
 
 % ============================================================
-% 8. Timeline
+% 8. Project Timeline
 % ============================================================
-\section{Project Timeline}
+\section{Project Timeline (September -- December 2026)}
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
-\caption{Semester Timeline (September -- December 2026)}
+\caption{Semester Timeline}
 \small
-\begin{tabularx}{\textwidth}{l l X}
+\begin{tabularx}{\textwidth}{@{}l l X@{}}
 \toprule
-\textbf{Period} & \textbf{Phase} & \textbf{Activities} \\
+\textbf{Period} & \textbf{Phase} & \textbf{Key Activities} \\
 \midrule
-Sept 1--30 & Development & System implementation, 30-day feature sprint \\
-& & Literature review and related work survey \\[0.3cm]
-
-Oct 1--31 & Deployment \& & Deploy test website with AEGIS integration \\
-& Data Prep & Ethics/IRB approval submission \\
-& & Prepare data collection instruments \\[0.3cm]
-
-Nov 1--30 & Data Collection & Recruit human participants (30--50 users) \\
-& \& Evaluation & Generate bot traffic (multiple sophistication levels) \\
-& & Train ML models on real data \\
-& & Run ablation study and model comparison \\[0.3cm]
-
-Dec 1--15 & Analysis \& & Statistical analysis of results \\
-& Writing & Thesis document drafting \\
-& & Conference paper preparation \\[0.3cm]
-
-Dec 16--30 & Finalization & Thesis defense preparation \\
-& & Submit conference paper (ICCIT / ECCE deadline) \\
-& & Final revisions \\
+Sept 1--30 & Development & Complete 30-day feature implementation sprint; conduct comprehensive literature review and related work survey \\[3pt]
+Oct 1--31 & Deployment & Deploy test website with AEGIS integration; submit Ethics/IRB approval application; prepare data collection instruments and participant consent forms \\[3pt]
+Nov 1--30 & Evaluation & Recruit 30--50 human participants; generate multi-level bot traffic; train ML models on real data; execute ablation study and model comparison experiments \\[3pt]
+Dec 1--15 & Writing & Statistical analysis; thesis document drafting; prepare conference paper for IEEE ICCIT / ECCE submission \\[3pt]
+Dec 16--30 & Defense & Thesis defense preparation; final revisions; submit conference paper \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -379,17 +436,30 @@ Dec 16--30 & Finalization & Thesis defense preparation \\
 % ============================================================
 \section{Current Progress}
 
-Development of the AEGIS BOT SHIELD framework has already commenced. As of the date of this proposal, the following milestones have been achieved:
+Development has already commenced with significant progress achieved:
 
-\begin{itemize}[leftmargin=*]
-    \item \textbf{Complete system architecture} designed with 6 packages (core engine, JS SDK, Node.js server, Python server, ML engine, dashboard).
-    \item \textbf{Core detection engine} fully implemented with 13 detection modules ($\sim$3,500 lines of TypeScript).
-    \item \textbf{Client-side JS SDK} with behavioral collectors and 17+ headless detection tests.
-    \item \textbf{ML engine} with feature extraction (50 features), ensemble classifier, anomaly detector, and synthetic data generator.
-    \item \textbf{Server middleware} for Express.js, Fastify, Django, Flask, and FastAPI.
-    \item \textbf{React dashboard} with real-time visualization and ML performance metrics.
-    \item \textbf{GitHub repository:} \url{https://github.com/dipro20debnath/AEGIS-BOT-SHIELD} (8 commits, 8,500+ lines of code).
-\end{itemize}
+\begin{table}[H]
+\centering
+\caption{Implementation Progress as of Proposal Submission}
+\small
+\begin{tabularx}{\textwidth}{@{}l r X@{}}
+\toprule
+\textbf{Package} & \textbf{Lines} & \textbf{Status} \\
+\midrule
+Core Detection Engine & $\sim$3,500 & 13 modules fully implemented (TypeScript) \\
+Client-Side JS SDK & $\sim$1,660 & Behavioral collectors, fingerprinters, headless detection \\
+Node.js Server SDK & $\sim$600 & Express, Fastify, and generic middleware \\
+Python Server SDK & $\sim$700 & Django, Flask, FastAPI middleware + tests \\
+ML Engine & $\sim$1,000 & Ensemble classifier, feature extractor, synthetic data generator \\
+React Dashboard & $\sim$1,000 & Real-time visualization, ML performance metrics \\
+Documentation & $\sim$1,500 & Architecture, API reference, integration guide, examples \\
+\midrule
+\textbf{Total} & \textbf{$\sim$10,000} & \textbf{10 commits on GitHub} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{GitHub Repository:} \url{https://github.com/dipro20debnath/AEGIS-BOT-SHIELD}
 
 % ============================================================
 % 10. Ethical Considerations
@@ -397,11 +467,11 @@ Development of the AEGIS BOT SHIELD framework has already commenced. As of the d
 \section{Ethical Considerations}
 
 \begin{itemize}[leftmargin=*]
-    \item \textbf{Informed Consent:} All human participants will sign consent forms before data collection. Participants will be briefed on what data is collected and how it will be used.
-    \item \textbf{Data Anonymization:} No personally identifiable information (PII) will be stored. Behavioral data will be anonymized and identified only by random session IDs.
-    \item \textbf{Privacy Protection:} The keystroke collector records \textit{timing only} (not actual key values), ensuring user input remains private.
-    \item \textbf{IRB Approval:} Ethics/IRB approval will be obtained from the university's ethics committee prior to human data collection.
-    \item \textbf{Responsible Disclosure:} All bot detection techniques are designed for defensive purposes only.
+    \item \textbf{Informed Consent:} All human participants will sign consent forms detailing data collection scope and usage.
+    \item \textbf{Data Anonymization:} No personally identifiable information (PII) will be stored. Behavioral data will be identified only by random session IDs.
+    \item \textbf{Privacy by Design:} The keystroke collector records \textit{timing only}---never actual key values---ensuring user input remains private.
+    \item \textbf{IRB Approval:} Ethics/IRB approval will be obtained from the university's ethics committee prior to any human data collection.
+    \item \textbf{Responsible Disclosure:} All techniques are designed strictly for defensive purposes.
 \end{itemize}
 
 % ============================================================
@@ -409,18 +479,21 @@ Development of the AEGIS BOT SHIELD framework has already commenced. As of the d
 % ============================================================
 \section{Conclusion}
 
-This thesis proposes AEGIS BOT SHIELD, a multi-layered intelligent bot detection and defense framework that addresses the growing threat of automated bot attacks through the integration of behavioral biometrics, network intelligence, device fingerprinting, and ensemble machine learning. The framework's five-layer architecture provides defense-in-depth, while the 50-feature ML pipeline enables high-accuracy classification with comprehensive ablation analysis. The open-source nature of the project ensures reproducibility and real-world applicability.
+This thesis proposes AEGIS BOT SHIELD, a multi-layered intelligent bot detection and defense framework that addresses the growing threat of automated bot attacks through the integration of behavioral biometrics, network intelligence, device fingerprinting, and ensemble machine learning. The framework's five-layer architecture provides defense-in-depth, while the 50-feature ML pipeline enables high-accuracy classification with comprehensive ablation analysis.
 
-The successful completion of this thesis will contribute a novel, production-ready framework to the cybersecurity community while advancing academic understanding of multi-modal bot detection through rigorous empirical evaluation.
+The successful completion of this thesis will contribute a novel, production-ready, open-source framework to the cybersecurity community while advancing academic understanding of multi-modal bot detection through rigorous empirical evaluation. The project is well-aligned with the supervisor's expertise in deep learning and machine learning, and the results will be submitted for publication at a recognized IEEE conference.
 
 % ============================================================
 % References
 % ============================================================
-\newpage
 \section*{References}
 \addcontentsline{toc}{section}{References}
 
+\renewcommand{\refname}{}
+\vspace{-1em}
+
 \begin{thebibliography}{99}
+\small
 
 \bibitem{imperva2025}
 Imperva, ``2025 Bad Bot Report,'' Imperva Research Labs, 2025. [Online]. Available: \url{https://www.imperva.com/resources/reports/2025-bad-bot-report/}
@@ -429,71 +502,75 @@ Imperva, ``2025 Bad Bot Report,'' Imperva Research Labs, 2025. [Online]. Availab
 OWASP, ``Automated Threats to Web Applications,'' OWASP Foundation, 2023. [Online]. Available: \url{https://owasp.org/www-project-automated-threats-to-web-applications/}
 
 \bibitem{ahmed2007}
-A. A. E. Ahmed and I. Traore, ``A New Biometric Technology Based on Mouse Dynamics,'' \textit{IEEE Trans. Dependable Secure Comput.}, vol. 4, no. 3, pp. 165--179, Jul. 2007.
+A.~A.~E.~Ahmed and I.~Traore, ``A New Biometric Technology Based on Mouse Dynamics,'' \textit{IEEE Trans.\ Dependable Secure Comput.}, vol.~4, no.~3, pp.~165--179, 2007.
 
 \bibitem{shen2013}
-C. Shen, Z. Cai, and X. Guan, ``Continuous Authentication for Mouse Dynamics: A Pattern-Growth Approach,'' in \textit{Proc. IEEE/IFIP Int. Conf. Dependable Syst. Netw. (DSN)}, 2013, pp. 1--12.
+C.~Shen, Z.~Cai, and X.~Guan, ``Continuous Authentication for Mouse Dynamics: A Pattern-Growth Approach,'' in \textit{Proc.\ IEEE/IFIP DSN}, 2013, pp.~1--12.
 
 \bibitem{balabit2016}
 Balabit, ``Mouse Dynamics Challenge Dataset,'' 2016. [Online]. Available: \url{https://github.com/balabit/Mouse-Dynamics-Challenge}
 
 \bibitem{monrose2000}
-F. Monrose and A. D. Rubin, ``Keystroke Dynamics as a Biometric for Authentication,'' \textit{Future Generation Comput. Syst.}, vol. 16, no. 4, pp. 351--359, 2000.
+F.~Monrose and A.~D.~Rubin, ``Keystroke Dynamics as a Biometric for Authentication,'' \textit{Future Gen.\ Comput.\ Syst.}, vol.~16, no.~4, pp.~351--359, 2000.
 
 \bibitem{lu2020}
-X. Lu, S. Zhang, and P. Hui, ``Continuous Authentication by Free-Text Keystroke Based on CNN and RNN,'' \textit{Comput. Secur.}, vol. 96, p. 101861, 2020.
+X.~Lu, S.~Zhang, and P.~Hui, ``Continuous Authentication by Free-Text Keystroke Based on CNN and RNN,'' \textit{Comput.\ Secur.}, vol.~96, p.~101861, 2020.
 
 \bibitem{iliou2021}
-C. Iliou, T. Kostoulas, T. Tsikrika, V. Katos, S. Vrochidis, and I. Kompatsiaris, ``Detection of Advanced Web Bots by Combining Web Logs with Mouse Behavioural Biometrics,'' \textit{Digital Threats: Res. Pract.}, vol. 2, no. 3, pp. 1--26, 2021.
+C.~Iliou et~al., ``Detection of Advanced Web Bots by Combining Web Logs with Mouse Behavioural Biometrics,'' \textit{Digital Threats: Res.\ Pract.}, vol.~2, no.~3, pp.~1--26, 2021.
 
 \bibitem{jonker2019}
-H. Jonker, B. Krumnow, and G. Vlot, ``Fingerprint Surface-Based Detection of Web Bot Detectors,'' in \textit{Proc. European Symp. Res. Comput. Secur. (ESORICS)}, 2019, pp. 586--605.
+H.~Jonker, B.~Krumnow, and G.~Vlot, ``Fingerprint Surface-Based Detection of Web Bot Detectors,'' in \textit{Proc.\ ESORICS}, 2019, pp.~586--605.
 
 \bibitem{akrout2019}
-I. Akrout, A. Feriani, and M. Akrout, ``Hacking Google reCAPTCHA v3 Using Reinforcement Learning,'' \textit{arXiv preprint arXiv:1903.01003}, 2019.
+I.~Akrout, A.~Feriani, and M.~Akrout, ``Hacking Google reCAPTCHA v3 Using Reinforcement Learning,'' \textit{arXiv:1903.01003}, 2019.
 
 \bibitem{ja3_2017}
-J. Althouse, J. Atkinson, and J. Atkins, ``JA3 - A Method for Profiling SSL/TLS Clients,'' Salesforce Engineering, 2017. [Online]. Available: \url{https://github.com/salesforce/ja3}
+J.~Althouse, J.~Atkinson, and J.~Atkins, ``JA3---A Method for Profiling SSL/TLS Clients,'' Salesforce Engineering, 2017.
 
 \bibitem{ja4_2024}
-J. Althouse, ``JA4+ Network Fingerprinting,'' FoxIO, 2024. [Online]. Available: \url{https://github.com/FoxIO-LLC/ja4}
+J.~Althouse, ``JA4+ Network Fingerprinting,'' FoxIO, 2024. [Online]. Available: \url{https://github.com/FoxIO-LLC/ja4}
 
 \bibitem{mi2019}
-X. Mi, X. Feng, X. Liao, B. Liu, X. Wang, F. Qian, Z. Li, S. Alrwais, L. Sun, and Y. Liu, ``Resident Evil: Understanding Residential IP Proxy as a Dark Service,'' in \textit{Proc. IEEE Symp. Secur. Privacy (S\&P)}, 2019, pp. 1185--1201.
+X.~Mi et~al., ``Resident Evil: Understanding Residential IP Proxy as a Dark Service,'' in \textit{Proc.\ IEEE S\&P}, 2019, pp.~1185--1201.
 
 \bibitem{fitts1954}
-P. M. Fitts, ``The Information Capacity of the Human Motor System in Controlling the Amplitude of Movement,'' \textit{J. Exp. Psychol.}, vol. 47, no. 6, pp. 381--391, 1954.
+P.~M.~Fitts, ``The Information Capacity of the Human Motor System in Controlling the Amplitude of Movement,'' \textit{J.~Exp.~Psychol.}, vol.~47, no.~6, pp.~381--391, 1954.
 
 \bibitem{sklearn}
-F. Pedregosa et al., ``Scikit-learn: Machine Learning in Python,'' \textit{J. Mach. Learn. Res.}, vol. 12, pp. 2825--2830, 2011.
+F.~Pedregosa et~al., ``Scikit-learn: Machine Learning in Python,'' \textit{JMLR}, vol.~12, pp.~2825--2830, 2011.
 
 \bibitem{xgboost}
-T. Chen and C. Guestrin, ``XGBoost: A Scalable Tree Boosting System,'' in \textit{Proc. 22nd ACM SIGKDD}, 2016, pp. 785--794.
+T.~Chen and C.~Guestrin, ``XGBoost: A Scalable Tree Boosting System,'' in \textit{Proc.\ 22nd ACM SIGKDD}, 2016, pp.~785--794.
 
 \end{thebibliography}
 
 % ============================================================
-% Signature
+% Signature Block
 % ============================================================
-\vspace{2cm}
+\vspace{1cm}
+
+{\color{metroBlue}\rule{\textwidth}{0.5pt}}
+
+\vspace{0.6cm}
 
 \noindent
 \begin{minipage}[t]{0.45\textwidth}
 \centering
-\rule{5cm}{0.4pt}\\
-\textbf{Dipro Debnath}\\
-Student\\
-Dept. of CSE\\
-Metropolitan University, Sylhet
+\vspace{1.2cm}
+{\color{metroGray}\rule{6cm}{0.4pt}}\\[0.2cm]
+{\textbf{Dipro Debnath}}\\
+{\small Student, Dept.\ of CSE}\\
+{\small Metropolitan University, Sylhet}
 \end{minipage}
 \hfill
 \begin{minipage}[t]{0.45\textwidth}
 \centering
-\rule{5cm}{0.4pt}\\
-\textbf{Rishad Amin Pulok}\\
-Supervisor (Lecturer)\\
-Dept. of CSE\\
-Metropolitan University, Sylhet
+\vspace{1.2cm}
+{\color{metroGray}\rule{6cm}{0.4pt}}\\[0.2cm]
+{\textbf{Rishad Amin Pulok}}\\
+{\small Supervisor (Lecturer), Dept.\ of CSE}\\
+{\small Metropolitan University, Sylhet}
 \end{minipage}
 
 \end{document}
