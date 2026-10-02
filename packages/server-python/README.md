@@ -12,16 +12,15 @@ The Aegis Python SDK provides middleware for integrating the Aegis Bot Shield in
 
 ```python
 from fastapi import FastAPI
-from aegis import AegisFastAPIMiddleware, AegisConfig, ProtectionMode
+from aegis_shield import AegisFastAPIMiddleware
 
 app = FastAPI()
 
-config = AegisConfig(
+app.add_middleware(
+    AegisFastAPIMiddleware,
+    site_key="your_site_key",
     secret_key="your_secure_secret_key",
-    protection_mode=ProtectionMode.ENFORCE
 )
-
-app.add_middleware(AegisFastAPIMiddleware, config=config)
 
 @app.get("/")
 def read_root():
