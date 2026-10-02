@@ -14,6 +14,7 @@ import type { KeyboardAnalysis } from './collectors/KeyboardCollector';
 import type { ScrollAnalysis } from './collectors/ScrollCollector';
 import type { TouchAnalysis } from './collectors/TouchCollector';
 import type { HeadlessDetectionResult } from './types';
+import type { AntiDetectResult } from './detection/AntiDetectDetector';
 
 export const TELEMETRY_VERSION = 1;
 
@@ -31,6 +32,7 @@ export interface TelemetryInput {
   scroll?: ScrollAnalysis;
   touch?: TouchAnalysis;
   headless?: HeadlessDetectionResult | null;
+  antiDetect?: AntiDetectResult | null;
   device: DeviceSignals;
 }
 
@@ -65,6 +67,8 @@ export interface TelemetryPayload {
   };
   /** Names of headless checks that fired, for diagnostics */
   headlessChecks: string[];
+  /** Anti-detect browser consistency checks (outside the 50-feature ML contract) */
+  antiDetect?: { score: number; checks: string[] };
 }
 
 const ratio = (part: number, total: number): number => (total > 0 ? part / total : 0);
@@ -145,7 +149,7 @@ function finite(group: FeatureGroup): FeatureGroup {
 }
 
 export function buildTelemetry(input: TelemetryInput, meta: { siteKey: string; streamId: string; now?: number }): TelemetryPayload {
-  const { mouse, keyboard, scroll, touch, headless, device } = input;
+  const { mouse, keyboard, scroll, touch, headless, antiDetect, device } = input;
   const timestamp = meta.now ?? Date.now();
   return {
     v: TELEMETRY_VERSION,
@@ -185,5 +189,6 @@ export function buildTelemetry(input: TelemetryInput, meta: { siteKey: string; s
       timestamp,
     },
     headlessChecks: (headless?.tests ?? []).filter(t => t.detected).map(t => t.name),
+    ...(antiDetect ? { antiDetect: { score: antiDetect.score, checks: antiDetect.checks.filter(c => c.detected).map(c => c.name) } } : {}),
   };
 }

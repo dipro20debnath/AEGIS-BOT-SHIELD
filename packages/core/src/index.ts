@@ -53,3 +53,5 @@ export { FEED_URLS, parsePlainList, parseSpamhausDrop, isSpecialPurpose } from '
 export type { Fetcher, ParsedFeed } from './modules/threat-intel/feeds.js';
 export { BotBehaviorAnalyzer, classifyRequest, longestSequentialRun } from './modules/session/BotBehaviorAnalyzer.js';
 export type { BotBehaviorOptions, RequestKind } from './modules/session/BotBehaviorAnalyzer.js';
+export { MemoryHardChallenger, POW_PREFIX } from './security/MemoryHardChallenge.js';
+export type { PowChallenge, PowVerifyResult, MemoryHardOptions } from './security/MemoryHardChallenge.js';

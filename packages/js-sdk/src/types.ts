@@ -16,6 +16,12 @@ export interface AegisClientConfig {
   collectTouch?: boolean;
   fingerprint?: boolean;
   detectHeadless?: boolean;
+  /** Run the anti-detect browser consistency checks (includes a WebGPU adapter probe) */
+  detectAntiDetect?: boolean;
+  /** Path of the proof-of-work challenge endpoint */
+  challengePath?: string;
+  /** On a 403 "challenge" response to fetch(), solve the challenge and retry once */
+  autoChallenge?: boolean;
   /** Send a final telemetry report with sendBeacon when the page is hidden */
   beaconOnExit?: boolean;
   debug?: boolean;
@@ -47,7 +53,7 @@ export interface DetectionTest {
 
 export interface ChallengeRequest {
   id: string;
-  type: 'pow' | 'wasm' | 'interactive';
+  type: 'pow' | 'wasm' | 'memory-hard' | 'interactive';
   payload: any;
   difficulty?: number;
 }

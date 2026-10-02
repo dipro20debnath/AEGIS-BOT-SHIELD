@@ -11,7 +11,7 @@
  */
 import {
   DetectionEngine, AegisConfig, AegisRequest, BehavioralPayload, DetectionSignal,
-  IPAnalyzer, SESSION_HEADER, generateToken, verifyToken, sha256,
+  IPAnalyzer, SESSION_HEADER, generateToken, verifyToken, sha256, MemoryHardChallenger, MemoryHardOptions,
 } from '@aegis/core';
 import { AegisStats } from './stats.js';
 
@@ -31,6 +31,10 @@ export interface AegisNodeOptions {
   requireTokenPaths?: string[];
   thresholds?: { block: number; challenge: number };
   telemetryPath?: string;
+  /** Proof-of-work challenge endpoint: GET issues, POST {challenge, nonce} verifies */
+  challengePath?: string;
+  /** scrypt parameters of the challenge (default n=4096, r=8, bits=4) */
+  pow?: MemoryHardOptions;
   /** Token lifetime in seconds */
   tokenTtl?: number;
   /** URL of the ML engine service (POST {mlUrl}/predict) */
@@ -93,12 +97,13 @@ class TelemetryError extends Error {
   }
 }
 
-interface SessionStats { created: number; times: number[]; paths: Set<string>; risk: number[] }
+interface SessionStats { created: number; times: number[]; paths: Set<string>; risk: number[]; telemetryScore?: number }
 
 export class AegisNode {
-  readonly options: Required<Omit<AegisNodeOptions, 'mlUrl' | 'engine' | 'protectedPaths'>> &
-    Pick<AegisNodeOptions, 'mlUrl' | 'engine' | 'protectedPaths'>;
+  readonly options: Required<Omit<AegisNodeOptions, 'mlUrl' | 'engine' | 'protectedPaths' | 'pow'>> &
+    Pick<AegisNodeOptions, 'mlUrl' | 'engine' | 'protectedPaths' | 'pow'>;
   readonly engine: DetectionEngine;
+  readonly challenger: MemoryHardChallenger;
   readonly stats = new AegisStats();
   private ipAnalyzer = new IPAnalyzer();
   private sessions = new Map<string, SessionStats>();
@@ -114,6 +119,7 @@ export class AegisNode {
       requireTokenPaths: [],
       thresholds: { block: 80, challenge: 50 },
       telemetryPath: '/aegis/telemetry',
+      challengePath: '/aegis/challenge',
       tokenTtl: 300,
       mlTimeoutMs: 500,
       maxTelemetryBytes: 64 * 1024,
@@ -127,9 +133,11 @@ export class AegisNode {
       mode: 'monitor',
     });
     this.ready = this.engine.init();
+    this.challenger = new MemoryHardChallenger(options.secretKey, options.pow);
   }
 
   async shutdown(): Promise<void> {
+    this.challenger.destroy();
     await this.engine.shutdown();
   }
 
@@ -141,6 +149,52 @@ export class AegisNode {
 
   isTelemetryRequest(method: string, path: string): boolean {
     return method.toUpperCase() === 'POST' && path === this.options.telemetryPath;
+  }
+
+  /** Requests answered by AEGIS itself: telemetry and the proof-of-work challenge. */
+  isAegisEndpoint(method: string, path: string): boolean {
+    return this.isTelemetryRequest(method, path)
+      || (path === this.options.challengePath && ['GET', 'POST'].includes(method.toUpperCase()));
+  }
+
+  handleEndpoint(req: RequestInfo): Promise<HandlerResponse> {
+    return req.path === this.options.challengePath ? this.handleChallenge(req) : this.handleTelemetry(req);
+  }
+
+  /** GET: issue a memory-hard challenge. POST {challenge, nonce}: verify it and return a token. */
+  async handleChallenge(req: RequestInfo): Promise<HandlerResponse> {
+    const noStore = { 'Cache-Control': 'no-store' };
+    if (req.method.toUpperCase() === 'GET') {
+      return { status: 200, body: { ...this.challenger.issue() }, headers: noStore };
+    }
+    let data: { challenge?: unknown; nonce?: unknown } = {};
+    try {
+      data = typeof req.body === 'string' || Buffer.isBuffer(req.body)
+        ? JSON.parse(req.body.toString() || '{}')
+        : (req.body as typeof data) ?? {};
+    } catch {
+      return { status: 400, body: { error: 'invalid JSON' }, headers: noStore };
+    }
+    const result = await this.challenger.verify(String(data.challenge ?? ''), data.nonce);
+    if (!result.valid) {
+      return { status: 403, body: { error: 'challenge failed', reason: result.reason }, headers: noStore };
+    }
+    const cookie = (req.cookies ?? parseCookies(header(req.headers, 'cookie')))[SESSION_COOKIE];
+    const sid = cookie ? cookie.split('.')[0] : 'anonymous';
+    // Carry the behavioural (telemetry) score so the work does not erase that evidence. Request
+    // signals are not carried: every request recomputes them, and carrying them would count them twice.
+    // "tel" marks that the session sent telemetry, which token-required paths need.
+    const stats = this.sessions.get(sid);
+    const token = generateToken({
+      sid,
+      score: stats?.telemetryScore ?? 0,
+      tel: stats?.telemetryScore !== undefined ? 1 : 0,
+      verdict: 'allow',
+      pow: 1,
+      uah: userAgentHash(header(req.headers, 'user-agent') ?? ''),
+      exp: Math.floor(Date.now() / 1000) + this.options.tokenTtl,
+    }, this.options.secretKey);
+    return { status: 200, body: { token, expiresIn: this.options.tokenTtl, verdict: 'allow' }, headers: noStore };
   }
 
   decide(score: number): Verdict {
@@ -162,6 +216,11 @@ export class AegisNode {
 
       const scores = [engineResult.riskScore.score];
       const reasons = engineResult.signals.filter(s => s.value * s.confidence >= 20).map(s => s.type);
+      // Spoofed-fingerprint evidence from the SDK: only when several checks agree
+      if (payload.antiDetectScore >= 0.5) {
+        scores.push(80 * payload.antiDetectScore);
+        reasons.push('anti_detect');
+      }
       const mlProbability = await this.mlScore(payload.features, req.ip, sessionId);
       if (mlProbability !== null) {
         scores.push(mlProbability * 100);
@@ -169,7 +228,11 @@ export class AegisNode {
       }
       const score = Math.round(noisyOr(scores) * 10) / 10;
       const verdict = this.decide(score);
-      this.sessions.get(sessionId)?.risk.push(score);
+      const stats = this.sessions.get(sessionId);
+      if (stats) {
+        stats.risk.push(score);
+        stats.telemetryScore = score;
+      }
 
       const token = generateToken({
         sid: sessionId,
@@ -193,7 +256,7 @@ export class AegisNode {
     }
   }
 
-  private parseTelemetry(body: unknown): { features: Record<string, Record<string, number>>; behavioral: unknown } {
+  private parseTelemetry(body: unknown): { features: Record<string, Record<string, number>>; behavioral: unknown; antiDetectScore: number } {
     let data = body;
     if (typeof body === 'string' || Buffer.isBuffer(body)) {
       if (body.length > this.options.maxTelemetryBytes) throw new TelemetryError('telemetry too large', 413);
@@ -219,7 +282,12 @@ export class AegisNode {
         if (typeof value === 'number' && Number.isFinite(value)) features[category][key] = value;
       }
     }
-    return { features, behavioral: { timestamp: Date.now(), ...(payload.behavioral ?? {}) } };
+    const antiDetectScore = Number(payload.antiDetect?.score);
+    return {
+      features,
+      behavioral: { timestamp: Date.now(), ...(payload.behavioral ?? {}) },
+      antiDetectScore: Number.isFinite(antiDetectScore) ? Math.min(1, Math.max(0, antiDetectScore)) : 0,
+    };
   }
 
   private async mlScore(sdkFeatures: Record<string, Record<string, number>>, ip: string, sessionId: string): Promise<number | null> {
@@ -285,6 +353,9 @@ export class AegisNode {
         claims = null;
         scores.push(60);
         reasons.push('token_user_agent_mismatch');
+      } else if (claims?.pow) {
+        scores.push(Number(claims.score) || 0);
+        reasons.push('pow_solved');
       } else if (claims) {
         scores.push(Number(claims.score) || 0);
         reasons.push('telemetry_score');
@@ -296,7 +367,11 @@ export class AegisNode {
 
     const score = Math.round(noisyOr(scores) * 10) / 10;
     let verdict = this.decide(score);
-    if (verdict === 'allow' && !claims && this.options.requireTokenPaths.some(p => req.path.startsWith(p))) {
+    // A solved challenge answers "challenge"; it never lifts a block
+    if (verdict === 'challenge' && claims?.pow) verdict = 'allow';
+    // Proof of work alone does not replace the behavioural evidence a token-required path asks for
+    const hasTelemetry = !!claims && (!claims.pow || !!claims.tel);
+    if (verdict === 'allow' && !hasTelemetry && this.options.requireTokenPaths.some(p => req.path.startsWith(p))) {
       verdict = this.options.mode === 'monitor' ? 'monitor' : 'challenge';
       reasons.push('token_required');
     }
@@ -307,7 +382,10 @@ export class AegisNode {
 
   denial(decision: AegisDecision): HandlerResponse {
     const body: Record<string, unknown> = { aegis: decision.verdict };
-    if (decision.verdict === 'challenge') body.telemetry = this.options.telemetryPath;
+    if (decision.verdict === 'challenge') {
+      body.telemetry = this.options.telemetryPath;
+      body.challenge = this.options.challengePath;
+    }
     return { status: 403, body, headers: { 'X-Aegis-Action': decision.verdict, 'Cache-Control': 'no-store' } };
   }
 

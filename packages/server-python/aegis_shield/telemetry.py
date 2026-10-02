@@ -112,6 +112,9 @@ class TelemetryService:
 
         signals: List[Signal] = list(self.analyzer.signals(ip, headers, "POST", self.config.telemetry_path))
         signals += behavior_signals(features, payload.headlessChecks)
+        # Spoofed-fingerprint evidence: only when several checks agree (score >= 0.5)
+        if payload.antiDetect and payload.antiDetect.score >= 0.5:
+            signals.append(("anti_detect", round(80 * payload.antiDetect.score, 1)))
         network = features["network"]
         if network["is_tor"]:
             signals.append(("tor_exit", 70))
@@ -137,6 +140,7 @@ class TelemetryService:
         score = round(noisy_or(scores), 1)
         verdict = decide(score, self.config)
         self.sessions.record_risk(session, score)
+        session.telemetry_score = score
 
         now = int(time.time())
         ua = next((v for k, v in headers.items() if k.lower() == "user-agent"), "")
@@ -155,6 +159,7 @@ class TelemetryService:
                 "stream": payload.streamId,
                 "features": features,
                 "headless_checks": payload.headlessChecks,
+                "anti_detect": payload.antiDetect.model_dump() if payload.antiDetect else None,
                 "rule_score": round(rule_score, 1),
                 "ml_probability": ml_probability,
                 "score": score,
