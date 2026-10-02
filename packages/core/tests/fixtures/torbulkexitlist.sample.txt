@@ -1,0 +1,6 @@
+# Tor bulk exit list format: one IPv4 per line
+185.220.101.1
+185.220.101.2
+204.8.96.10
+10.0.0.5
+not-an-ip

@@ -1,3 +1,4 @@
+import { TorExitNodeChecker } from '../src/modules/ip-intelligence/TorExitNodeChecker';
 import { IPAnalyzer } from '../src/modules/ip-intelligence/IPAnalyzer';
 
 describe('IPAnalyzer', () => {
@@ -16,9 +17,12 @@ describe('IPAnalyzer', () => {
   });
 
   it('flags bogon, Tor and datacenter addresses', async () => {
-    const analyzer = new IPAnalyzer();
+    const tor = new TorExitNodeChecker();
+    tor.load('185.245.87.182\n');
+    const analyzer = new IPAnalyzer({ torChecker: tor });
     expect(await types(analyzer, '192.0.2.1')).toContain('ip.bogon');
     expect(await types(analyzer, '185.245.87.182')).toContain('ip.tor');
+    expect(await types(new IPAnalyzer(), '185.245.87.182')).not.toContain('ip.tor');
     const dc = await analyzer.analyze('159.65.10.10');
     expect(dc.intelligence.isDatacenter).toBe(true);
     expect(dc.signals[0].description).toContain('DigitalOcean');

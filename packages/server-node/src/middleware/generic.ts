@@ -38,6 +38,7 @@ export function aegisGeneric(options: AegisNodeOptions, shared?: AegisNode) {
       const { decision, headers } = await aegis.evaluate({ ...info, query: Object.fromEntries(url.searchParams) });
       (req as any).aegis = decision;
       for (const [name, value] of Object.entries(headers)) res.setHeader(name, value);
+      res.on('finish', () => aegis.recordResponse(decision, res.statusCode));
       if (decision.verdict === 'block' || decision.verdict === 'challenge') {
         send(res, aegis.denial(decision));
         return;

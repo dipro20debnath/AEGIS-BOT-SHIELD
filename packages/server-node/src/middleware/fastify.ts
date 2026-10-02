@@ -12,6 +12,9 @@ const plugin: FastifyPluginAsync<AegisNodeOptions> = async (fastify: FastifyInst
   const aegis = new AegisNode(options);
   fastify.decorateRequest('aegis', null);
   fastify.addHook('onClose', async () => aegis.shutdown());
+  fastify.addHook('onResponse', async (request: FastifyRequest, reply: FastifyReply) => {
+    aegis.recordResponse(request.aegis ?? undefined, reply.statusCode);
+  });
 
   fastify.post(aegis.options.telemetryPath, { bodyLimit: aegis.options.maxTelemetryBytes }, async (request, reply) => {
     const r = await aegis.handleTelemetry({

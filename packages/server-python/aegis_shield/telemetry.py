@@ -20,6 +20,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from pydantic import ValidationError
 
 from .detector import RequestAnalyzer, Signal, behavior_signals, noisy_or
+from .feeds import FEED_SEVERITY, IPReputation
 from .ip_intel import classify_ip
 from .ml import MLScorer
 from .models import AegisConfig, TelemetryPayload
@@ -74,8 +75,10 @@ def decide(score: float, config: AegisConfig) -> str:
 class TelemetryService:
     def __init__(self, config: AegisConfig, sessions: SessionTracker, scorer: MLScorer,
                  analyzer: Optional[RequestAnalyzer] = None,
-                 on_record: Optional[Callable[[Dict[str, Any]], None]] = None):
+                 on_record: Optional[Callable[[Dict[str, Any]], None]] = None,
+                 reputation: Optional[IPReputation] = None):
         self.config = config
+        self.reputation = reputation
         self.sessions = sessions
         self.scorer = scorer
         self.analyzer = analyzer or RequestAnalyzer(config.verify_search_engines)
@@ -100,7 +103,7 @@ class TelemetryService:
             group = sent.get(category, {})
             features[category] = {k: float(group.get(k, 0.0) or 0.0) for k in keys}
         features["session"] = self.sessions.features(session)
-        features["network"] = classify_ip(ip)
+        features["network"] = classify_ip(ip, self.reputation)
         return features
 
     def process(self, body: bytes, ip: str, headers: Dict[str, str], session: Session) -> Tuple[Dict[str, Any], List[Signal]]:
@@ -114,6 +117,9 @@ class TelemetryService:
             signals.append(("tor_exit", 70))
         if network["is_datacenter"]:
             signals.append(("datacenter_ip", 45))
+        if self.reputation is not None:
+            signals += [(f"threat_list:{name}", FEED_SEVERITY[name])
+                        for name in self.reputation.lookup(ip)["lists"]]
         rule_score = noisy_or(s for _, s in signals)
 
         ml_probability = self.scorer.score(features)

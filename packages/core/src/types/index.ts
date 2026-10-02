@@ -62,6 +62,17 @@ export interface IPIntelConfig {
   abuseIpDbKey?: string;
   /** Resolve geo/ASN via external API (sends client IPs to a third party; default false) */
   externalGeoLookup?: boolean;
+  /**
+   * Downloaded lists (network access required; all off by default).
+   * tor: Tor Project bulk exit list. threatFeeds: FireHOL level1, Spamhaus DROP,
+   * AbuseIPDB (only with abuseIpDbKey or env ABUSEIPDB_API_KEY).
+   */
+  liveFeeds?: {
+    tor?: boolean;
+    threatFeeds?: boolean | Array<'firehol_level1' | 'spamhaus_drop' | 'abuseipdb'>;
+    /** Directory for on-disk copies of the lists */
+    cacheDir?: string;
+  };
 }
 
 export interface BehavioralConfig {
@@ -116,6 +127,8 @@ export interface ModuleConfig {
   challenges: boolean;
   /** Pattern checks for XSS / SQLi / CRLF / prototype pollution / path traversal payloads */
   inputValidation: boolean;
+  /** Request-sequence patterns per session (timer-regular paging, ID enumeration, 4xx probing) */
+  sessionBehavior: boolean;
 }
 
 // === Request & Response ===

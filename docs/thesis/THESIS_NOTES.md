@@ -35,8 +35,8 @@
 | End-to-end | — | 4 (real Chromium -> SDK -> server -> ML) | — |
 | Data-collection website | Phase G | — | — |
 
-Phase B progress (2026-10-03): B1 security layer done. Core 86 tests, Node 18,
-Python 63 (incl. Node<->Python request-signature interop), e2e 4.
+Phase B progress (2026-10-03): B1 security layer and B2 live feeds + session
+patterns done. Core 106 tests, Node 19, Python 71, ML 31, e2e 4.
 
 Before Phase A (2026-10-02 audit): only the ML engine worked; core/SDK/Node did
 not compile, no layer called another, the SDK sent no behavioural data, and the
@@ -184,6 +184,51 @@ keep using the server-issued AEGIS token.
 (CSP `default-src 'self'`, HSTS 1 y, X-Frame-Options DENY, nosniff,
 Referrer-Policy, Permissions-Policy, COOP). These harden the protected site;
 they do not detect bots and should not be counted as a detection layer.
+
+### 2.6 Live IP lists and session patterns (2026-10-03, Phase B2)
+**Tor and threat feeds** (`TorExitNodeChecker`, `ThreatFeedSync`, Python `feeds.py`):
+Tor Project bulk exit list, FireHOL level1, Spamhaus DROP v4, AbuseIPDB
+(confidence >= 90, only with an API key; free plan = 5 downloads/day, so at
+most every 6 h). All off by default (`liveFeeds` / `live_feeds=True`), refreshed
+in the background, cached on disk, and a failed or empty download keeps the
+previous list.
+- **Removed fabricated data:** the old code hard-coded 4 "sample" Tor IPs in
+  both servers and labelled them as Tor exits. Without a live list, nothing is
+  classified as Tor now. Any earlier `is_tor` values were meaningless.
+- **Measured on the real FireHOL level1 (2026-10-02, 4,650 lines):** it contains
+  13 special-purpose ranges, including 10.0.0.0/8, 127.0.0.0/8, 192.168.0.0/16,
+  CGNAT 100.64.0.0/10 and TEST-NET 198.51.100.0/24. Imported as-is it would
+  block localhost, every request behind a reverse proxy and carrier-NAT mobile
+  users, which matters for Bangladesh's mobile-heavy traffic. These ranges are
+  dropped (RFC 6890); bogons are handled separately by IPAnalyzer. 4,637 entries
+  remain, covering about 0.5% of random public IPv4 addresses.
+- Lookup: the old ThreatDatabase scanned every CIDR linearly. It is now an index
+  by prefix length: 1.6 µs per lookup with the full FireHOL list (Node, 100k lookups).
+- Validity note: a listed IP means the host attacked *someone*, not that this
+  request is a bot (shared NAT, recycled cloud IPs). In Python the list
+  signals appear both in the telemetry token score and in the request score,
+  so they are counted twice under noisy-OR (the independence assumption of
+  §2.4 is violated here; same for header signals). Mention in Ch. 7.
+- Sandbox note: the Tor and Spamhaus URLs were blocked by the development
+  proxy, so their parsers are tested against the documented formats; FireHOL
+  was tested against a real excerpt.
+
+**Session patterns** (`BotBehaviorAnalyzer`, Python `session_patterns.py`), no
+JavaScript needed, so they catch plain HTTP-library bots:
+| Signal | Rule | Min. evidence |
+|---|---|---|
+| timer_regular | CV of gaps between page requests < 0.15, mean < 60 s | 8 pages |
+| sequential_ids | >= 5 consecutive pages whose trailing number changes by a constant step (OAT-011) | 5 pages |
+| crawl_breadth | > 90% distinct pages within 5 min (OAT-011) | 30 pages |
+| error_probing | > 50% 4xx responses (OAT-014) | 10 responses |
+| no_referer | no page after the first carries a Referer | 5 pages |
+| no_assets | pages without any CSS/JS/image request (opt-in: wrong with a CDN) | 5 pages |
+- 200 simulated human sessions (log-normal reading times, random pages): 0
+  flagged in either implementation. This is a sanity check only; the false-positive
+  rate must come from the November human data.
+- Evasion: random delays plus link-following plus asset loading (a real browser)
+  pass all of these checks; that is the behavioural SDK layer's job. This
+  layering argument supports RQ3.
 
 ## 3. Contributions — what can honestly be claimed
 

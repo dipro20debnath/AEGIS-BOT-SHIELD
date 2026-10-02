@@ -2,6 +2,8 @@ import { DetectionSignal, ThreatCategory } from '../../types/index.js';
 import { Logger } from '../../utils/logger.js';
 import * as fs from 'fs';
 import * as path from 'path';
+import { isIPv4 } from 'net';
+import { cidrRange, ipv4ToNumber } from './feeds.js';
 
 /** Threat entry in the database */
 export interface ThreatEntry {
@@ -22,7 +24,7 @@ export interface ThreatEntry {
   /** Number of times this threat was matched */
   hitCount: number;
   /** Source of the intelligence */
-  source: 'manual' | 'auto-detected' | 'community' | 'abuseipdb' | 'spamhaus' | 'tor-list';
+  source: 'manual' | 'auto-detected' | 'community' | 'abuseipdb' | 'spamhaus' | 'firehol' | 'tor-list';
   /** Additional metadata */
   metadata?: Record<string, unknown>;
 }
@@ -55,6 +57,8 @@ export interface ThreatDbStats {
 export class ThreatDatabase {
   private entries: Map<string, ThreatEntry> = new Map();
   private cidrEntries: ThreatEntry[] = [];
+  /** prefix length -> network address -> entries; rebuilt lazily after changes */
+  private cidrIndex: Map<number, Map<number, ThreatEntry[]>> | null = null;
   private patternEntries: ThreatEntry[] = [];
   private persistPath?: string;
   private logger: Logger;
@@ -91,6 +95,7 @@ export class ThreatDatabase {
 
     if (entry.type === 'cidr') {
       this.cidrEntries.push(full);
+      this.cidrIndex = null;
     } else if (entry.type === 'pattern') {
       this.patternEntries.push(full);
     } else {
@@ -109,6 +114,7 @@ export class ThreatDatabase {
     }
     const cidrBefore = this.cidrEntries.length;
     this.cidrEntries = this.cidrEntries.filter(e => e.identifier !== identifier);
+    this.cidrIndex = null;
     if (this.cidrEntries.length < cidrBefore) removed = true;
 
     const patBefore = this.patternEntries.length;
@@ -151,12 +157,17 @@ export class ThreatDatabase {
       matched.push(exact);
     }
 
-    // CIDR match
-    for (const entry of this.cidrEntries) {
-      if (this.isExpired(entry)) continue;
-      if (this.ipInCidr(ip, entry.identifier)) {
-        entry.hitCount++;
-        matched.push(entry);
+    // CIDR match: one map lookup per prefix length in use (feeds hold thousands of ranges)
+    const v4 = ip.startsWith('::ffff:') ? ip.slice(7) : ip;
+    if (isIPv4(v4)) {
+      const addr = ipv4ToNumber(v4);
+      for (const [prefix, networks] of this.getCidrIndex()) {
+        const mask = prefix === 0 ? 0 : (~0 << (32 - prefix)) >>> 0;
+        for (const entry of networks.get((addr & mask) >>> 0) ?? []) {
+          if (this.isExpired(entry)) continue;
+          entry.hitCount++;
+          matched.push(entry);
+        }
       }
     }
 
@@ -204,6 +215,26 @@ export class ThreatDatabase {
     return count;
   }
 
+  /**
+   * Atomically replace every entry from one feed source (used by ThreatFeedSync).
+   * Returns the number of entries now held for that source.
+   */
+  public replaceSource(source: ThreatEntry['source'], entries: Array<Omit<ThreatEntry, 'addedAt' | 'hitCount' | 'source'>>): number {
+    for (const [key, entry] of this.entries) if (entry.source === source) this.entries.delete(key);
+    this.cidrEntries = this.cidrEntries.filter(e => e.source !== source);
+    this.patternEntries = this.patternEntries.filter(e => e.source !== source);
+    const now = Date.now();
+    for (const e of entries) {
+      const full: ThreatEntry = { ...e, source, addedAt: now, hitCount: 0 };
+      if (e.type === 'cidr') this.cidrEntries.push(full);
+      else if (e.type === 'pattern') this.patternEntries.push(full);
+      else this.entries.set(this.key(e.identifier, e.type), full);
+    }
+    this.cidrIndex = null;
+    this.dirty = true;
+    return entries.length;
+  }
+
   /** Get all entries, optionally filtered. */
   public getAll(filter?: { type?: string; source?: string }): ThreatEntry[] {
     const all = [
@@ -248,6 +279,7 @@ export class ThreatDatabase {
     }
     const cb = this.cidrEntries.length;
     this.cidrEntries = this.cidrEntries.filter(e => !(e.expiresAt > 0 && e.expiresAt < now));
+    this.cidrIndex = null;
     count += cb - this.cidrEntries.length;
 
     const pb = this.patternEntries.length;
@@ -298,22 +330,20 @@ export class ThreatDatabase {
     };
   }
 
-  /** Check whether an IPv4 address falls within a CIDR block. */
-  private ipInCidr(ip: string, cidr: string): boolean {
-    try {
-      const [rangeIp, prefixStr] = cidr.split('/');
-      const prefix = parseInt(prefixStr, 10);
-      const mask = prefix === 0 ? 0 : (~0 << (32 - prefix)) >>> 0;
-      return (this.ipToNumber(ip) & mask) === (this.ipToNumber(rangeIp) & mask);
-    } catch {
-      return false;
+  private getCidrIndex(): Map<number, Map<number, ThreatEntry[]>> {
+    if (this.cidrIndex) return this.cidrIndex;
+    const index = new Map<number, Map<number, ThreatEntry[]>>();
+    for (const entry of this.cidrEntries) {
+      const range = cidrRange(entry.identifier);
+      if (!range) continue; // IPv6 ranges are not indexed (IPv4 feeds only)
+      const prefix = entry.identifier.includes('/') ? Number(entry.identifier.split('/')[1]) : 32;
+      let networks = index.get(prefix);
+      if (!networks) index.set(prefix, networks = new Map());
+      const list = networks.get(range[0]);
+      if (list) list.push(entry); else networks.set(range[0], [entry]);
     }
-  }
-
-  /** Convert dotted-quad IPv4 to a 32-bit unsigned integer. */
-  private ipToNumber(ip: string): number {
-    const parts = ip.split('.').map(Number);
-    return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+    this.cidrIndex = index;
+    return index;
   }
 
   /* ------------------------------------------------------------------ */

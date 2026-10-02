@@ -69,6 +69,7 @@ export const defaultConfig: AegisConfig = {
     behavioral: true,
     challenges: true,
     inputValidation: true,
+    sessionBehavior: true,
   },
 };
 
