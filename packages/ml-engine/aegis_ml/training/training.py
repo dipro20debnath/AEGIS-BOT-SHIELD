@@ -133,10 +133,7 @@ class TrainingPipeline:
 
     def plot_roc_curves(self, X_test, y_test, save_path: str):
         """Plot ROC curves for the models."""
-        if not hasattr(self.classifier.model, 'predict_proba'):
-            return
-        
-        y_prob = self.classifier.model.predict_proba(X_test)[:, 1]
+        y_prob = self.classifier.predict_proba(X_test)
         fpr, tpr, _ = roc_curve(y_test, y_prob)
         roc_auc = auc(fpr, tpr)
         

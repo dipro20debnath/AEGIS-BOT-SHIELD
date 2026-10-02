@@ -1,52 +1,54 @@
-import pytest
 import numpy as np
+import pytest
 
-class SyntheticDataGenerator:
-    def __init__(self, random_state=None):
-        if random_state is not None:
-            np.random.seed(random_state)
-            
-    def generate(self, n_samples):
-        X = np.random.rand(n_samples, 50)
-        y = np.random.randint(0, 2, n_samples)
-        return X, y
+from aegis_ml.features.extractor import FeatureExtractor
+from aegis_ml.training.synthetic_generator import SyntheticDataGenerator, BOT_TYPES
+
 
 class TestSyntheticDataGenerator:
     def test_generate_correct_number_of_samples(self):
-        gen = SyntheticDataGenerator()
-        X, y = gen.generate(100)
-        assert len(X) == 100
-        assert len(y) == 100
+        data, labels = SyntheticDataGenerator().generate(n_human=30, n_bot=20)
+        assert len(data) == 50
+        assert len(labels) == 50
+        assert (labels == 0).sum() == 30
+        assert (labels == 1).sum() == 20
 
     def test_labels_are_0_human_and_1_bot(self):
-        gen = SyntheticDataGenerator()
-        _, y = gen.generate(100)
-        for label in y:
-            assert label in [0, 1]
+        _, labels = SyntheticDataGenerator().generate(20, 20)
+        assert set(np.unique(labels)) == {0, 1}
 
-    def test_human_data_has_expected_value_ranges(self):
-        # Simplified test
+    @pytest.mark.parametrize('bot_type', BOT_TYPES)
+    def test_every_bot_type_uses_extractor_keys(self, bot_type):
+        sample = SyntheticDataGenerator()._generate_bot(bot_type)
+        for category, names in FeatureExtractor.FEATURE_CATEGORIES.items():
+            assert set(sample[category].keys()) == set(names), category
+
+    def test_human_samples_use_extractor_keys(self):
         gen = SyntheticDataGenerator()
-        X, y = gen.generate(100)
-        human_X = X[y == 0]
-        if len(human_X) > 0:
-            assert np.all(human_X >= 0.0)
+        for _ in range(50):
+            sample = gen._generate_human()
+            for category, names in FeatureExtractor.FEATURE_CATEGORIES.items():
+                assert set(sample[category].keys()) == set(names), category
+
+    def test_all_50_features_are_populated(self):
+        data, _ = SyntheticDataGenerator().generate(200, 200)
+        X = FeatureExtractor().extract_batch(data)
+        assert X.shape == (400, 50)
+        assert np.all(np.abs(X).sum(axis=0) > 0), 'some features are always zero'
 
     def test_bot_data_differs_from_human_data(self):
-        # Simplified test
-        pass
-
-    def test_all_feature_categories_present(self):
-        gen = SyntheticDataGenerator()
-        X, _ = gen.generate(10)
-        assert X.shape[1] == 50
+        data, labels = SyntheticDataGenerator().generate(300, 300)
+        X = FeatureExtractor().extract_batch(data)
+        assert not np.allclose(X[labels == 0].mean(axis=0), X[labels == 1].mean(axis=0))
 
     def test_reproducibility_with_random_state(self):
-        gen1 = SyntheticDataGenerator(random_state=42)
-        X1, y1 = gen1.generate(10)
-        
-        gen2 = SyntheticDataGenerator(random_state=42)
-        X2, y2 = gen2.generate(10)
-        
-        np.testing.assert_array_equal(X1, X2)
+        d1, y1 = SyntheticDataGenerator(random_state=42).generate(10, 10)
+        d2, y2 = SyntheticDataGenerator(random_state=42).generate(10, 10)
+        np.testing.assert_array_equal(FeatureExtractor().extract_batch(d1),
+                                      FeatureExtractor().extract_batch(d2))
         np.testing.assert_array_equal(y1, y2)
+
+    def test_difficulty_levels(self):
+        data, labels, levels = SyntheticDataGenerator().generate_with_difficulty_levels(10)
+        assert len(data) == len(labels) == len(levels) == 60
+        assert set(np.unique(levels)) == {0, 1, 2}
