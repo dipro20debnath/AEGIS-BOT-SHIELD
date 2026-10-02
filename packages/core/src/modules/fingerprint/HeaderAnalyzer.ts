@@ -55,7 +55,7 @@ export class HeaderAnalyzer {
 
     if (missing.length > 0) {
       return {
-        category: 'headers',
+        category: 'protocol',
         type: 'headers.missing_essential',
         value: 80 + missing.length * 5,
         confidence: 0.95,
@@ -72,7 +72,7 @@ export class HeaderAnalyzer {
 
     if (!ua || ua.trim() === '') {
       signals.push({
-        category: 'headers',
+        category: 'protocol',
         type: 'headers.ua_empty',
         value: 100,
         confidence: 1.0,
@@ -85,7 +85,7 @@ export class HeaderAnalyzer {
     const botKeywords = ['bot', 'crawler', 'spider', 'headless', 'phantom', 'puppeteer'];
     if (botKeywords.some(keyword => ua.toLowerCase().includes(keyword))) {
       signals.push({
-        category: 'headers',
+        category: 'protocol',
         type: 'headers.ua_known_bot',
         value: 100,
         confidence: 1.0,
@@ -98,7 +98,7 @@ export class HeaderAnalyzer {
     const chromeMatch = ua.match(/Chrome\/(\d+)/);
     if (chromeMatch && parseInt(chromeMatch[1], 10) < 90) {
       signals.push({
-        category: 'headers',
+        category: 'protocol',
         type: 'headers.ua_outdated',
         value: 70,
         confidence: 0.8,
@@ -114,7 +114,7 @@ export class HeaderAnalyzer {
     const accept = headers['accept'] || '';
     if (accept === '*/*') {
       return {
-        category: 'headers',
+        category: 'protocol',
         type: 'headers.accept_generic',
         value: 60,
         confidence: 0.7,
@@ -126,13 +126,15 @@ export class HeaderAnalyzer {
   }
 
   private analyzeHeaderOrder(headerKeys: string[]): DetectionSignal | null {
-    // Basic heuristic: Browsers generally put Host first.
-    if (headerKeys.length > 0 && headerKeys[0].toLowerCase() !== 'host') {
+    // Browsers send Host first over HTTP/1.1. HTTP/2 has no Host header and
+    // reverse proxies reorder headers, so this is only a weak hint.
+    const hostIndex = headerKeys.findIndex(k => k.toLowerCase() === 'host');
+    if (hostIndex > 0) {
       return {
-        category: 'headers',
+        category: 'protocol',
         type: 'headers.order_anomaly',
-        value: 60,
-        confidence: 0.8,
+        value: 30,
+        confidence: 0.4,
         description: 'Header order anomaly: Host is not the first header',
         weight: 1.1,
       };
@@ -147,7 +149,7 @@ export class HeaderAnalyzer {
 
     if (isChromeModern && !headers['sec-ch-ua']) {
       signals.push({
-        category: 'headers',
+        category: 'protocol',
         type: 'headers.missing_client_hints',
         value: 85,
         confidence: 0.9,
@@ -162,7 +164,7 @@ export class HeaderAnalyzer {
     const conn = headers['connection'] || '';
     if (conn.toLowerCase() === 'close') {
       return {
-        category: 'headers',
+        category: 'protocol',
         type: 'headers.connection_close',
         value: 40,
         confidence: 0.6,
@@ -177,7 +179,7 @@ export class HeaderAnalyzer {
     const referer = headers['referer'];
     if (!referer && path.includes('/api/v1/secure')) {
       return {
-        category: 'headers',
+        category: 'protocol',
         type: 'headers.missing_referer_on_api',
         value: 75,
         confidence: 0.85,
@@ -192,7 +194,7 @@ export class HeaderAnalyzer {
     const count = Object.keys(headers).length;
     if (count < 5) {
       return {
-        category: 'headers',
+        category: 'protocol',
         type: 'headers.count_too_low',
         value: 80,
         confidence: 0.9,
@@ -202,7 +204,7 @@ export class HeaderAnalyzer {
     }
     if (count > 30) {
       return {
-        category: 'headers',
+        category: 'protocol',
         type: 'headers.count_too_high',
         value: 70,
         confidence: 0.85,

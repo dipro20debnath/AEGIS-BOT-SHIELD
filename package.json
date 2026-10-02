@@ -7,11 +7,22 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
-    "test": "npm run test --workspaces",
-    "lint": "npm run lint --workspaces",
-    "clean": "npm run clean --workspaces"
+    "build": "npm run build -w @aegis/core && npm run build -w @aegis/js-sdk -w @aegis/server-node -w @aegis/dashboard",
+    "test": "npm test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "clean": "npm run clean --workspaces --if-present",
+    "test:e2e": "node --test e2e/*.test.mjs"
   },
   "author": "dipro20debnath",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^9.1.2",
+    "playwright": "^1.56.1"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
 }

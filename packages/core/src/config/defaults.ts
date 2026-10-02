@@ -68,6 +68,7 @@ export const defaultConfig: AegisConfig = {
     threatIntel: true,
     behavioral: true,
     challenges: true,
+    inputValidation: true,
   },
 };
 

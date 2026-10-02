@@ -135,6 +135,7 @@ export class TokenBucketLimiter {
   private startCleanup(): void {
     if (this.cleanupIntervalMs > 0) {
       this.cleanupInterval = setInterval(() => this.cleanup(), this.cleanupIntervalMs);
+      this.cleanupInterval.unref?.();
     }
   }
 

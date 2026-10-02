@@ -1,48 +1,49 @@
-import { IPAnalyzer } from '../src/network/IPAnalyzer';
+import { IPAnalyzer } from '../src/modules/ip-intelligence/IPAnalyzer';
 
 describe('IPAnalyzer', () => {
-  let analyzer: IPAnalyzer;
+  const types = async (analyzer: IPAnalyzer, ip: string) =>
+    (await analyzer.analyze(ip)).signals.map(s => s.type);
 
-  beforeEach(() => {
-    analyzer = new IPAnalyzer();
+  it('does not flag private/loopback addresses by default', async () => {
+    const analyzer = new IPAnalyzer();
+    expect(await types(analyzer, '127.0.0.1')).toEqual([]);
+    expect(await types(analyzer, '192.168.1.20')).toEqual([]);
+    expect(await types(analyzer, '::ffff:10.0.0.5')).toEqual([]);
   });
 
-  it('should detect known VPN IPs', async () => {
-    // Assuming 185.159.157.0/24 is mocked as a VPN range
-    const result = await analyzer.analyze('185.159.157.50');
-    expect(result.isVpn).toBe(true);
-    expect(result.riskScore).toBeGreaterThan(30);
+  it('flags private addresses when asked to', async () => {
+    expect(await types(new IPAnalyzer({ flagPrivateIps: true }), '10.1.2.3')).toEqual(['ip.private']);
   });
 
-  it('should detect Tor exit nodes', async () => {
-    // Assuming 185.220.101.1 is mocked as a Tor node
-    const result = await analyzer.analyze('185.220.101.1');
-    expect(result.isTor).toBe(true);
-    expect(result.riskScore).toBeGreaterThan(80);
+  it('flags bogon, Tor and datacenter addresses', async () => {
+    const analyzer = new IPAnalyzer();
+    expect(await types(analyzer, '192.0.2.1')).toContain('ip.bogon');
+    expect(await types(analyzer, '185.245.87.182')).toContain('ip.tor');
+    const dc = await analyzer.analyze('159.65.10.10');
+    expect(dc.intelligence.isDatacenter).toBe(true);
+    expect(dc.signals[0].description).toContain('DigitalOcean');
   });
 
-  it('should detect datacenter IPs by ASN', async () => {
-    // E.g., AWS IP
-    const result = await analyzer.analyze('3.5.140.2');
-    expect(result.isDatacenter).toBe(true);
-    expect(result.riskScore).toBeGreaterThan(50);
+  it('normalises IPv4-mapped IPv6 addresses', async () => {
+    const result = await new IPAnalyzer().analyze('::ffff:159.65.10.10');
+    expect(result.intelligence.ip).toBe('159.65.10.10');
+    expect(result.intelligence.isDatacenter).toBe(true);
   });
 
-  it('should handle private/bogon IPs gracefully', async () => {
-    const result = await analyzer.analyze('192.168.1.1');
-    expect(result.isBogon).toBe(true);
-    // Usually local IPs might be ignored or flagged based on config
-    expect(result.riskScore).toBe(0);
+  it('applies blocklist and allowlist', async () => {
+    const analyzer = new IPAnalyzer({ blocklist: ['8.8.4.4'], allowlist: ['159.65.10.10'] });
+    const blocked = await analyzer.analyze('8.8.4.4');
+    expect(blocked.signals[0]).toMatchObject({ type: 'ip.blocklisted', value: 100 });
+    expect((await analyzer.analyze('159.65.10.10')).signals).toEqual([]);
   });
 
-  it('should track velocity of same IP with many requests', async () => {
-    const ip = '203.0.113.5';
-    await analyzer.analyze(ip);
-    await analyzer.analyze(ip);
-    await analyzer.analyze(ip);
-    const result = await analyzer.analyze(ip);
-    
-    expect(result.velocity).toBeGreaterThan(1); // or whatever velocity metric is used
-    expect(result.velocityRisk).toBeGreaterThan(0);
+  it('produces signals with the full DetectionSignal shape', async () => {
+    const { signals } = await new IPAnalyzer().analyze('185.245.87.182');
+    for (const s of signals) {
+      expect(s).toEqual(expect.objectContaining({
+        category: 'network', type: expect.any(String), value: expect.any(Number),
+        confidence: expect.any(Number), description: expect.any(String), weight: expect.any(Number),
+      }));
+    }
   });
 });

@@ -54,9 +54,8 @@
         }
     </style>
     
-    <!-- Load AEGIS JS SDK -->
-    <!-- In production, this would be a CDN link or bundled with your app -->
-    <script src="../../packages/aegis-client/dist/aegis.min.js"></script>
+    <!-- AEGIS JS SDK: built by `npm run build -w packages/js-sdk`, served by the example server at /sdk -->
+    <script src="/sdk/aegis.min.js"></script>
 </head>
 <body>
 
@@ -65,41 +64,27 @@
         <form id="loginForm">
             <input type="text" id="username" placeholder="Username" required>
             <input type="password" id="password" placeholder="Password" required>
-            <!-- Hidden field for the AEGIS telemetry token -->
-            <input type="hidden" id="aegis_token" name="aegis_token">
             <button type="submit">Login</button>
         </form>
         <div id="status-message"></div>
     </div>
 
     <script>
-        // Initialize AEGIS Client
-        const aegis = new window.AegisClient({
-            siteKey: 'test-site-key-12345',
-            debug: true
-        });
-        
-        aegis.init();
+        // Starts collecting behaviour and adds the server-issued token to this site's fetch/XHR calls
+        const aegis = new Aegis.AegisClient({ siteKey: 'demo-site', debug: true });
 
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const statusDiv = document.getElementById('status-message');
-            statusDiv.textContent = 'Generating security token...';
             statusDiv.style.color = '#666';
 
             try {
-                // Generate the encrypted telemetry payload
-                const token = await aegis.getToken();
-                
                 statusDiv.textContent = 'Authenticating...';
 
                 // Send request to backend
                 const response = await fetch('/api/login', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Aegis-Token': token // Can be sent in headers or body
-                    },
+                    headers: { 'Content-Type': 'application/json' }, // X-Aegis-Token is added by the SDK
                     body: JSON.stringify({
                         username: document.getElementById('username').value,
                         password: document.getElementById('password').value

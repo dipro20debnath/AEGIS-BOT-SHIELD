@@ -1,0 +1,188 @@
+{
+  "test": {
+    "threshold": 0.8468594400802464,
+    "accuracy": 0.9746666666666667,
+    "precision": 0.9863387978142076,
+    "recall": 0.9626666666666667,
+    "f1": 0.9743589743589743,
+    "fpr": 0.013333333333333334,
+    "auc_roc": 0.9956622222222222,
+    "confusion_matrix": [
+      [
+        370,
+        5
+      ],
+      [
+        14,
+        361
+      ]
+    ]
+  },
+  "test_default": {
+    "threshold": 0.5,
+    "accuracy": 0.972,
+    "precision": 0.9758064516129032,
+    "recall": 0.968,
+    "f1": 0.9718875502008032,
+    "fpr": 0.024,
+    "auc_roc": 0.9956622222222222,
+    "confusion_matrix": [
+      [
+        366,
+        9
+      ],
+      [
+        12,
+        363
+      ]
+    ]
+  },
+  "threshold_tuning": {
+    "threshold": 0.8468594400802464,
+    "val_fpr": 0.014588235294117647,
+    "val_recall": 0.9524705882352941,
+    "max_fpr": 0.02,
+    "tuning_fpr": 0.015,
+    "n_held_out_humans": 2125
+  },
+  "ablation": {
+    "mouse": {
+      "accuracy_without": 0.976,
+      "f1_without": 0.9759358288770054,
+      "accuracy_drop": -0.0040000000000000036
+    },
+    "keyboard": {
+      "accuracy_without": 0.9746666666666667,
+      "f1_without": 0.974496644295302,
+      "accuracy_drop": -0.002666666666666706
+    },
+    "scroll": {
+      "accuracy_without": 0.9693333333333334,
+      "f1_without": 0.9691275167785235,
+      "accuracy_drop": 0.002666666666666595
+    },
+    "touch": {
+      "accuracy_without": 0.972,
+      "f1_without": 0.9718875502008032,
+      "accuracy_drop": 0.0
+    },
+    "session": {
+      "accuracy_without": 0.9706666666666667,
+      "f1_without": 0.9705093833780161,
+      "accuracy_drop": 0.0013333333333332975
+    },
+    "network": {
+      "accuracy_without": 0.9293333333333333,
+      "f1_without": 0.9274965800273598,
+      "accuracy_drop": 0.04266666666666663
+    },
+    "fingerprint": {
+      "accuracy_without": 0.96,
+      "f1_without": 0.9596774193548387,
+      "accuracy_drop": 0.01200000000000001
+    }
+  },
+  "group_ablation": {
+    "full": {
+      "n_features": 50,
+      "auc": 0.9961704000000001,
+      "auc_std": 0.0015102944878400474,
+      "f1": 0.9706464575841295,
+      "f1_std": 0.004444905096901046,
+      "recall_at_fpr": 0.9648,
+      "recall_at_fpr_std": 0.009516301802696263
+    },
+    "without_behavior": {
+      "n_features": 15,
+      "auc": 0.9946704000000001,
+      "auc_std": 0.0028122163216936476,
+      "f1": 0.9631434772810357,
+      "f1_std": 0.010594271813380213,
+      "recall_at_fpr": 0.9523999999999999,
+      "recall_at_fpr_std": 0.015357083056361949
+    },
+    "only_behavior": {
+      "n_features": 35,
+      "auc": 0.9115216,
+      "auc_std": 0.006325536106924039,
+      "f1": 0.8784359889287503,
+      "f1_std": 0.01119658795787044,
+      "recall_at_fpr": 0.8036,
+      "recall_at_fpr_std": 0.01873606148580857
+    },
+    "without_session": {
+      "n_features": 45,
+      "auc": 0.9949479999999999,
+      "auc_std": 0.0015892961964341754,
+      "f1": 0.9663459016583975,
+      "f1_std": 0.006540666497158822,
+      "recall_at_fpr": 0.9503999999999999,
+      "recall_at_fpr_std": 0.011959933110180853
+    },
+    "only_session": {
+      "n_features": 5,
+      "auc": 0.8975768000000001,
+      "auc_std": 0.010884752315050624,
+      "f1": 0.8019879356672591,
+      "f1_std": 0.007287653806585462,
+      "recall_at_fpr": 0.646,
+      "recall_at_fpr_std": 0.01425482374496438
+    },
+    "without_network": {
+      "n_features": 45,
+      "auc": 0.980744,
+      "auc_std": 0.0033168273997903454,
+      "f1": 0.9359461799318737,
+      "f1_std": 0.006794449471751237,
+      "recall_at_fpr": 0.8884000000000001,
+      "recall_at_fpr_std": 0.020015993605114905
+    },
+    "only_network": {
+      "n_features": 5,
+      "auc": 0.9466855999999998,
+      "auc_std": 0.0077833802836557555,
+      "f1": 0.8980845194651745,
+      "f1_std": 0.007327678111527211,
+      "recall_at_fpr": 0.6612,
+      "recall_at_fpr_std": 0.056022852480037126
+    },
+    "without_fingerprint": {
+      "n_features": 45,
+      "auc": 0.9920624,
+      "auc_std": 0.002011758395036556,
+      "f1": 0.9588412714269614,
+      "f1_std": 0.005781982698740137,
+      "recall_at_fpr": 0.9319999999999998,
+      "recall_at_fpr_std": 0.02707027890510179
+    },
+    "only_fingerprint": {
+      "n_features": 5,
+      "auc": 0.9464456,
+      "auc_std": 0.003921851481124665,
+      "f1": 0.8878361973449309,
+      "f1_std": 0.006958820125400458,
+      "recall_at_fpr": 0.7788,
+      "recall_at_fpr_std": 0.01760000000000002
+    }
+  },
+  "per_bot_type": {
+    "human_fpr": 0.014,
+    "simple_script_recall": 1.0,
+    "headless_browser_recall": 1.0,
+    "sophisticated_bot_recall": 0.985,
+    "crawler_recall": 1.0,
+    "replay_bot_recall": 0.768
+  },
+  "latency": {
+    "mean_ms": 1.2691311450001876,
+    "p50_ms": 1.2441290000424488,
+    "p95_ms": 1.6640046000190976,
+    "p99_ms": 2.7698966699972516
+  },
+  "config": {
+    "out": "../../docs/thesis/results/synthetic",
+    "n_per_class": 2500,
+    "seed": 42,
+    "max_fpr": 0.02
+  }
+}

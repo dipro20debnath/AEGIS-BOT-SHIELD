@@ -1,67 +1,70 @@
 import { RiskScorer } from '../src/engine/RiskScorer';
+import { DetectionSignal } from '../src/types';
+
+const sig = (overrides: Partial<DetectionSignal>): DetectionSignal => ({
+  category: 'network', type: 'test.signal', value: 50, confidence: 1, description: 'test', weight: 1,
+  ...overrides,
+});
 
 describe('RiskScorer', () => {
-  let scorer: RiskScorer;
+  const scorer = new RiskScorer();
 
-  beforeEach(() => {
-    scorer = new RiskScorer();
+  it('returns zero for no signals', () => {
+    const score = scorer.calculateCompositeScore([]);
+    expect(score.score).toBe(0);
+    expect(score.confidence).toBe(0);
   });
 
-  it('should return score of 0 for clean request', () => {
-    const signals = [
-      { category: 'ip', score: 0, weight: 1.0 },
-      { category: 'ua', score: 0, weight: 1.0 }
-    ];
-    const result = scorer.calculate(signals);
-    expect(result.totalScore).toBe(0);
+  it('scores a single category by its signal values', () => {
+    const score = scorer.calculateCompositeScore([sig({ value: 40 })]);
+    expect(score.score).toBe(40);
+    expect(score.categories.network).toBe(40);
+    expect(score.factors['test.signal']).toBe(40);
   });
 
-  it('should return score > 80 for bot-like signals', () => {
-    const signals = [
-      { category: 'ip', score: 90, weight: 1.0 },
-      { category: 'behavior', score: 85, weight: 1.5 }
-    ];
-    const result = scorer.calculate(signals);
-    expect(result.totalScore).toBeGreaterThan(80);
+  it('weights signals within a category by weight x confidence', () => {
+    const score = scorer.calculateCompositeScore([
+      sig({ type: 'a', value: 100, weight: 3, confidence: 1 }),
+      sig({ type: 'b', value: 0, weight: 1, confidence: 1 }),
+    ]);
+    expect(score.categories.network).toBeCloseTo(75);
   });
 
-  it('should handle weighted combination of signal categories', () => {
-    const signals = [
-      { category: 'network', score: 50, weight: 0.5 }, // contributes 25
-      { category: 'browser', score: 100, weight: 2.0 } // contributes 200 (capped appropriately)
-    ];
-    const result = scorer.calculate(signals);
-    // Exact calculation depends on formula, check relative scaling
-    expect(result.totalScore).toBeGreaterThan(50);
+  it('discounts a lone low-confidence signal', () => {
+    const score = scorer.calculateCompositeScore([sig({ value: 80, confidence: 0.5 })]);
+    expect(score.score).toBe(40);
   });
 
-  it('should boost score for critical signals', () => {
-    const normalSignals = [
-      { category: 'ip', score: 20, weight: 1.0 }
-    ];
-    const normalScore = scorer.calculate(normalSignals).totalScore;
-
-    const criticalSignals = [
-      { category: 'ip', score: 20, weight: 1.0 },
-      { category: 'threat_intel', score: 100, weight: 3.0, isCritical: true }
-    ];
-    const criticalScore = scorer.calculate(criticalSignals).totalScore;
-
-    expect(criticalScore).toBeGreaterThan(normalScore + 50);
+  it('combines independent categories with noisy-OR', () => {
+    const score = scorer.calculateCompositeScore([
+      sig({ type: 'a', category: 'network', value: 50 }),
+      sig({ type: 'b', category: 'protocol', value: 50 }),
+    ]);
+    expect(score.score).toBe(75);
   });
 
-  it('should clamp score between 0 and 100', () => {
-    const highSignals = [
-      { category: 'a', score: 100, weight: 5.0 },
-      { category: 'b', score: 100, weight: 5.0 }
-    ];
-    const highResult = scorer.calculate(highSignals);
-    expect(highResult.totalScore).toBe(100);
+  it('never lowers the score when weak evidence from another layer is added', () => {
+    const strong = [sig({ type: 'honeypot', category: 'behavioral', value: 98 })];
+    const withWeak = [...strong, sig({ type: 'weak', category: 'protocol', value: 30, confidence: 0.4 })];
+    expect(scorer.calculateCompositeScore(withWeak).score)
+      .toBeGreaterThanOrEqual(scorer.calculateCompositeScore(strong).score);
+  });
 
-    const lowSignals = [
-      { category: 'a', score: -50, weight: 1.0 }
-    ];
-    const lowResult = scorer.calculate(lowSignals);
-    expect(lowResult.totalScore).toBe(0);
+  it('applies category multipliers', () => {
+    const halfProtocol = new RiskScorer({ protocol: 0.5 });
+    expect(halfProtocol.calculateCompositeScore([sig({ category: 'protocol', value: 60 })]).score).toBe(30);
+  });
+
+  it('raises the score to at least 85 for a headless signal', () => {
+    const score = scorer.calculateCompositeScore([sig({ type: 'behavior.headless_browser', category: 'device', value: 60 })]);
+    expect(score.score).toBeGreaterThanOrEqual(85);
+  });
+
+  it('clamps the score to 0-100', () => {
+    const score = scorer.calculateCompositeScore([
+      sig({ type: 'a', value: 100 }), sig({ type: 'b', value: 100, category: 'device' }),
+      sig({ type: 'c', value: 100, category: 'behavioral' }),
+    ]);
+    expect(score.score).toBe(100);
   });
 });

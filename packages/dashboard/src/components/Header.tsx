@@ -1,49 +1,25 @@
 import React from 'react';
+import { Theme } from '../theme';
 
 interface Props {
-  isDarkTheme: boolean;
+  theme: Theme;
   toggleTheme: () => void;
 }
 
-const Header: React.FC<Props> = ({ isDarkTheme, toggleTheme }) => {
-  const headerStyle = {
-    height: '60px',
-    backgroundColor: isDarkTheme ? '#1e1e1e' : '#ffffff',
-    borderBottom: `1px solid ${isDarkTheme ? '#333' : '#e0e0e0'}`,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '0 20px',
-    position: 'sticky' as const,
-    top: 0,
-    zIndex: 100
-  };
-
-  return (
-    <header style={headerStyle}>
-      <div style={{ fontWeight: 'bold', fontSize: '20px', letterSpacing: '1px' }}>
-        <span style={{ color: '#1890ff' }}>AEGIS</span> BOT SHIELD
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-        <button 
-          onClick={toggleTheme} 
-          style={{ 
-            background: 'none', border: 'none', cursor: 'pointer', 
-            fontSize: '20px', color: isDarkTheme ? '#fff' : '#000' 
-          }}
-          title="Toggle Theme"
-        >
-          {isDarkTheme ? '☀️' : '🌙'}
-        </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#1890ff', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-            A
-          </div>
-          <span style={{ fontWeight: 'bold' }}>Admin</span>
-        </div>
-      </div>
-    </header>
-  );
-};
+const Header: React.FC<Props> = ({ theme, toggleTheme }) => (
+  <header style={{
+    height: 60, backgroundColor: theme.surface, borderBottom: `1px solid ${theme.border}`,
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px',
+    position: 'sticky', top: 0, zIndex: 100,
+  }}>
+    <div style={{ fontWeight: 700, fontSize: 20, letterSpacing: 1, color: theme.text }}>
+      <span style={{ color: theme.accent }}>AEGIS</span> BOT SHIELD
+    </div>
+    <button onClick={toggleTheme} aria-label={theme.dark ? 'Switch to light theme' : 'Switch to dark theme'}
+      style={{ background: 'none', border: `1px solid ${theme.border}`, borderRadius: 6, padding: '6px 10px', cursor: 'pointer', color: theme.text }}>
+      {theme.dark ? '☀️ Light' : '🌙 Dark'}
+    </button>
+  </header>
+);
 
 export default Header;

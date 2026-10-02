@@ -65,3 +65,7 @@ class BotAnomalyDetector:
         
         combined = (iso_scores + lof_scores) / 2.0
         return combined
+
+
+# Public alias used by aegis_ml/__init__.py and the training pipeline
+AnomalyDetector = BotAnomalyDetector

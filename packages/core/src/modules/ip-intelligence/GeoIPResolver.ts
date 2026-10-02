@@ -40,9 +40,17 @@ export class GeoIPResolver {
   private asnDatabase: Map<string, string>;
   private cacheHits = 0;
   private apiLookups = 0;
+  private externalLookup: boolean;
+  private lookupTimeoutMs: number;
 
-  constructor(options?: { cacheTtlMs?: number }) {
+  /**
+   * externalLookup sends the client IP to ip-api.com (plain HTTP, third party,
+   * 45 req/min free tier). Off by default: it leaks visitor IPs and adds latency.
+   */
+  constructor(options?: { cacheTtlMs?: number; externalLookup?: boolean; lookupTimeoutMs?: number }) {
     this.cacheTtlMs = options?.cacheTtlMs || 3600_000; // 1 hour default
+    this.externalLookup = options?.externalLookup ?? false;
+    this.lookupTimeoutMs = options?.lookupTimeoutMs ?? 1500;
     this.logger = new Logger('GeoIPResolver');
     this.asnDatabase = this.buildAsnDatabase();
   }
@@ -52,6 +60,9 @@ export class GeoIPResolver {
     if (cached) {
       this.cacheHits++;
       return cached;
+    }
+    if (!this.externalLookup) {
+      return null;
     }
 
     try {
@@ -127,22 +138,29 @@ export class GeoIPResolver {
     // Simple fetch implementation using the ip-api free tier
     // Note: In real environment we'd use global fetch
     try {
-      const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,country,countryCode,city,lat,lon,timezone,isp,org,as,hosting`);
+      const response = await fetch(
+        `http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,message,country,countryCode,city,lat,lon,timezone,isp,org,as,hosting`,
+        { signal: AbortSignal.timeout(this.lookupTimeoutMs) },
+      );
       
       if (!response.ok) return null;
       
-      const data = await response.json();
+      const data = await response.json() as {
+        status?: string; country?: string; countryCode?: string; city?: string;
+        lat?: number; lon?: number; timezone?: string; isp?: string; org?: string;
+        as?: string; hosting?: boolean;
+      };
       if (data.status !== 'success') return null;
       
       const asnMatch = data.as ? data.as.match(/^(AS\d+)/) : null;
       const asnStr = asnMatch ? asnMatch[1] : '';
 
       return {
-        country: data.countryCode,
-        countryName: data.country,
-        city: data.city,
+        country: data.countryCode ?? '',
+        countryName: data.country ?? '',
+        city: data.city ?? '',
         asn: asnStr,
-        asnOrg: this.asnDatabase.get(asnStr) || data.org || data.isp,
+        asnOrg: this.asnDatabase.get(asnStr) || data.org || data.isp || '',
         latitude: data.lat,
         longitude: data.lon,
         timezone: data.timezone,

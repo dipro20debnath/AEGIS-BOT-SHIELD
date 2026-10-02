@@ -177,6 +177,7 @@ export class NonceCache {
   constructor(maxAgeMs: number = 120_000) {
     this.maxAge = maxAgeMs;
     this.cleanupInterval = setInterval(() => this.cleanup(), 60_000);
+    this.cleanupInterval.unref?.();
   }
 
   /** Check if nonce has been seen (returns true if replay detected) */

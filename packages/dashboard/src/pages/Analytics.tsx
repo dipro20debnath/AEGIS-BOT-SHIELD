@@ -1,132 +1,93 @@
-import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import React, { useMemo } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
+import ApiStatus from '../components/ApiStatus';
+import { StatsEvent, StatsSummary, useApi } from '../api';
+import { Theme, cardStyle } from '../theme';
 
-interface Props {
-  isDarkTheme: boolean;
-}
+const Analytics: React.FC<{ theme: Theme }> = ({ theme }) => {
+  const stats = useApi<StatsSummary>('/aegis/stats');
+  const events = useApi<StatsEvent[]>('/aegis/events?limit=500');
+  const recent = events.data ?? [];
 
-const botTypeData = [
-  { name: 'Simple Script', value: 45000 },
-  { name: 'Headless Browser', value: 23000 },
-  { name: 'Sophisticated (Human-like)', value: 12000 },
-  { name: 'Crawler/Scraper', value: 34000 },
-];
+  const histogram = useMemo(() => {
+    const bins = Array.from({ length: 10 }, (_, i) => ({ range: `${i * 10}–${i * 10 + 9}`, count: 0 }));
+    for (const e of recent) bins[Math.min(9, Math.floor(e.score / 10))].count++;
+    return bins;
+  }, [recent]);
 
-const detectionMetrics = [
-  { time: '00:00', accuracy: 98.2, falsePositives: 1.2 },
-  { time: '04:00', accuracy: 98.5, falsePositives: 1.1 },
-  { time: '08:00', accuracy: 97.9, falsePositives: 1.5 },
-  { time: '12:00', accuracy: 98.8, falsePositives: 0.9 },
-  { time: '16:00', accuracy: 99.1, falsePositives: 0.7 },
-  { time: '20:00', accuracy: 98.4, falsePositives: 1.3 },
-];
+  const paths = useMemo(() => {
+    const byPath = new Map<string, { total: number; denied: number }>();
+    for (const e of recent) {
+      const p = byPath.get(e.path) ?? { total: 0, denied: 0 };
+      p.total++;
+      if (e.verdict === 'block' || e.verdict === 'challenge') p.denied++;
+      byPath.set(e.path, p);
+    }
+    return [...byPath.entries()].sort((a, b) => b[1].total - a[1].total).slice(0, 15);
+  }, [recent]);
 
-const featureImportance = [
-  { feature: 'Mouse Dynamics', importance: 0.85 },
-  { feature: 'Keystroke Dynamics', importance: 0.75 },
-  { feature: 'Scroll Behavior', importance: 0.65 },
-  { feature: 'Touch Events', importance: 0.55 },
-  { feature: 'Device Fingerprint', importance: 0.92 },
-  { feature: 'Network Fingerprint', importance: 0.88 },
-  { feature: 'Behavioral Sequence', importance: 0.72 },
-];
-
-const topCountries = [
-  { country: 'Russia', requests: '1.2M', threatLevel: 'High' },
-  { country: 'China', requests: '950K', threatLevel: 'High' },
-  { country: 'United States', requests: '800K', threatLevel: 'Medium' },
-  { country: 'Brazil', requests: '450K', threatLevel: 'Medium' },
-  { country: 'Vietnam', requests: '300K', threatLevel: 'Low' },
-];
-
-const Analytics: React.FC<Props> = ({ isDarkTheme }) => {
-  const cardStyle = {
-    backgroundColor: isDarkTheme ? '#1e1e1e' : '#ffffff',
-    padding: '20px',
-    borderRadius: '8px',
-    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-    marginBottom: '20px'
-  };
+  const axis = { stroke: theme.axis, tick: { fill: theme.muted, fontSize: 12 } };
+  const tooltip = { contentStyle: { backgroundColor: theme.surface, border: `1px solid ${theme.border}`, color: theme.text }, cursor: { fill: theme.grid } };
+  const reasons = stats.data?.topReasons ?? [];
+  const cell: React.CSSProperties = { padding: '8px', borderBottom: `1px solid ${theme.grid}` };
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h1 style={{ marginBottom: '20px' }}>Deep Analytics</h1>
-      
-      <div style={{ display: 'flex', gap: '20px' }}>
-        <div style={{ ...cardStyle, flex: 1 }}>
-          <h3>Bot Type Distribution</h3>
-          <div style={{ height: '300px' }}>
+    <div style={{ padding: 20 }}>
+      <h1 style={{ marginTop: 0 }}>Analytics</h1>
+      <ApiStatus loading={stats.loading} error={stats.error} hasData={!!stats.data} theme={theme} />
+
+      <div style={cardStyle(theme)}>
+        <h3 style={{ marginTop: 0 }}>Most frequent detection signals</h3>
+        {reasons.length === 0 ? <div style={{ color: theme.textSecondary }}>No signals recorded yet.</div> : (
+          <div style={{ height: Math.max(160, reasons.length * 34) }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={botTypeData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={isDarkTheme ? '#333' : '#ccc'} />
-                <XAxis type="number" stroke={isDarkTheme ? '#ccc' : '#333'} />
-                <YAxis dataKey="name" type="category" width={150} stroke={isDarkTheme ? '#ccc' : '#333'} />
-                <RechartsTooltip contentStyle={{ backgroundColor: isDarkTheme ? '#333' : '#fff', color: isDarkTheme ? '#fff' : '#000' }} />
-                <Legend />
-                <Bar dataKey="value" fill="#8884d8" name="Bot Volume" />
+              <BarChart data={reasons} layout="vertical" margin={{ left: 40, right: 40 }}>
+                <CartesianGrid horizontal={false} stroke={theme.grid} />
+                <XAxis type="number" allowDecimals={false} {...axis} />
+                <YAxis type="category" dataKey="reason" width={200} {...axis} />
+                <Tooltip {...tooltip} />
+                <Bar dataKey="count" name="requests" fill={theme.series1} radius={[0, 4, 4, 0]} barSize={18}>
+                  <LabelList dataKey="count" position="right" fill={theme.textSecondary} fontSize={12} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        )}
+      </div>
 
-        <div style={{ ...cardStyle, flex: 1 }}>
-          <h3>Detection Accuracy Metrics (Last 24h)</h3>
-          <div style={{ height: '300px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={detectionMetrics}>
-                <CartesianGrid strokeDasharray="3 3" stroke={isDarkTheme ? '#333' : '#ccc'} />
-                <XAxis dataKey="time" stroke={isDarkTheme ? '#ccc' : '#333'} />
-                <YAxis yAxisId="left" stroke="#82ca9d" />
-                <YAxis yAxisId="right" orientation="right" stroke="#ff7300" />
-                <RechartsTooltip contentStyle={{ backgroundColor: isDarkTheme ? '#333' : '#fff', color: isDarkTheme ? '#fff' : '#000' }} />
-                <Legend />
-                <Line yAxisId="left" type="monotone" dataKey="accuracy" stroke="#82ca9d" name="Accuracy (%)" />
-                <Line yAxisId="right" type="monotone" dataKey="falsePositives" stroke="#ff7300" name="FP Rate (%)" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+      <div style={cardStyle(theme)}>
+        <h3 style={{ marginTop: 0 }}>Risk score distribution (last {recent.length} requests)</h3>
+        <div style={{ height: 260 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={histogram}>
+              <CartesianGrid vertical={false} stroke={theme.grid} />
+              <XAxis dataKey="range" {...axis} />
+              <YAxis allowDecimals={false} {...axis} />
+              <Tooltip {...tooltip} />
+              <Bar dataKey="count" name="requests" fill={theme.series1} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '20px' }}>
-        <div style={{ ...cardStyle, flex: 1 }}>
-          <h3>Geographic Threat Map (Top Origins)</h3>
-          <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: `1px solid ${isDarkTheme ? '#333' : '#ddd'}`, color: isDarkTheme ? '#aaa' : '#555' }}>
-                <th style={{ padding: '10px' }}>Country</th>
-                <th style={{ padding: '10px' }}>Malicious Requests</th>
-                <th style={{ padding: '10px' }}>Threat Level</th>
+      <div style={cardStyle(theme)}>
+        <h3 style={{ marginTop: 0 }}>Paths</h3>
+        <table style={{ width: '100%', borderCollapse: 'collapse', color: theme.text, fontSize: 14 }}>
+          <thead style={{ color: theme.textSecondary, textAlign: 'left' }}>
+            <tr><th style={cell}>Path</th><th style={{ ...cell, textAlign: 'right' }}>Requests</th><th style={{ ...cell, textAlign: 'right' }}>Denied</th></tr>
+          </thead>
+          <tbody>
+            {paths.map(([path, p]) => (
+              <tr key={path}>
+                <td style={cell}><code>{path}</code></td>
+                <td style={{ ...cell, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.total}</td>
+                <td style={{ ...cell, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                  {p.denied} ({((p.denied / p.total) * 100).toFixed(0)}%)
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {topCountries.map((c, i) => (
-                <tr key={i} style={{ borderBottom: `1px solid ${isDarkTheme ? '#333' : '#eee'}` }}>
-                  <td style={{ padding: '10px' }}>{c.country}</td>
-                  <td style={{ padding: '10px' }}>{c.requests}</td>
-                  <td style={{ padding: '10px', color: c.threatLevel === 'High' ? '#ff4d4f' : c.threatLevel === 'Medium' ? '#faad14' : '#1890ff' }}>
-                    {c.threatLevel}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div style={{ ...cardStyle, flex: 1 }}>
-          <h3>ML Feature Importance</h3>
-          <div style={{ height: '300px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={featureImportance} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={isDarkTheme ? '#333' : '#ccc'} />
-                <XAxis dataKey="feature" stroke={isDarkTheme ? '#ccc' : '#333'} angle={-45} textAnchor="end" height={80} />
-                <YAxis stroke={isDarkTheme ? '#ccc' : '#333'} />
-                <RechartsTooltip contentStyle={{ backgroundColor: isDarkTheme ? '#333' : '#fff', color: isDarkTheme ? '#fff' : '#000' }} />
-                <Bar dataKey="importance" fill="#00C49F" name="Importance Score" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

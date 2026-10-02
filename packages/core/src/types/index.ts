@@ -60,6 +60,8 @@ export interface IPIntelConfig {
   allowlist: string[];
   /** AbuseIPDB API key */
   abuseIpDbKey?: string;
+  /** Resolve geo/ASN via external API (sends client IPs to a third party; default false) */
+  externalGeoLookup?: boolean;
 }
 
 export interface BehavioralConfig {
@@ -112,6 +114,8 @@ export interface ModuleConfig {
   threatIntel: boolean;
   behavioral: boolean;
   challenges: boolean;
+  /** Pattern checks for XSS / SQLi / CRLF / prototype pollution / path traversal payloads */
+  inputValidation: boolean;
 }
 
 // === Request & Response ===
@@ -202,7 +206,7 @@ export interface BehavioralPayload {
 export interface MouseData {
   /** Total events collected */
   eventCount: number;
-  /** Average velocity (px/ms) */
+  /** Average velocity (px/s) */
   avgVelocity: number;
   /** Velocity standard deviation */
   velocityStd: number;
@@ -210,11 +214,11 @@ export interface MouseData {
   avgAcceleration: number;
   /** Average jerk (rate of acceleration change) */
   avgJerk: number;
-  /** Curvature score (0-1, 1=perfectly straight=suspicious) */
+  /** Straightness (0-1, mean over strokes; 1 = perfectly straight = suspicious) */
   straightnessIndex: number;
   /** Click count */
   clickCount: number;
-  /** Average click precision (distance from target center) */
+  /** Click precision (0-1, 1 = click at the target's centre) */
   clickPrecision: number;
   /** Micro-tremor frequency (Hz) - humans have 8-12Hz tremor */
   microTremorFreq: number;
@@ -235,7 +239,7 @@ export interface KeyboardData {
   avgFlightTime: number;
   /** Flight time standard deviation */
   flightTimeStd: number;
-  /** Typing speed (chars/min) */
+  /** Typing speed (words/min) */
   typingSpeed: number;
   /** Paste events detected */
   pasteCount: number;
@@ -293,6 +297,8 @@ export interface AegisResult {
   requestId: string;
   /** Timestamp */
   timestamp: number;
+  /** Signed session token to return to the client (when session tracking is on) */
+  sessionToken?: string;
 }
 
 export interface RiskScore {
@@ -305,6 +311,8 @@ export interface RiskScore {
     behavioral: number;
     device: number;
     reputation: number;
+    /** Injection payloads in path, query, body or headers (InputValidator) */
+    payload: number;
   };
   /** Individual factor contributions */
   factors: Record<string, number>;
@@ -314,7 +322,7 @@ export interface RiskScore {
 
 export interface DetectionSignal {
   /** Signal category */
-  category: 'network' | 'protocol' | 'behavioral' | 'device' | 'reputation' | 'challenge';
+  category: 'network' | 'protocol' | 'behavioral' | 'device' | 'reputation' | 'payload' | 'challenge';
   /** Signal type name */
   type: string;
   /** Signal value 0-100 */

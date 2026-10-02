@@ -1,5 +1,9 @@
 import { HeadlessDetectionResult, DetectionTest } from '../types';
 
+/**
+ * Passive headless/automation checks. None of them prompts the user, makes a
+ * network request or reads local network information.
+ */
 export class HeadlessDetector {
   public async detect(): Promise<HeadlessDetectionResult> {
     const tests: DetectionTest[] = [];
@@ -8,7 +12,7 @@ export class HeadlessDetector {
     tests.push(this.checkChromeObject());
     tests.push(this.checkPrototypeIntegrity());
     tests.push(this.checkPlugins());
-    tests.push(await this.checkPermissionsTiming());
+    tests.push(await this.checkPermissionsConsistency());
     tests.push(this.checkWebGLRenderer());
     tests.push(this.checkScreenDimensions());
     tests.push(this.checkWindowDimensions());
@@ -17,7 +21,6 @@ export class HeadlessDetector {
     tests.push(this.checkConnectionApi());
     tests.push(this.checkNotificationApi());
     tests.push(this.checkStackTrace());
-    tests.push(await this.checkWebRTC());
     tests.push(this.checkCanvasNoise());
     tests.push(this.checkLanguagesConsistency());
     tests.push(this.checkCDPLeak());
@@ -61,27 +64,29 @@ export class HeadlessDetector {
 
   private checkPlugins(): DetectionTest {
     try {
-      const detected = navigator.plugins.length === 0;
-      return { name: 'plugins', detected, confidence: 0.7, details: detected ? '0 plugins installed' : '' };
+      // Desktop Chrome always exposes its built-in PDF viewer plugins; mobile browsers expose none
+      const isDesktopChrome = /Chrome/.test(navigator.userAgent) && !/Mobile|Android/.test(navigator.userAgent);
+      const detected = isDesktopChrome && navigator.plugins.length === 0;
+      return { name: 'plugins', detected, confidence: 0.7, details: detected ? '0 plugins in desktop Chrome' : '' };
     } catch (e) {
       return { name: 'plugins', detected: false, confidence: 0, details: String(e) };
     }
   }
 
-  private async checkPermissionsTiming(): Promise<DetectionTest> {
+  /**
+   * Headless Chrome reports Notification.permission 'denied' while the
+   * Permissions API says 'prompt'. Reads state only; never asks for permission.
+   */
+  private async checkPermissionsConsistency(): Promise<DetectionTest> {
     try {
-      if (!window.Notification) return { name: 'permissionsTiming', detected: false, confidence: 0, details: 'Notification API not supported' };
-      const start = performance.now();
-      const p = Notification.requestPermission();
-      if (p && p.then) {
-        await p;
-        const end = performance.now();
-        const detected = (end - start) < 2;
-        return { name: 'permissionsTiming', detected, confidence: 0.8, details: detected ? 'Permission resolved instantly' : '' };
+      if (!('Notification' in window) || !navigator.permissions?.query) {
+        return { name: 'permissions', detected: false, confidence: 0, details: 'Permissions API not supported' };
       }
-      return { name: 'permissionsTiming', detected: false, confidence: 0, details: 'Callback based' };
+      const status = await navigator.permissions.query({ name: 'notifications' as PermissionName });
+      const detected = Notification.permission === 'denied' && status.state === 'prompt';
+      return { name: 'permissions', detected, confidence: 0.8, details: detected ? 'Notification permission inconsistent with Permissions API' : '' };
     } catch (e) {
-      return { name: 'permissionsTiming', detected: false, confidence: 0, details: String(e) };
+      return { name: 'permissions', detected: false, confidence: 0, details: String(e) };
     }
   }
 
@@ -127,17 +132,21 @@ export class HeadlessDetector {
     }
   }
 
+  /** Real browsers report 0x0 for a broken image; some headless builds report 16x16. */
   private async checkBrokenImage(): Promise<DetectionTest> {
     return new Promise(resolve => {
+      const done = (test: DetectionTest) => { clearTimeout(timer); resolve(test); };
+      const timer = setTimeout(() => done({ name: 'brokenImage', detected: false, confidence: 0, details: 'timeout' }), 1000);
       try {
         const img = document.createElement('img');
         img.onerror = () => {
           const detected = img.width > 0 && img.height > 0;
-          resolve({ name: 'brokenImage', detected, confidence: 0.7, details: detected ? 'Image dimensions > 0 on error' : '' });
+          done({ name: 'brokenImage', detected, confidence: 0.7, details: detected ? 'Image dimensions > 0 on error' : '' });
         };
-        img.src = 'http://localhost:9999/does-not-exist.png';
+        img.onload = () => done({ name: 'brokenImage', detected: false, confidence: 0, details: 'image loaded' });
+        img.src = 'data:image/png;base64,AEGIS'; // invalid image data, no network request
       } catch (e) {
-        resolve({ name: 'brokenImage', detected: false, confidence: 0, details: String(e) });
+        done({ name: 'brokenImage', detected: false, confidence: 0, details: String(e) });
       }
     });
   }
@@ -168,28 +177,6 @@ export class HeadlessDetector {
     } catch (e) {
       return { name: 'stackTrace', detected: false, confidence: 0, details: String(e) };
     }
-  }
-
-  private async checkWebRTC(): Promise<DetectionTest> {
-    return new Promise(resolve => {
-      try {
-        if (!window.RTCPeerConnection) return resolve({ name: 'webrtc', detected: false, confidence: 0, details: 'WebRTC not supported' });
-        const pc = new RTCPeerConnection({ iceServers: [] });
-        let hasCandidates = false;
-        pc.onicecandidate = (e) => {
-          if (e.candidate) hasCandidates = true;
-        };
-        pc.createDataChannel('test');
-        pc.createOffer().then(offer => pc.setLocalDescription(offer)).catch(() => {});
-        
-        setTimeout(() => {
-          const detected = !hasCandidates;
-          resolve({ name: 'webrtc', detected, confidence: 0.5, details: detected ? 'No ICE candidates gathered' : '' });
-        }, 500);
-      } catch (e) {
-        resolve({ name: 'webrtc', detected: false, confidence: 0, details: String(e) });
-      }
-    });
   }
 
   private checkCanvasNoise(): DetectionTest {

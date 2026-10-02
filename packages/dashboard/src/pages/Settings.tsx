@@ -1,79 +1,42 @@
 import React from 'react';
+import ApiStatus from '../components/ApiStatus';
+import { ServerConfig, useApi } from '../api';
+import { Theme, cardStyle } from '../theme';
 
-interface Props {
-  isDarkTheme: boolean;
-}
-
-const Settings: React.FC<Props> = ({ isDarkTheme }) => {
-  const cardStyle = {
-    backgroundColor: isDarkTheme ? '#1e1e1e' : '#ffffff',
-    padding: '20px',
-    borderRadius: '8px',
-    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-    marginBottom: '20px',
-    maxWidth: '800px'
-  };
-
-  const labelStyle = {
-    display: 'block',
-    marginBottom: '8px',
-    fontWeight: 'bold',
-    color: isDarkTheme ? '#ccc' : '#333'
-  };
-
-  const inputStyle = {
-    width: '100%',
-    padding: '10px',
-    borderRadius: '4px',
-    border: `1px solid ${isDarkTheme ? '#444' : '#ccc'}`,
-    backgroundColor: isDarkTheme ? '#333' : '#fff',
-    color: isDarkTheme ? '#fff' : '#000',
-    marginBottom: '20px'
-  };
+/** Read-only view of the running server's configuration (change it in the server code or environment). */
+const Settings: React.FC<{ theme: Theme }> = ({ theme }) => {
+  const config = useApi<ServerConfig>('/aegis/config', 0);
+  const c = config.data;
+  const row = (label: string, value: React.ReactNode) => (
+    <tr key={label}>
+      <th style={{ textAlign: 'left', padding: 8, color: theme.textSecondary, borderBottom: `1px solid ${theme.grid}`, width: 260 }}>{label}</th>
+      <td style={{ padding: 8, borderBottom: `1px solid ${theme.grid}` }}>{value}</td>
+    </tr>
+  );
+  const list = (items: string[] | 'all') => (items === 'all' ? 'all paths' : items.length ? items.map(p => <code key={p} style={{ marginRight: 8 }}>{p}</code>) : '—');
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h1 style={{ marginBottom: '20px' }}>Protection Settings</h1>
-      
-      <div style={cardStyle}>
-        <h3>General Configuration</h3>
-        <hr style={{ borderTop: `1px solid ${isDarkTheme ? '#333' : '#eee'}`, margin: '15px 0' }} />
-        
-        <label style={labelStyle}>Protection Mode</label>
-        <select style={inputStyle} defaultValue="balanced">
-          <option value="lax">Lax (Monitor Only)</option>
-          <option value="balanced">Balanced (Recommended)</option>
-          <option value="strict">Strict (High False Positives possible)</option>
-          <option value="paranoia">Paranoia (Block almost everything suspicious)</option>
-        </select>
-
-        <label style={labelStyle}>Challenge Type</label>
-        <select style={inputStyle} defaultValue="invisible">
-          <option value="invisible">Invisible PoW (Proof of Work)</option>
-          <option value="captcha">Interactive CAPTCHA</option>
-          <option value="js">JavaScript Challenge</option>
-        </select>
-      </div>
-
-      <div style={cardStyle}>
-        <h3>Machine Learning Engine</h3>
-        <hr style={{ borderTop: `1px solid ${isDarkTheme ? '#333' : '#eee'}`, margin: '15px 0' }} />
-        
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
-          <input type="checkbox" id="auto_update" defaultChecked style={{ marginRight: '10px', transform: 'scale(1.2)' }} />
-          <label htmlFor="auto_update" style={{ color: isDarkTheme ? '#ccc' : '#333', fontWeight: 'bold' }}>Enable Auto-Model Updates (Continuous Learning)</label>
+    <div style={{ padding: 20 }}>
+      <h1 style={{ marginTop: 0 }}>Settings</h1>
+      <ApiStatus loading={config.loading} error={config.error} hasData={!!c} theme={theme} />
+      {c && (
+        <div style={{ ...cardStyle(theme), maxWidth: 900 }}>
+          <table style={{ borderCollapse: 'collapse', width: '100%', color: theme.text }}>
+            <tbody>
+              {row('Mode', c.mode === 'monitor' ? 'monitor (never blocks)' : 'enforce')}
+              {row('Block threshold', c.thresholds.block)}
+              {row('Challenge threshold', c.thresholds.challenge)}
+              {row('Paths requiring a token', list(c.requireTokenPaths))}
+              {row('Protected paths', list(c.protectedPaths))}
+              {row('Excluded paths', list(c.excludedPaths))}
+              {row('Token lifetime', `${c.tokenTtl} s`)}
+              {row('ML scoring', c.mlEnabled ? 'enabled (ML service)' : 'disabled (rules only)')}
+              {row('Site key', c.siteKeyConfigured ? 'configured' : 'missing')}
+            </tbody>
+          </table>
+          <p style={{ color: theme.muted, fontSize: 13 }}>Configuration is set where the server is created; the dashboard only displays it.</p>
         </div>
-
-        <label style={labelStyle}>Risk Score Threshold for Block (0-100)</label>
-        <input type="range" min="0" max="100" defaultValue="85" style={{ width: '100%', marginBottom: '20px' }} />
-        
-        <label style={labelStyle}>Risk Score Threshold for Challenge (0-100)</label>
-        <input type="range" min="0" max="100" defaultValue="50" style={{ width: '100%', marginBottom: '20px' }} />
-      </div>
-
-      <button style={{ padding: '12px 24px', backgroundColor: '#1890ff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>
-        Save Changes
-      </button>
+      )}
     </div>
   );
 };
