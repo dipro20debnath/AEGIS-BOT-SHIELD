@@ -50,5 +50,15 @@ class TestSyntheticDataGenerator:
 
     def test_difficulty_levels(self):
         data, labels, levels = SyntheticDataGenerator().generate_with_difficulty_levels(10)
-        assert len(data) == len(labels) == len(levels) == 60
-        assert set(np.unique(levels)) == {0, 1, 2}
+        assert len(data) == len(labels) == len(levels) == 80
+        assert set(np.unique(levels)) == {0, 1, 2, 3}
+
+    def test_replay_bot_behavior_matches_human_distribution(self):
+        gen = SyntheticDataGenerator(random_state=3)
+        extractor = FeatureExtractor()
+        humans = extractor.extract_batch([gen._generate_human() for _ in range(2000)])
+        replays = extractor.extract_batch([gen._generate_bot('replay_bot') for _ in range(2000)])
+        idx = extractor.category_indices['mouse'] + extractor.category_indices['keyboard']
+        h, r = humans[:, idx], replays[:, idx]
+        # replayed traces come from the same distribution (bounced humans aside)
+        np.testing.assert_allclose(r.mean(axis=0), h.mean(axis=0), rtol=0.15, atol=1.0)

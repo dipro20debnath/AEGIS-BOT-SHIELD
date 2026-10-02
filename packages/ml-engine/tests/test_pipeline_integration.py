@@ -37,3 +37,21 @@ def test_training_pipeline_and_inference(tmp_path):
     assert 0.0 <= score <= 1.0
     assert is_bot is True
     assert score > 0.5
+
+
+def test_fast_forest_matches_sklearn(tmp_path):
+    data, labels = SyntheticDataGenerator(random_state=4).generate(200, 200)
+    X = FeatureExtractor().extract_batch(data)
+    clf = BotClassifier()
+    clf.train(X, labels)
+    X_scaled = clf.scaler.transform(X)
+    expected = clf.models['random_forest'].predict_proba(X_scaled)[:, 1]
+    np.testing.assert_allclose(clf._fast_forest.predict_bot_proba(X_scaled), expected, atol=1e-12)
+
+    # the fast path is rebuilt after loading a saved model
+    path = tmp_path / 'model.pkl'
+    clf.save(str(path))
+    loaded = BotClassifier()
+    loaded.load(str(path))
+    np.testing.assert_allclose(loaded.predict_proba(X), clf.predict_proba(X), atol=1e-12)
+    np.testing.assert_array_equal(loaded.predict(X), clf.predict(X))

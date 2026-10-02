@@ -26,6 +26,56 @@ from sklearn.metrics import (accuracy_score, precision_score, recall_score,
                              classification_report)
 
 
+class FlatForest:
+    """Vectorized evaluator for a fitted sklearn RandomForestClassifier.
+
+    sklearn walks the trees one Python call at a time, which costs ~10ms for a
+    single sample with 200 trees. Here every tree is flattened into shared node
+    arrays and all trees are traversed together with numpy, giving the same
+    bot probability as RandomForestClassifier.predict_proba(X)[:, 1] in a
+    fraction of the time.
+    """
+
+    def __init__(self, forest: RandomForestClassifier):
+        features, thresholds, lefts, rights, probs, roots = [], [], [], [], [], []
+        offset = 0
+        max_depth = 0
+        bot_col = list(forest.classes_).index(1)
+        for est in forest.estimators_:
+            tree = est.tree_
+            leaf = tree.children_left == -1
+            left = np.where(leaf, np.arange(tree.node_count), tree.children_left) + offset
+            right = np.where(leaf, np.arange(tree.node_count), tree.children_right) + offset
+            value = tree.value[:, 0, :]
+            totals = value.sum(axis=1)
+            totals[totals == 0] = 1.0
+            features.append(np.where(leaf, 0, tree.feature))
+            thresholds.append(np.where(leaf, np.inf, tree.threshold))
+            lefts.append(left)
+            rights.append(right)
+            probs.append(value[:, bot_col] / totals)
+            roots.append(offset)
+            offset += tree.node_count
+            max_depth = max(max_depth, tree.max_depth)
+        self.feature = np.concatenate(features).astype(np.intp)
+        self.threshold = np.concatenate(thresholds)
+        self.left = np.concatenate(lefts).astype(np.intp)
+        self.right = np.concatenate(rights).astype(np.intp)
+        self.prob = np.concatenate(probs)
+        self.roots = np.array(roots, dtype=np.intp)
+        self.max_depth = max_depth
+
+    def predict_bot_proba(self, X: np.ndarray) -> np.ndarray:
+        # sklearn trees compare float32 inputs against float64 thresholds
+        X = np.asarray(X, dtype=np.float32)
+        rows = np.arange(X.shape[0])[:, None]
+        nodes = np.broadcast_to(self.roots, (X.shape[0], len(self.roots)))
+        for _ in range(self.max_depth):
+            go_left = X[rows, self.feature[nodes]] <= self.threshold[nodes]
+            nodes = np.where(go_left, self.left[nodes], self.right[nodes])
+        return self.prob[nodes].mean(axis=1)
+
+
 class BotClassifier:
     """Ensemble bot detection classifier."""
 
@@ -36,6 +86,7 @@ class BotClassifier:
         self.meta_model = None
         self.is_fitted = False
         self.feature_names: List[str] = []
+        self._fast_forest: Optional[FlatForest] = None
         self._init_models()
 
     def _init_models(self):
@@ -68,7 +119,11 @@ class BotClassifier:
     def _get_base_predictions(self, X: np.ndarray) -> np.ndarray:
         preds = []
         for name, model in self.models.items():
-            if model is not None:
+            if model is None:
+                continue
+            if name == 'random_forest' and self._fast_forest is not None:
+                preds.append(self._fast_forest.predict_bot_proba(X))
+            else:
                 preds.append(model.predict_proba(X)[:, 1])
         return np.column_stack(preds)
 
@@ -81,19 +136,20 @@ class BotClassifier:
             if model is not None:
                 model.fit(X_scaled, y)
 
+        self._build_fast_forest()
         base_preds = self._get_base_predictions(X_scaled)
         self.meta_model.fit(base_preds, y)
         self.is_fitted = True
         
         return self.evaluate(X, y)
 
+    def _build_fast_forest(self):
+        rf = self.models.get('random_forest')
+        self._fast_forest = FlatForest(rf) if rf is not None else None
+
     def predict(self, X: np.ndarray) -> np.ndarray:
         """Predict bot (1) or human (0)."""
-        if not self.is_fitted:
-            raise ValueError("Model not fitted.")
-        X_scaled = self.scaler.transform(X)
-        base_preds = self._get_base_predictions(X_scaled)
-        return self.meta_model.predict(base_preds)
+        return (self.predict_proba(X) > 0.5).astype(int)
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """Return probability of being a bot."""
@@ -105,8 +161,8 @@ class BotClassifier:
 
     def evaluate(self, X: np.ndarray, y: np.ndarray) -> Dict[str, Any]:
         """Full evaluation: accuracy, precision, recall, F1, AUC-ROC, confusion matrix."""
-        preds = self.predict(X)
         probs = self.predict_proba(X)
+        preds = (probs > 0.5).astype(int)
         
         return {
             'accuracy': accuracy_score(y, preds),
@@ -167,3 +223,4 @@ class BotClassifier:
             self.scaler = data['scaler']
             self.is_fitted = data['is_fitted']
             self.feature_names = data['feature_names']
+        self._build_fast_forest()

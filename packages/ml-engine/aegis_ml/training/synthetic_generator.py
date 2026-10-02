@@ -17,6 +17,9 @@ Realism choices (so the task is not trivially separable):
 - Headless bots are not always detected as headless (stealth patches)
 - Sophisticated bots replay human-like mouse/keyboard dynamics with small shifts
   and often route through residential proxies
+- Replay bots inject recorded real-human traces, so their mouse/keyboard/scroll/
+  touch features are drawn from the human distribution; only session pacing,
+  network origin, fingerprint leaks and device inconsistencies give them away
 
 Based on published research:
 - Balabit Mouse Dynamics Dataset patterns
@@ -30,7 +33,7 @@ import numpy as np
 from typing import List, Dict, Tuple, Optional
 
 
-BOT_TYPES = ['simple_script', 'headless_browser', 'sophisticated_bot', 'crawler']
+BOT_TYPES = ['simple_script', 'headless_browser', 'sophisticated_bot', 'crawler', 'replay_bot']
 
 
 class SyntheticDataGenerator:
@@ -74,25 +77,37 @@ class SyntheticDataGenerator:
     # Sample assembly
     # ------------------------------------------------------------------
 
-    def _generate_human(self) -> Dict:
-        """Generate human-like behavioral data."""
-        device = 'mobile' if self.rng.rand() < 0.3 else 'desktop'
+    def _random_device(self) -> str:
+        return 'mobile' if self.rng.rand() < 0.3 else 'desktop'
+
+    def _human_behavior(self, device: str, bounced: bool) -> Dict:
+        """Mouse/keyboard/scroll/touch of one real-looking human session."""
         typed = self.rng.rand() < 0.8
-        bounced = self.rng.rand() < 0.1  # left after a few seconds
         return {
             'mouse': self._human_mouse(bounced) if device == 'desktop' else self._empty_mouse(),
             'keyboard': self._human_keyboard() if typed and not bounced else self._empty_keyboard(),
             'scroll': self._human_scroll(device, bounced),
             'touch': self._human_touch(bounced) if device == 'mobile' else self._empty_touch(),
+        }
+
+    def _generate_human(self) -> Dict:
+        """Generate human-like behavioral data."""
+        device = self._random_device()
+        bounced = self.rng.rand() < 0.1  # left after a few seconds
+        sample = self._human_behavior(device, bounced)
+        sample.update({
             'session': self._human_session(bounced),
             'network': self._human_network(),
             'fingerprint': self._human_fingerprint(device),
-        }
+        })
+        return sample
 
     def _generate_bot(self, bot_type: Optional[str] = None) -> Dict:
         """Generate bot-like behavioral data with variations."""
         if bot_type is None:
             bot_type = self.rng.choice(BOT_TYPES)
+        if bot_type == 'replay_bot':
+            return self._generate_replay_bot()
 
         return {
             'mouse': self._bot_mouse(bot_type),
@@ -103,6 +118,26 @@ class SyntheticDataGenerator:
             'network': self._bot_network(bot_type),
             'fingerprint': self._bot_fingerprint(bot_type),
         }
+
+    def _generate_replay_bot(self) -> Dict:
+        """Bot that replays a recorded human session through a stealth browser.
+
+        Behavioral features come straight from the human generator. The bot
+        presents its own browser profile, which matches the recorded trace's
+        device most of the time but not always (e.g. a phone touch trace
+        replayed inside a desktop browser profile).
+        """
+        trace_device = self._random_device()
+        sample = self._human_behavior(trace_device, bounced=False)
+        profile_device = trace_device
+        if self.rng.rand() < 0.25:
+            profile_device = 'desktop' if trace_device == 'mobile' else 'mobile'
+        sample.update({
+            'session': self._bot_session('replay_bot'),
+            'network': self._bot_network('replay_bot'),
+            'fingerprint': self._bot_fingerprint('replay_bot', profile_device),
+        })
+        return sample
 
     # ------------------------------------------------------------------
     # Mouse (15 features)
@@ -389,6 +424,14 @@ class SyntheticDataGenerator:
             requests = self._count(25, 15)
             return self._session(requests * self.rng.uniform(0.5, 4.0), requests,
                                  self.rng.uniform(0.2, 0.7), self.rng.beta(3, 4))
+        if bot_type == 'replay_bot':
+            requests = self._count(14, 7)
+            return self._session(                                   # replays human think-time, a bit faster
+                duration=self.rng.lognormal(np.log(150), 0.6),
+                requests=requests,
+                unique_ratio=self.rng.uniform(0.35, 0.9),
+                reputation=self.rng.beta(2, 7),
+            )
         requests = self._count(15, 8)
         return self._session(                                       # sophisticated: paced like a human
             duration=requests * self.rng.lognormal(np.log(12), 0.6),
@@ -412,11 +455,13 @@ class SyntheticDataGenerator:
 
     def _bot_network(self, bot_type: str) -> Dict:
         residential = {'simple_script': 0.15, 'headless_browser': 0.25,
-                       'sophisticated_bot': 0.6, 'crawler': 0.2}[bot_type]
+                       'sophisticated_bot': 0.6, 'crawler': 0.2,
+                       'replay_bot': 0.7}[bot_type]
         uses_resi = self.rng.rand() < residential
         datacenter = 0.0 if uses_resi else self._flag(
             {'simple_script': 0.8, 'headless_browser': 0.7,
-             'sophisticated_bot': 0.4, 'crawler': 0.85}[bot_type])
+             'sophisticated_bot': 0.4, 'crawler': 0.85,
+             'replay_bot': 0.4}[bot_type])
         # residential proxies are only flagged by the detector part of the time
         return {
             'is_vpn': self._flag(0.1),
@@ -439,7 +484,7 @@ class SyntheticDataGenerator:
             'headless_confidence': self.rng.beta(1, 20),
         }
 
-    def _bot_fingerprint(self, bot_type: str) -> Dict:
+    def _bot_fingerprint(self, bot_type: str, device: str = 'desktop') -> Dict:
         if bot_type in ('simple_script', 'crawler'):
             # SDK never executes, so the fingerprint payload is empty
             return {'has_webgl': 0.0, 'has_canvas': 0.0, 'plugin_count': 0.0,
@@ -451,6 +496,15 @@ class SyntheticDataGenerator:
                 'plugin_count': float(self.rng.choice([0, 5], p=[0.7, 0.3])),
                 'is_headless': self._flag(0.7),
                 'headless_confidence': self.rng.beta(6, 2),
+            }
+        if bot_type == 'replay_bot':                                # antidetect browser profile
+            plugins = 0.0 if device == 'mobile' else float(self.rng.choice([0, 5], p=[0.3, 0.7]))
+            return {
+                'has_webgl': self._flag(0.9),
+                'has_canvas': 1.0,
+                'plugin_count': plugins,
+                'is_headless': self._flag(0.05),
+                'headless_confidence': self.rng.beta(1.5, 8),
             }
         return {                                                   # stealth plugins patch most leaks
             'has_webgl': self._flag(0.9),
@@ -467,11 +521,13 @@ class SyntheticDataGenerator:
     def generate_with_difficulty_levels(self, n_per_level=200) -> Tuple[List[Dict], np.ndarray, np.ndarray]:
         """Generate samples with difficulty labels for error analysis.
         Returns: (data, bot_labels, difficulty_labels)
-        Difficulty: 0=easy, 1=medium, 2=hard (sophisticated bots)"""
+        Difficulty: 0=easy, 1=medium, 2=hard (sophisticated bots),
+        3=expert (replayed human traces)"""
         data = []
         bot_labels = []
         diff_labels = []
-        level_bots = [('simple_script', 'crawler'), ('headless_browser',), ('sophisticated_bot',)]
+        level_bots = [('simple_script', 'crawler'), ('headless_browser',),
+                      ('sophisticated_bot',), ('replay_bot',)]
 
         for level, bot_types in enumerate(level_bots):
             for i in range(n_per_level):
