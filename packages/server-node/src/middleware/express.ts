@@ -44,7 +44,7 @@ export function aegisExpress(options: AegisExpressOptions, shared?: AegisNode) {
       }
       if (!aegis.shouldProtect(req.path)) { next(); return; }
 
-      const { decision, headers } = await aegis.evaluate({ ...info, body: req.body });
+      const { decision, headers } = await aegis.evaluate({ ...info, query: req.query as Record<string, unknown>, body: req.body });
       (req as any).aegis = decision;
       for (const [name, value] of Object.entries(headers)) res.setHeader(name, value);
       options.onDecision?.(req, decision);

@@ -2,6 +2,8 @@ export * from './AegisNode.js';
 export * from './stats.js';
 export * from './middleware/express.js';
 export * from './middleware/generic.js';
+export * from './middleware/securityHeaders.js';
+export * from './middleware/signature.js';
 export * from './TokenVerifier.js';
 export * from './AegisServer.js';
 export * from './routes.js';

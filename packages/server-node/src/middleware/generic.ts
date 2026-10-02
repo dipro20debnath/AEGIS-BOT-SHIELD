@@ -14,7 +14,8 @@ export function aegisGeneric(options: AegisNodeOptions, shared?: AegisNode) {
 
   return async (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void): Promise<void> => {
     try {
-      const path = new URL(req.url || '/', 'http://localhost').pathname;
+      const url = new URL(req.url || '/', 'http://localhost');
+      const path = url.pathname;
       const method = req.method || 'GET';
       const info = { method, path, ip: req.socket.remoteAddress || '', headers: req.headers, cookies: parseCookies(req.headers.cookie) };
 
@@ -34,7 +35,7 @@ export function aegisGeneric(options: AegisNodeOptions, shared?: AegisNode) {
       }
       if (!aegis.shouldProtect(path)) { next(); return; }
 
-      const { decision, headers } = await aegis.evaluate(info);
+      const { decision, headers } = await aegis.evaluate({ ...info, query: Object.fromEntries(url.searchParams) });
       (req as any).aegis = decision;
       for (const [name, value] of Object.entries(headers)) res.setHeader(name, value);
       if (decision.verdict === 'block' || decision.verdict === 'challenge') {
