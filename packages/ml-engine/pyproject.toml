@@ -15,5 +15,7 @@ dependencies = [
     "pandas>=2.0.0",
     "onnxruntime>=1.15.0",
     "torch>=2.0.0",
-    "Flask>=2.3.0"
+    "Flask>=2.3.0",
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0"
 ]

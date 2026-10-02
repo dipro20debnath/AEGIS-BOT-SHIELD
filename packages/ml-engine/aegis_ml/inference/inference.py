@@ -64,11 +64,8 @@ class InferenceEngine:
             # 3. Predict
             is_bot = self.classifier.predict(features)[0]
             
-            # 4. Confidence Score (if available)
-            if hasattr(self.classifier.model, 'predict_proba'):
-                score = self.classifier.model.predict_proba(features)[0][1]
-            else:
-                score = 1.0 if is_bot else 0.0
+            # 4. Confidence Score (stacked ensemble bot probability)
+            score = self.classifier.predict_proba(features)[0]
                 
             # 5. Cache Result
             self.cache[client_id] = {
