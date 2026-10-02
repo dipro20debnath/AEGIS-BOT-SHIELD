@@ -11,8 +11,10 @@ jobs:
     name: Node ${{ matrix.node-version }} - build, test, lint
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        node-version: [20, 22]
+        # vitest 5 / jsdom 30 need Node >= 22.12 (Node 20 reached end of life in April 2026)
+        node-version: [22, 24]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,6 +32,7 @@ jobs:
     name: Python ${{ matrix.python-version }} - tests
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ['3.10', '3.11', '3.12']
     steps:
