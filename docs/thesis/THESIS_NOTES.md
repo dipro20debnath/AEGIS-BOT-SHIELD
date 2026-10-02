@@ -119,7 +119,10 @@ Found while reviewing the code before experiments:
    code + an end-to-end test (now 30 tests).
 5. **Packaging:** the stale `packages/ml-engine/src/` folder makes setuptools
    treat the package as src-layout, so `pip install -e packages/ml-engine`
-   installs the old copy and `aegis_ml` is not importable. (Pending removal.)
+   installs the old copy and `aegis_ml` is not importable. Fixed 2026-10-02
+   by removing the stale scaffold files (`ml-engine/src/`, `server-python/aegis/`,
+   two superseded docs, `examples/express-basic/`); the installed package now
+   imports from any directory.
 
 Lesson for the thesis: an end-to-end test on real code is what catches
 integration bugs; unit tests on mocks did not.
@@ -147,6 +150,13 @@ Full output: `docs/thesis/results/synthetic/` (`thesis_report.md`,
 Setup: 2,500 humans + 2,500 bots (seed 42), split 70/15/15 stratified;
 Python 3.11.15, scikit-learn 1.9.1, XGBoost 3.2.0, NumPy 2.4.6; 4-core x86_64
 cloud container.
+
+Cross-platform check (2026-10-02): the test suite also runs on the student's
+Windows laptop (Python 3.13, scikit-learn 1.7.2, XGBoost 3.4.1, NumPy 2.3.5):
+26/26 tests that need no temp directory passed; the 4 `tmp_path` tests need
+`--basetemp=.pytest_tmp` there because of a Windows temp-folder permission
+issue (environment, not code). Re-run `thesis_experiment.py` on the laptop
+before the final thesis if the numbers will be reported from that machine.
 
 ### 5.1 Hold-out test set (n = 750)
 | Threshold | Accuracy | Precision | Recall | F1 | FPR |
@@ -206,7 +216,7 @@ mean 1.27 ms · p50 1.24 ms · p95 1.66 ms · p99 2.77 ms (target < 5 ms ✔)
 - [ ] Re-run §5 on real data; report 95% confidence intervals (bootstrap) for FPR and recall
 - [ ] Compare against baselines: rule-based, single XGBoost, RF, LR
 - [ ] Literature search for "novel" claims (§3)
-- [ ] Remove stale duplicate files (see §4, packaging)
+- [x] Remove stale duplicate files (see §4, packaging) — done 2026-10-02
 
 ---
 

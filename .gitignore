@@ -134,3 +134,7 @@ venv/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Python packaging / test artifacts
+*.egg-info/
+.pytest_tmp/
