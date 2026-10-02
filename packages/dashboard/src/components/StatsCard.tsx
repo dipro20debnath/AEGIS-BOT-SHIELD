@@ -1,41 +1,20 @@
 import React from 'react';
+import { Theme, cardStyle } from '../theme';
 
 interface Props {
   title: string;
   value: string | number;
-  trend: number;
-  isGood: boolean;
-  isDarkTheme: boolean;
+  detail?: string;
+  theme: Theme;
 }
 
-const StatsCard: React.FC<Props> = ({ title, value, trend, isGood, isDarkTheme }) => {
-  const cardStyle = {
-    backgroundColor: isDarkTheme ? '#1e1e1e' : '#ffffff',
-    padding: '20px',
-    borderRadius: '8px',
-    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column' as const,
-    justifyContent: 'center'
-  };
-
-  const trendColor = isGood ? (trend >= 0 ? '#00C49F' : '#ff4d4f') : (trend >= 0 ? '#ff4d4f' : '#00C49F');
-  const arrow = trend >= 0 ? '↑' : '↓';
-
-  return (
-    <div style={cardStyle}>
-      <div style={{ color: isDarkTheme ? '#aaa' : '#666', fontSize: '14px', marginBottom: '8px', fontWeight: 'bold' }}>
-        {title.toUpperCase()}
-      </div>
-      <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '8px' }}>
-        {value}
-      </div>
-      <div style={{ fontSize: '14px', color: trendColor, fontWeight: 'bold' }}>
-        {arrow} {Math.abs(trend)}% from last week
-      </div>
-    </div>
-  );
-};
+/** Stat tile: a single headline number with an optional one-line context. */
+const StatsCard: React.FC<Props> = ({ title, value, detail, theme }) => (
+  <div style={{ ...cardStyle(theme), flex: '1 1 0', minWidth: 150, marginBottom: 0 }}>
+    <div style={{ color: theme.textSecondary, fontSize: 13, marginBottom: 8, fontWeight: 600 }}>{title}</div>
+    <div style={{ fontSize: 28, fontWeight: 700, color: theme.text }}>{value}</div>
+    {detail && <div style={{ fontSize: 13, color: theme.muted, marginTop: 6 }}>{detail}</div>}
+  </div>
+);
 
 export default StatsCard;

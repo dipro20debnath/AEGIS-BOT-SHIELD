@@ -1,74 +1,44 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { useApi } from '../api';
+import { Theme, VERDICT_COLORS } from '../theme';
 
-interface Props {
-  isDarkTheme: boolean;
-}
+const links = [
+  { to: '/', label: 'Overview', icon: '📊' },
+  { to: '/analytics', label: 'Analytics', icon: '📈' },
+  { to: '/threats', label: 'Threats', icon: '🛡️' },
+  { to: '/logs', label: 'Request Logs', icon: '📝' },
+  { to: '/ml-performance', label: 'ML Engine', icon: '🧠' },
+  { to: '/settings', label: 'Settings', icon: '⚙️' },
+];
 
-const Sidebar: React.FC<Props> = ({ isDarkTheme }) => {
-  const sidebarStyle = {
-    width: '250px',
-    backgroundColor: isDarkTheme ? '#1e1e1e' : '#ffffff',
-    borderRight: `1px solid ${isDarkTheme ? '#333' : '#e0e0e0'}`,
-    padding: '20px 0',
-    display: 'flex',
-    flexDirection: 'column' as const,
-    height: 'calc(100vh - 60px)',
-    position: 'sticky' as const,
-    top: '60px'
-  };
-
-  const navItemStyle = (isActive: boolean) => ({
-    padding: '15px 20px',
-    color: isActive ? '#1890ff' : (isDarkTheme ? '#ccc' : '#333'),
-    textDecoration: 'none',
-    fontWeight: isActive ? 'bold' : 'normal',
-    backgroundColor: isActive ? (isDarkTheme ? '#333' : '#e6f7ff') : 'transparent',
-    borderRight: isActive ? '3px solid #1890ff' : 'none',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    transition: 'all 0.2s'
-  });
-
-  const links = [
-    { to: "/", label: "Overview", icon: "📊" },
-    { to: "/analytics", label: "Analytics", icon: "📈" },
-    { to: "/threats", label: "Threat Intelligence", icon: "🛡️" },
-    { to: "/logs", label: "Request Logs", icon: "📝" },
-    { to: "/ml-performance", label: "ML Engine", icon: "🧠" },
-    { to: "/settings", label: "Settings", icon: "⚙️" },
-  ];
+const Sidebar: React.FC<{ theme: Theme }> = ({ theme }) => {
+  const health = useApi<{ status: string }>('/aegis/health', 10000);
+  const online = health.data?.status === 'ok' && !health.error;
 
   return (
-    <aside style={sidebarStyle}>
-      <div style={{ marginBottom: '20px', padding: '0 20px', fontSize: '12px', color: isDarkTheme ? '#888' : '#888', fontWeight: 'bold' }}>
-        MAIN NAVIGATION
-      </div>
+    <aside style={{
+      width: 230, backgroundColor: theme.surface, borderRight: `1px solid ${theme.border}`, padding: '20px 0',
+      display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px)', position: 'sticky', top: 60,
+    }}>
       <nav style={{ display: 'flex', flexDirection: 'column' }}>
-        {links.map((link) => (
-          <NavLink 
-            key={link.to} 
-            to={link.to} 
-            style={({ isActive }) => navItemStyle(isActive)}
-          >
-            <span>{link.icon}</span> {link.label}
+        {links.map(link => (
+          <NavLink key={link.to} to={link.to} end={link.to === '/'} style={({ isActive }) => ({
+            padding: '12px 20px', textDecoration: 'none', display: 'flex', gap: 10,
+            color: isActive ? theme.accent : theme.text, fontWeight: isActive ? 700 : 400,
+            borderRight: isActive ? `3px solid ${theme.accent}` : '3px solid transparent',
+          })}>
+            <span aria-hidden>{link.icon}</span> {link.label}
           </NavLink>
         ))}
       </nav>
-      
-      <div style={{ marginTop: 'auto', padding: '20px' }}>
-        <div style={{ 
-          backgroundColor: isDarkTheme ? '#333' : '#f5f5f5', 
-          padding: '15px', 
-          borderRadius: '8px',
-          textAlign: 'center'
-        }}>
-          <div style={{ fontSize: '12px', color: isDarkTheme ? '#aaa' : '#666', marginBottom: '5px' }}>AEGIS Engine Status</div>
-          <div style={{ color: '#00C49F', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
-            <span style={{ width: '8px', height: '8px', backgroundColor: '#00C49F', borderRadius: '50%', display: 'inline-block' }}></span> Active
-          </div>
-        </div>
+      <div style={{ marginTop: 'auto', padding: 20, fontSize: 13, color: theme.textSecondary }} role="status">
+        Server:{' '}
+        <span style={{ color: theme.text, fontWeight: 600 }}>
+          <span aria-hidden style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 4, marginRight: 6,
+            backgroundColor: online ? VERDICT_COLORS.allow : VERDICT_COLORS.block }} />
+          {health.loading ? 'checking…' : online ? 'online' : 'unreachable'}
+        </span>
       </div>
     </aside>
   );
