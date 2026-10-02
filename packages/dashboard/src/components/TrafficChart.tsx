@@ -1,43 +1,47 @@
-import React from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import React, { useMemo } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { StatsEvent } from '../api';
+import { Theme, VERDICT_COLORS, VERDICT_ORDER } from '../theme';
 
 interface Props {
-  isDarkTheme: boolean;
+  events: StatsEvent[];
+  theme: Theme;
 }
 
-const data = [
-  { time: '00:00', human: 4000, bot: 8400 },
-  { time: '04:00', human: 3000, bot: 9398 },
-  { time: '08:00', human: 12000, bot: 3800 },
-  { time: '12:00', human: 27800, bot: 3908 },
-  { time: '16:00', human: 18900, bot: 4800 },
-  { time: '20:00', human: 23900, bot: 3800 },
-  { time: '24:00', human: 3490, bot: 7300 },
-];
+/** Requests per minute, stacked by verdict (status colours, with a legend). */
+const TrafficChart: React.FC<Props> = ({ events, theme }) => {
+  const data = useMemo(() => {
+    const buckets = new Map<number, Record<string, number>>();
+    for (const e of events) {
+      const minute = Math.floor(e.timestamp / 60000) * 60000;
+      const bucket = buckets.get(minute) ?? { allow: 0, monitor: 0, challenge: 0, block: 0 };
+      bucket[e.verdict] = (bucket[e.verdict] ?? 0) + 1;
+      buckets.set(minute, bucket);
+    }
+    return [...buckets.entries()].sort((a, b) => a[0] - b[0])
+      .map(([minute, counts]) => ({ time: new Date(minute).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), ...counts }));
+  }, [events]);
 
-const TrafficChart: React.FC<Props> = ({ isDarkTheme }) => {
+  if (data.length === 0) {
+    return <div style={{ color: theme.textSecondary, padding: 20 }}>No requests recorded yet.</div>;
+  }
+  const present = VERDICT_ORDER.filter(v => data.some(d => (d as Record<string, unknown>)[v]));
+
   return (
-    <div style={{ height: '300px', width: '100%' }}>
+    <div style={{ height: 300 }}>
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart
-          data={data}
-          margin={{
-            top: 5,
-            right: 30,
-            left: 20,
-            bottom: 5,
-          }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke={isDarkTheme ? '#333' : '#ccc'} />
-          <XAxis dataKey="time" stroke={isDarkTheme ? '#ccc' : '#333'} />
-          <YAxis stroke={isDarkTheme ? '#ccc' : '#333'} />
-          <Tooltip 
-            contentStyle={{ backgroundColor: isDarkTheme ? '#333' : '#fff', color: isDarkTheme ? '#fff' : '#000', border: 'none' }}
-          />
-          <Legend />
-          <Line type="monotone" dataKey="human" stroke="#00C49F" activeDot={{ r: 8 }} name="Human Traffic" strokeWidth={2} />
-          <Line type="monotone" dataKey="bot" stroke="#ff4d4f" name="Bot Traffic" strokeWidth={2} />
-        </LineChart>
+        <BarChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
+          <CartesianGrid vertical={false} stroke={theme.grid} />
+          <XAxis dataKey="time" stroke={theme.axis} tick={{ fill: theme.muted, fontSize: 12 }} />
+          <YAxis allowDecimals={false} stroke={theme.axis} tick={{ fill: theme.muted, fontSize: 12 }} />
+          <Tooltip cursor={{ fill: theme.grid }} contentStyle={{ backgroundColor: theme.surface, border: `1px solid ${theme.border}`, color: theme.text }} />
+          <Legend formatter={(value: string) => <span style={{ color: theme.textSecondary }}>{value}</span>} />
+          {present.map((verdict, i) => (
+            <Bar key={verdict} dataKey={verdict} stackId="v" fill={VERDICT_COLORS[verdict]} name={verdict}
+              stroke={theme.surface} strokeWidth={1}
+              radius={i === present.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+          ))}
+        </BarChart>
       </ResponsiveContainer>
     </div>
   );

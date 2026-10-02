@@ -20,7 +20,8 @@ const aegis = new AegisNode({
   siteKey: process.env.AEGIS_SITE_KEY || 'demo-site',
   secretKey: process.env.AEGIS_SECRET_KEY || crypto.randomBytes(16).toString('hex'),
   requireTokenPaths: ['/api/login'],
-  excludedPaths: ['/health', '/sdk', '/aegis/stats', '/aegis/events'],
+  // the status API under /aegis/ is not analysed (telemetry is handled before this check)
+  excludedPaths: ['/health', '/sdk', '/aegis/'],
   mlUrl: process.env.AEGIS_ML_URL, // optional: packages/ml-engine service
 });
 
