@@ -29,6 +29,14 @@ class AegisConfig(BaseModel):
     max_telemetry_bytes: int = 64 * 1024
     #: Check path and query string for XSS / SQLi / path traversal / CRLF payloads
     input_validation: bool = True
+    #: Request-sequence checks per session (timer-regular paging, ID enumeration, 4xx probing)
+    session_patterns: bool = True
+    #: Download the Tor exit list and threat feeds (network access; off by default)
+    live_feeds: bool = False
+    #: Which lists; abuseipdb needs abuseipdb_key or env ABUSEIPDB_API_KEY
+    feeds: List[str] = ["tor", "firehol_level1", "spamhaus_drop", "abuseipdb"]
+    feed_cache_dir: Optional[str] = None
+    abuseipdb_key: Optional[str] = None
 
     @field_validator("secret_key")
     @classmethod
@@ -45,6 +53,7 @@ class AegisResult(BaseModel):
     payload: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
     is_bot: bool = False
+    session_id: Optional[str] = None
 
 
 class AnalysisResult(BaseModel):

@@ -53,3 +53,17 @@ describe('input validation through aegisExpress', () => {
     expect(attack.body.score).toBeGreaterThan(clean.body.score);
   });
 });
+
+describe('session patterns through aegisExpress', () => {
+  it('flags a client that keeps hitting 404s (response status is fed back to the engine)', async () => {
+    const app = express();
+    const mw = aegisExpress({ siteKey: SITE_KEY, secretKey: SECRET, mode: 'monitor' });
+    app.use(mw);
+    app.get('/ok', (req, res) => { res.json({ reasons: (req as any).aegis.reasons }); });
+    const agent = request.agent(app); // keeps the aegis_sid cookie
+    for (let i = 0; i < 11; i++) await agent.get(`/wp-admin/setup-${i}.php`).set(BROWSER_HEADERS).expect(404);
+    const res = await agent.get('/ok').set(BROWSER_HEADERS);
+    expect(res.body.reasons).toContain('session.error_probing');
+    await mw.aegis.shutdown();
+  });
+});

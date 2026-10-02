@@ -16,8 +16,10 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from .detector import RequestAnalyzer, Signal, noisy_or
+from .feeds import FEED_SEVERITY, IPReputation
 from .ml import MLScorer, make_scorer
 from .security import InputValidator
+from .session_patterns import session_signals
 from .models import AegisConfig, AegisResult
 from .sessions import SESSION_COOKIE, Session, SessionTracker
 from .telemetry import TelemetryError, TelemetryService, decide, user_agent_hash
@@ -40,13 +42,20 @@ class AegisMiddlewareBase:
     """Framework-independent request handling shared by the adapters."""
 
     def __init__(self, site_key: str, secret_key: str, *, scorer: Optional[MLScorer] = None,
-                 on_record: Optional[Callable[[Dict[str, Any]], None]] = None, **kwargs: Any):
+                 on_record: Optional[Callable[[Dict[str, Any]], None]] = None,
+                 reputation: Optional[IPReputation] = None, **kwargs: Any):
         self.config = AegisConfig(site_key=site_key, secret_key=secret_key, **kwargs)
         self.verifier = TokenVerifier(secret_key, max_token_age=self.config.token_ttl)
         self.analyzer = RequestAnalyzer(self.config.verify_search_engines)
         self.sessions = SessionTracker()
         self.scorer = scorer or make_scorer(self.config.ml_model_path, self.config.ml_url)
-        self.telemetry = TelemetryService(self.config, self.sessions, self.scorer, self.analyzer, on_record)
+        self.reputation: Optional[IPReputation] = reputation
+        if self.reputation is None and self.config.live_feeds:
+            self.reputation = IPReputation(self.config.feeds, cache_dir=self.config.feed_cache_dir,
+                                           abuseipdb_key=self.config.abuseipdb_key)
+            self.reputation.start()
+        self.telemetry = TelemetryService(self.config, self.sessions, self.scorer, self.analyzer, on_record,
+                                          self.reputation)
         self.input_validator = InputValidator() if self.config.input_validation else None
 
     # --- helpers -------------------------------------------------------------
@@ -77,7 +86,7 @@ class AegisMiddlewareBase:
                          cookies: Dict[str, str]) -> HandlerResponse:
         ip = self.client_ip(remote_addr, headers)
         session, cookie_headers = self._session(cookies)
-        self.sessions.record_request(session, self.config.telemetry_path)
+        self.sessions.record_request(session, self.config.telemetry_path, "POST")
         try:
             result, _ = self.telemetry.process(body, ip, headers, session)
             return HandlerResponse(200, result, {**cookie_headers, "Cache-Control": "no-store"})
@@ -98,12 +107,19 @@ class AegisMiddlewareBase:
         """
         session, cookie_headers = self._session(cookies)
         try:
-            self.sessions.record_request(session, path)
+            self.sessions.record_request(session, path, method, headers)
             ip = self.client_ip(remote_addr, headers)
             h = {k.lower(): v for k, v in headers.items()}
             signals: List[Signal] = list(self.analyzer.signals(ip, h, method, path))
             if self.input_validator:
                 signals.extend(self.input_validator.analyze(path, query, headers=h)[1])
+            if self.config.session_patterns:
+                signals += session_signals(session.requests)
+            if self.reputation is not None:
+                found = self.reputation.lookup(ip)
+                if found["is_tor"]:
+                    signals.append(("tor_exit", 70))
+                signals += [(f"threat_list:{name}", FEED_SEVERITY[name]) for name in found["lists"]]
 
             claims = None
             token = h.get(TOKEN_HEADER)
@@ -127,11 +143,18 @@ class AegisMiddlewareBase:
 
             self.sessions.record_risk(session, score)
             return AegisResult(action=action, score=score, reason=",".join(reasons), payload=claims,
-                               is_bot=action == "block"), cookie_headers
+                               is_bot=action == "block", session_id=session.id), cookie_headers
         except Exception as exc:
             logger.exception("AEGIS request analysis failed")
             action = "allow" if self.config.fail_open else "challenge"
             return AegisResult(action=action, score=0.0, reason="analysis_error", error=str(exc)), cookie_headers
+
+    def record_response(self, result: Optional[AegisResult], status: int) -> None:
+        """Report the response status of an evaluated request (feeds the 4xx-probing check)."""
+        if result is not None and result.session_id:
+            session = self.sessions.get(result.session_id)
+            if session is not None:
+                self.sessions.record_response(session, status)
 
     # Backwards-compatible entry point
     def _analyze_request(self, ip: str, headers: dict, method: str, path: str, token: Optional[str]) -> AegisResult:
@@ -181,7 +204,9 @@ class AegisDjangoMiddleware(AegisMiddlewareBase):
         if _blocks(result):
             r = self.denial(result)
             return self._to_django(JsonResponse(r.body, status=r.status), {**extra, **r.headers})
-        return self._to_django(self.get_response(request), extra)
+        response = self.get_response(request)
+        self.record_response(result, response.status_code)
+        return self._to_django(response, extra)
 
     @staticmethod
     def _to_django(response, headers: Dict[str, str]):
@@ -232,6 +257,8 @@ class AegisFlaskMiddleware(AegisMiddlewareBase):
     def _after_request(self, response):
         from flask import g
 
+        self.record_response(g.get("aegis"), response.status_code)
+
         for name, value in getattr(g, "aegis_headers", {}).items():
             if name == "Set-Cookie":
                 response.headers.add("Set-Cookie", value)
@@ -274,14 +301,13 @@ class AegisFastAPIMiddleware:
             r = self.base.denial(result)
             return await JSONResponse(r.body, status_code=r.status, headers={**extra, **r.headers})(scope, receive, send)
 
-        if not extra:
-            return await self.app(scope, receive, send)
-
         raw_extra = [(k.lower().encode("latin-1"), v.encode("latin-1")) for k, v in extra.items()]
 
         async def send_with_headers(message):
             if message["type"] == "http.response.start":
-                message = {**message, "headers": list(message.get("headers", [])) + raw_extra}
+                self.base.record_response(result, message.get("status", 200))
+                if raw_extra:
+                    message = {**message, "headers": list(message.get("headers", [])) + raw_extra}
             await send(message)
 
         await self.app(scope, receive, send_with_headers)

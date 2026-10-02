@@ -48,6 +48,7 @@ export function aegisExpress(options: AegisExpressOptions, shared?: AegisNode) {
       (req as any).aegis = decision;
       for (const [name, value] of Object.entries(headers)) res.setHeader(name, value);
       options.onDecision?.(req, decision);
+      res.on('finish', () => aegis.recordResponse(decision, res.statusCode));
 
       if (decision.verdict === 'block' || decision.verdict === 'challenge') {
         if (options.onDeny) { options.onDeny(req, res, decision); return; }

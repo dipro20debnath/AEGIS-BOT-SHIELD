@@ -11,6 +11,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set
 
+from .session_patterns import RequestRecord, classify_request
+
 SESSION_COOKIE = "aegis_sid"
 
 
@@ -22,6 +24,8 @@ class Session:
     request_times: List[float] = field(default_factory=list)
     paths: Set[str] = field(default_factory=set)
     risk_history: List[float] = field(default_factory=list)
+    #: Last 100 requests with their kind and status (session_patterns.py)
+    requests: List[RequestRecord] = field(default_factory=list)
 
 
 class SessionTracker:
@@ -42,15 +46,31 @@ class SessionTracker:
                 self._sessions[session.id] = session
             return session
 
-    def record_request(self, session: Session, path: str) -> None:
-        now = time.time()
+    def get(self, session_id: str) -> Optional[Session]:
         with self._lock:
+            return self._sessions.get(session_id)
+
+    def record_request(self, session: Session, path: str, method: str = "GET",
+                       headers: Optional[Dict[str, str]] = None) -> None:
+        now = time.time()
+        has_referer = any(k.lower() == "referer" and v for k, v in (headers or {}).items())
+        record = RequestRecord(now, path, classify_request(path, method, headers), has_referer)
+        with self._lock:
+            session.requests.append(record)
+            if len(session.requests) > 100:
+                session.requests = session.requests[-100:]
             session.last_seen = now
             session.request_times.append(now)
             if len(session.request_times) > 500:
                 session.request_times = session.request_times[-500:]
             if len(session.paths) < 1000:
                 session.paths.add(path)
+
+    def record_response(self, session: Session, status: int) -> None:
+        """Attach the response status to the session's latest request (enables 4xx-probing detection)."""
+        with self._lock:
+            if session.requests and session.requests[-1].status is None:
+                session.requests[-1].status = status
 
     def record_risk(self, session: Session, score: float) -> None:
         with self._lock:

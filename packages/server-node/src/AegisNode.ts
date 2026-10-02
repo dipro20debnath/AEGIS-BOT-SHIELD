@@ -47,6 +47,8 @@ export interface AegisDecision {
   reasons: string[];
   claims: Record<string, unknown> | null;
   signals: DetectionSignal[];
+  /** Engine session token (internal; used by recordResponse) */
+  sessionToken?: string;
 }
 
 export interface HandlerResponse {
@@ -261,6 +263,11 @@ export class AegisNode {
 
   // --- protected requests --------------------------------------------------
 
+  /** Report the status code sent for an evaluated request (enables the 4xx-probing session check). */
+  recordResponse(decision: AegisDecision | undefined, status: number): void {
+    if (decision) this.engine.recordResponse(decision.sessionToken, status);
+  }
+
   async evaluate(req: RequestInfo): Promise<{ decision: AegisDecision; headers: Record<string, string> }> {
     await this.ready;
     const engineResult = await this.engine.analyze(this.toEngineRequest(req));
@@ -295,7 +302,7 @@ export class AegisNode {
     }
     this.sessions.get(sessionId)?.risk.push(score);
     this.stats.record({ path: req.path, verdict, score, reasons, ip: req.ip, telemetry: false });
-    return { decision: { verdict, score, reasons, claims, signals: engineResult.signals }, headers: cookieHeaders };
+    return { decision: { verdict, score, reasons, claims, signals: engineResult.signals, sessionToken: engineResult.sessionToken }, headers: cookieHeaders };
   }
 
   denial(decision: AegisDecision): HandlerResponse {
