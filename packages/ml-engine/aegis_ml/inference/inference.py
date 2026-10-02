@@ -63,7 +63,7 @@ class InferenceEngine:
             
             # 3. Predict: one ensemble pass gives the bot probability and the label
             score = self.classifier.predict_proba(features)[0]
-            is_bot = score > 0.5
+            is_bot = score >= self.classifier.threshold
                 
             # 5. Cache Result
             self.cache[client_id] = {
