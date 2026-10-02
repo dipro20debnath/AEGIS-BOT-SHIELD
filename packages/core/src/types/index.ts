@@ -60,6 +60,8 @@ export interface IPIntelConfig {
   allowlist: string[];
   /** AbuseIPDB API key */
   abuseIpDbKey?: string;
+  /** Resolve geo/ASN via external API (sends client IPs to a third party; default false) */
+  externalGeoLookup?: boolean;
 }
 
 export interface BehavioralConfig {
@@ -293,6 +295,8 @@ export interface AegisResult {
   requestId: string;
   /** Timestamp */
   timestamp: number;
+  /** Signed session token to return to the client (when session tracking is on) */
+  sessionToken?: string;
 }
 
 export interface RiskScore {

@@ -5,7 +5,7 @@ export * from './types/index.js';
 export { defaultConfig, mergeConfig } from './config/defaults.js';
 
 // Engine
-export { DetectionEngine } from './engine/DetectionEngine.js';
+export { DetectionEngine, analyzeBehavior, classifyThreats, SESSION_HEADER } from './engine/DetectionEngine.js';
 export { RiskScorer } from './engine/RiskScorer.js';
 
 // Rate Limiting
