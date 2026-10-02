@@ -22,7 +22,22 @@
 | Results on real data | Not started |
 | Thesis writing | Not started (Dec 1–15) |
 
-### 0.1 Revised timeline (IRB submission moved to Oct 21)
+### 0.0 Component audit (2026-10-02, measured, not estimated)
+
+| Component | Compiles | Tests | Wired to the rest |
+|-----------|----------|-------|-------------------|
+| ML engine (Python) | Yes | 30 real tests pass | Exposes `/predict`, but nothing calls it |
+| Core engine (TS) | **No: 74 TS errors** | 0/10 run: tests target paths/APIs that do not exist; jest/ts-jest not installed | No |
+| JS SDK (TS) | **No: 3 TS errors** | None | Sends camelCase keys (`avgVelocity`); ML expects `mouse_avg_velocity` |
+| Server Node (TS) | **No: 15 TS errors** | None | Does not call ML engine |
+| Server Python | Imports | 17 "pass" but test dummy classes, not `aegis_shield` | Does not call ML engine |
+| Dashboard (React) | Cannot build: no `public/index.html`, no `react-scripts` | None | **All numbers hardcoded** (e.g. 89,000-sample confusion matrix, "epochs" for tree models). Do not use in the thesis |
+| Data-collection website | Does not exist | — | — |
+
+Thesis-critical path: SDK → logging endpoint → dataset → ML engine. The
+TS core/server-node errors do not block data collection.
+
+ (IRB submission moved to Oct 21)
 
 Approval usually takes 2–3 weeks, so it is expected **Nov 4–11** instead of
 late October. That moves the human study from Nov 1–20 to about Nov 11–25, so
