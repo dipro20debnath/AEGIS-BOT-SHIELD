@@ -1,48 +1,58 @@
-import { CryptoUtils } from '../src/utils/crypto';
+import {
+  hmacSign, hmacVerify, aesEncrypt, aesDecrypt, generateToken, verifyToken,
+  generateNonce, NonceCache,
+} from '../src/utils/crypto';
 
-describe('CryptoUtils', () => {
-  const secret = 'super-secret-key-32-chars-long!!';
-  
-  it('should generate and verify HMAC-SHA256', () => {
-    const data = 'test-data';
-    const hmac = CryptoUtils.generateHmac(data, secret);
-    expect(hmac).toBeDefined();
-    
-    const isValid = CryptoUtils.verifyHmac(data, hmac, secret);
-    expect(isValid).toBe(true);
-    
-    const isInvalid = CryptoUtils.verifyHmac('tampered-data', hmac, secret);
-    expect(isInvalid).toBe(false);
+const KEY = 'test-secret-key-0123456789';
+
+describe('crypto utils', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('signs and verifies HMAC-SHA256, rejecting tampered data', () => {
+    const sig = hmacSign('payload', KEY);
+    expect(hmacVerify('payload', sig, KEY)).toBe(true);
+    expect(hmacVerify('payload!', sig, KEY)).toBe(false);
+    expect(hmacVerify('payload', sig, 'other-key')).toBe(false);
   });
 
-  it('should encrypt and decrypt using AES-256-GCM roundtrip', () => {
-    const plaintext = 'sensitive-bot-data';
-    const encrypted = CryptoUtils.encrypt(plaintext, secret);
-    expect(encrypted).not.toBe(plaintext);
-    expect(encrypted.iv).toBeDefined();
-    expect(encrypted.authTag).toBeDefined();
-
-    const decrypted = CryptoUtils.decrypt(encrypted, secret);
-    expect(decrypted).toBe(plaintext);
+  it('round-trips AES-256-GCM and fails with the wrong key', () => {
+    const encrypted = aesEncrypt('hello aegis', KEY);
+    expect(aesDecrypt(encrypted, KEY)).toBe('hello aegis');
+    expect(() => aesDecrypt(encrypted, 'wrong-key')).toThrow();
   });
 
-  it('should generate and validate tokens', () => {
-    const payload = { userId: '123' };
-    const token = CryptoUtils.generateToken(payload, secret);
-    expect(typeof token).toBe('string');
-    
-    const decoded = CryptoUtils.validateToken(token, secret);
-    expect(decoded.userId).toBe('123');
+  it('generates tokens in AEGIS.v1 format that verify back to the payload', () => {
+    const token = generateToken({ sid: 'abc', score: 12 }, KEY);
+    expect(token.split('.')).toHaveLength(4);
+    expect(token.startsWith('AEGIS.v1.')).toBe(true);
+    const payload = verifyToken(token, KEY);
+    expect(payload).toMatchObject({ sid: 'abc', score: 12 });
+    expect(typeof payload!.nonce).toBe('string');
   });
 
-  it('should ensure nonce uniqueness', () => {
-    const nonce1 = CryptoUtils.generateNonce();
-    const nonce2 = CryptoUtils.generateNonce();
-    expect(nonce1).not.toBe(nonce2);
+  it('rejects tokens with a modified signature or wrong key', () => {
+    const token = generateToken({ sid: 'abc' }, KEY);
+    const parts = token.split('.');
+    parts[3] = parts[3].slice(0, -2) + (parts[3].endsWith('A') ? 'BB' : 'AA');
+    expect(verifyToken(parts.join('.'), KEY)).toBeNull();
+    expect(verifyToken(token, 'other-key')).toBeNull();
+    expect(verifyToken('not-a-token', KEY)).toBeNull();
   });
 
-  it('should reject invalid tokens', () => {
-    const isValid = CryptoUtils.validateToken('invalid.token.here', secret);
-    expect(isValid).toBeNull(); // or throw error depending on impl
+  it('rejects expired tokens', () => {
+    const token = generateToken({ sid: 'abc' }, KEY);
+    const now = Date.now();
+    jest.spyOn(Date, 'now').mockReturnValue(now + 121_000);
+    expect(verifyToken(token, KEY, 120)).toBeNull();
+  });
+
+  it('generates unique nonces and detects replays', () => {
+    const nonces = new Set(Array.from({ length: 1000 }, () => generateNonce()));
+    expect(nonces.size).toBe(1000);
+
+    const cache = new NonceCache();
+    expect(cache.hasBeenUsed('n1')).toBe(false);
+    expect(cache.hasBeenUsed('n1')).toBe(true);
+    cache.destroy();
   });
 });

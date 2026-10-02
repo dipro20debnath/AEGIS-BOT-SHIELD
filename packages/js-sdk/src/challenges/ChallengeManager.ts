@@ -19,12 +19,8 @@ export class ChallengeManager {
           result: { nonce: result.nonce, hash: result.hash },
           timeMs: result.timeMs
         };
-      } else if (request.type === 'wasm') {
-        // Mock WASM challenge
-        return { id: request.id, solved: true, result: 'wasm-solved', timeMs: 50 };
-      } else if (request.type === 'interactive') {
-        // Mock Interactive challenge
-        return { id: request.id, solved: true, result: 'interactive-solved', timeMs: 100 };
+      } else if (request.type === 'wasm' || request.type === 'interactive') {
+        return { id: request.id, solved: false, error: `${request.type} challenges are not implemented yet` };
       }
       
       return { id: request.id, solved: false, error: 'Unknown challenge type' };

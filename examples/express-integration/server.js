@@ -1,48 +1,44 @@
+/**
+ * AEGIS BOT SHIELD - Express example.
+ *
+ *   npm install && npm run build -w packages/core -w packages/js-sdk -w packages/server-node
+ *   AEGIS_SECRET_KEY=$(node -e "console.log(require('crypto').randomBytes(16).toString('hex'))") \
+ *     node examples/express-integration/server.js
+ *
+ * Open http://localhost:3000 (login: admin / password). The SDK posts
+ * telemetry to /aegis/telemetry (answered by the middleware) and adds the
+ * returned token to the login request; /api/login requires that token.
+ * Status API: /aegis/stats, /aegis/events (protect these in production).
+ */
+const path = require('path');
+const crypto = require('crypto');
 const express = require('express');
-const bodyParser = require('body-parser');
-// In a real project, this would be require('@aegis-bot-shield/node')
-const aegisExpress = require('../../packages/aegis-node').aegisExpress;
+const { AegisNode, aegisExpress, aegisRoutes } = require('../../packages/server-node/dist');
+
+const PORT = process.env.PORT || 3000;
+const aegis = new AegisNode({
+  siteKey: process.env.AEGIS_SITE_KEY || 'demo-site',
+  secretKey: process.env.AEGIS_SECRET_KEY || crypto.randomBytes(16).toString('hex'),
+  requireTokenPaths: ['/api/login'],
+  // the status API under /aegis/ is not analysed (telemetry is handled before this check)
+  excludedPaths: ['/health', '/sdk', '/aegis/'],
+  mlUrl: process.env.AEGIS_ML_URL, // optional: packages/ml-engine service
+});
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+app.use(express.json());
+app.use(aegisExpress(aegis.options, aegis));
+app.use(aegisRoutes(aegis));
+app.use('/sdk', express.static(path.resolve(__dirname, '../../packages/js-sdk/dist')));
+app.use(express.static(path.resolve(__dirname, '../html-basic')));
 
-// Middleware to parse JSON and URL-encoded bodies
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-
-// Serve static HTML for testing
-app.use(express.static('../html-basic'));
-
-// Configure AEGIS Middleware
-const aegisMiddleware = aegisExpress({
-    secretKey: process.env.AEGIS_SECRET_KEY || 'default-dev-secret-key',
-    blockMode: true, // Automatically return 403 for bots
-    logLevel: 'debug',
-    onBotDetected: (req, res, score) => {
-        console.warn(`[AEGIS] Bot detected on ${req.path}. Score: ${score}`);
-        // Custom logic can go here (e.g., triggering an alert)
-    }
+app.post('/api/login', (req, res) => {
+  const { username, password } = req.body;
+  if (username === 'admin' && password === 'password') {
+    res.json({ success: true, message: `Welcome, human! (risk score ${req.aegis.score})` });
+  } else {
+    res.status(401).json({ success: false, message: 'Invalid credentials.' });
+  }
 });
 
-// Protect a specific route
-app.post('/api/login', aegisMiddleware, (req, res) => {
-    const { username, password } = req.body;
-    
-    // If execution reaches here, AEGIS has determined the request is human
-    console.log(`Login attempt for user: ${username}`);
-    
-    if (username === 'admin' && password === 'password') {
-        res.json({ success: true, message: 'Welcome, human!' });
-    } else {
-        res.status(401).json({ success: false, message: 'Invalid credentials.' });
-    }
-});
-
-// A protected API endpoint returning sensitive data
-app.get('/api/sensitive-data', aegisMiddleware, (req, res) => {
-    res.json({ data: 'This is protected data. Bots cannot see this.' });
-});
-
-app.listen(PORT, () => {
-    console.log(`AEGIS Express Example running on http://localhost:${PORT}`);
-});
+app.listen(PORT, () => console.log(`AEGIS Express example on http://localhost:${PORT}`));

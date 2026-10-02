@@ -2,7 +2,8 @@
  * Touch Events Collector
  *
  * Captures mobile touch dynamics for bot detection.
- * Metrics include pressure, touch radius, multi-touch counts, swipe velocities.
+ * Metrics include pressure (0-1), touch radius (px), multi-touch counts and
+ * swipe velocity (px/s).
  */
 export interface TouchAnalysis {
   eventCount: number;
@@ -49,30 +50,22 @@ export class TouchCollector {
   }
 
   private recordTouch(e: TouchEvent, type: string): void {
-    if (e.touches.length > 0) {
-      const touch = e.touches[0];
-      this.events.push({
-        x: touch.clientX,
-        y: touch.clientY,
-        t: Date.now(),
-        type,
-        pressure: touch.force || 0,
-        radius: (touch.radiusX || 0 + (touch.radiusY || 0)) / 2,
-        touches: e.touches.length
-      });
-    } else if (type === 'end' && e.changedTouches.length > 0) {
-      const touch = e.changedTouches[0];
-      this.events.push({
-        x: touch.clientX,
-        y: touch.clientY,
-        t: Date.now(),
-        type,
-        pressure: touch.force || 0,
-        radius: (touch.radiusX || 0 + (touch.radiusY || 0)) / 2,
-        touches: 0
-      });
-    }
+    const touch = e.touches.length > 0 ? e.touches[0] : (type === 'end' ? e.changedTouches[0] : undefined);
+    if (!touch) return;
+    this.addTouch({
+      x: touch.clientX,
+      y: touch.clientY,
+      t: e.timeStamp,
+      type,
+      pressure: touch.force || 0,
+      radius: ((touch.radiusX || 0) + (touch.radiusY || 0)) / 2,
+      touches: e.touches.length,
+    });
+  }
 
+  /** Record one touch point (t in ms). Public so sessions can be replayed and tested. */
+  public addTouch(ev: { x: number; y: number; t: number; type: string; pressure: number; radius: number; touches: number }): void {
+    this.events.push(ev);
     if (this.events.length > this.maxEvents) {
       this.events.shift();
     }
@@ -103,11 +96,11 @@ export class TouchCollector {
         const dx = ev.x - currentSwipeStart.x;
         const dy = ev.y - currentSwipeStart.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const dt = ev.t - currentSwipeStart.t;
-        
+        const dt = (ev.t - currentSwipeStart.t) / 1000;
+
         if (dist > 30 && dt > 0) {
           swipeCount++;
-          totalSwipeVelocity += (dist / dt);
+          totalSwipeVelocity += dist / dt; // px/s
         } else if (dist < 10) {
           tapCount++;
         }

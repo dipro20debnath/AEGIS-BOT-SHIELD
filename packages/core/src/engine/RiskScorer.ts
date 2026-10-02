@@ -3,25 +3,29 @@ import { RiskScore, DetectionSignal } from '../types/index.js';
 /**
  * Multi-signal risk scoring engine that fuses detection signals
  * from all defense layers into a composite risk score.
- * 
+ *
  * Scoring algorithm:
- * 1. Group signals by category (network, protocol, behavioral, device, reputation)
- * 2. Apply category weights
- * 3. Apply signal-level weights and confidence
- * 4. Normalize to 0-100 scale
- * 5. Apply boosting for high-confidence critical signals
+ * 1. Group signals by category (network, protocol, behavioral, device, reputation, payload)
+ * 2. Per category: weighted mean of signal values, each discounted by confidence
+ * 3. Across categories: noisy-OR, score = 100 * (1 - prod(1 - s_c / 100)).
+ *    Categories are treated as independent layers, so evidence from another
+ *    layer can only raise the score (a weighted average would let a weak
+ *    signal in one layer dilute a decisive one in another).
+ * 4. Apply boosting for high-confidence critical signals, clamp to 0-100
  */
 export class RiskScorer {
-  private categoryWeights: Record<string, number>;
+  /** Per-category multipliers in [0, 1] (default 1), e.g. 0.5 for protocol signals behind a proxy. */
+  private categoryMultipliers: Record<string, number>;
 
-  constructor(weights?: Partial<Record<string, number>>) {
-    this.categoryWeights = {
-      network: 0.20,
-      protocol: 0.20,
-      behavioral: 0.25,
-      device: 0.20,
-      reputation: 0.15,
-      ...weights,
+  constructor(multipliers?: Partial<Record<string, number>>) {
+    this.categoryMultipliers = {
+      network: 1,
+      protocol: 1,
+      behavioral: 1,
+      device: 1,
+      reputation: 1,
+      payload: 1,
+      ...multipliers,
     };
   }
 
@@ -44,21 +48,16 @@ export class RiskScorer {
       behavioral: this.calculateCategoryScore(grouped['behavioral'] || []),
       device: this.calculateCategoryScore(grouped['device'] || []),
       reputation: this.calculateCategoryScore(grouped['reputation'] || []),
+      payload: this.calculateCategoryScore(grouped['payload'] || []),
     };
 
-    // Weighted composite
-    let compositeScore = 0;
-    let totalWeight = 0;
+    // Noisy-OR across independent categories
+    let benign = 1;
     for (const [category, score] of Object.entries(categories)) {
-      const weight = this.categoryWeights[category] || 0;
-      compositeScore += score * weight;
-      if (score > 0) totalWeight += weight;
+      const multiplier = this.categoryMultipliers[category] ?? 1;
+      benign *= 1 - Math.min(1, Math.max(0, (score * multiplier) / 100));
     }
-
-    // Normalize
-    if (totalWeight > 0) {
-      compositeScore = compositeScore / totalWeight;
-    }
+    let compositeScore = 100 * (1 - benign);
 
     // Apply critical signal boosting
     compositeScore = this.applyCriticalBoosting(compositeScore, signals);
@@ -89,14 +88,18 @@ export class RiskScorer {
     }, {} as Record<string, DetectionSignal[]>);
   }
 
+  /**
+   * Weighted mean of signal values, each discounted by its confidence.
+   * (Dividing by the confidence-weighted total instead would cancel confidence
+   * out for a lone signal, letting one weak signal set the whole score.)
+   */
   private calculateCategoryScore(signals: DetectionSignal[]): number {
     if (signals.length === 0) return 0;
     let score = 0;
     let totalWeight = 0;
     for (const signal of signals) {
-      const effectiveWeight = signal.weight * signal.confidence;
-      score += signal.value * effectiveWeight;
-      totalWeight += effectiveWeight;
+      score += signal.value * signal.confidence * signal.weight;
+      totalWeight += signal.weight;
     }
     return totalWeight > 0 ? score / totalWeight : 0;
   }
@@ -140,6 +143,7 @@ export class RiskScorer {
         behavioral: 0,
         device: 0,
         reputation: 0,
+        payload: 0,
       },
       factors: {},
       confidence: 0,

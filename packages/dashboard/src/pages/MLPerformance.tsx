@@ -1,125 +1,117 @@
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LineChart, Line, AreaChart, Area } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
+import results from '@results/synthetic/results.json';
+import StatsCard from '../components/StatsCard';
+import { Theme, cardStyle } from '../theme';
 
-interface Props {
-  isDarkTheme: boolean;
-}
+/**
+ * Results of packages/ml-engine/scripts/thesis_experiment.py, bundled at build
+ * time from docs/thesis/results/synthetic/results.json.
+ */
+const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 
-const cmData = [
-  { name: 'Predicted Bot', ActualBot: 9850, ActualHuman: 120 },
-  { name: 'Predicted Human', ActualBot: 150, ActualHuman: 89000 },
-];
+const GROUP_LABELS: Record<string, string> = {
+  full: 'All 50 features',
+  without_behavior: 'without behaviour', only_behavior: 'only behaviour',
+  without_session: 'without session', only_session: 'only session',
+  without_network: 'without network', only_network: 'only network',
+  without_fingerprint: 'without fingerprint', only_fingerprint: 'only fingerprint',
+};
 
-const rocData = [
-  { fpr: 0, tpr: 0 },
-  { fpr: 0.05, tpr: 0.85 },
-  { fpr: 0.1, tpr: 0.92 },
-  { fpr: 0.2, tpr: 0.96 },
-  { fpr: 0.5, tpr: 0.98 },
-  { fpr: 1, tpr: 1 },
-];
+const MLPerformance: React.FC<{ theme: Theme }> = ({ theme }) => {
+  const test = results.test;
+  const tuning = results.threshold_tuning;
+  const groups = Object.entries(results.group_ablation).map(([key, m]) => ({
+    name: GROUP_LABELS[key] ?? key,
+    recall: +(m.recall_at_fpr * 100).toFixed(1),
+    label: `${(m.recall_at_fpr * 100).toFixed(1)}% ±${(m.recall_at_fpr_std * 100).toFixed(1)}`,
+  }));
+  const bots = Object.entries(results.per_bot_type).filter(([k]) => k.endsWith('_recall'))
+    .map(([k, v]) => ({ name: k.replace('_recall', '').replace(/_/g, ' '), recall: +(Number(v) * 100).toFixed(1) }));
+  const [[tn, fp], [fn, tp]] = test.confusion_matrix;
 
-const historyData = [
-  { epoch: 1, loss: 0.6, accuracy: 75 },
-  { epoch: 5, loss: 0.4, accuracy: 85 },
-  { epoch: 10, loss: 0.25, accuracy: 92 },
-  { epoch: 15, loss: 0.15, accuracy: 96 },
-  { epoch: 20, loss: 0.1, accuracy: 98.5 },
-];
-
-const MLPerformance: React.FC<Props> = ({ isDarkTheme }) => {
-  const cardStyle = {
-    backgroundColor: isDarkTheme ? '#1e1e1e' : '#ffffff',
-    padding: '20px',
-    borderRadius: '8px',
-    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-    marginBottom: '20px'
-  };
+  const axis = { stroke: theme.axis, tick: { fill: theme.muted, fontSize: 12 } };
+  const tooltip = { contentStyle: { backgroundColor: theme.surface, border: `1px solid ${theme.border}`, color: theme.text }, cursor: { fill: theme.grid } };
+  const cell: React.CSSProperties = { padding: 8, borderBottom: `1px solid ${theme.grid}`, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
 
   return (
-    <div style={{ padding: '20px' }}>
-      <h1 style={{ marginBottom: '20px' }}>AEGIS ML Engine Performance</h1>
-      
-      <div style={{ display: 'flex', gap: '20px' }}>
-        <div style={{ ...cardStyle, flex: 1 }}>
-          <h3>Confusion Matrix</h3>
-          <div style={{ height: '300px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={cmData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={isDarkTheme ? '#333' : '#ccc'} />
-                <XAxis dataKey="name" stroke={isDarkTheme ? '#ccc' : '#333'} />
-                <YAxis stroke={isDarkTheme ? '#ccc' : '#333'} />
-                <RechartsTooltip contentStyle={{ backgroundColor: isDarkTheme ? '#333' : '#fff', color: isDarkTheme ? '#fff' : '#000' }} />
-                <Legend />
-                <Bar dataKey="ActualBot" stackId="a" fill="#ff4d4f" />
-                <Bar dataKey="ActualHuman" stackId="a" fill="#82ca9d" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div style={{ ...cardStyle, flex: 1 }}>
-          <h3>ROC Curve (AUC = 0.992)</h3>
-          <div style={{ height: '300px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={rocData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={isDarkTheme ? '#333' : '#ccc'} />
-                <XAxis dataKey="fpr" name="False Positive Rate" stroke={isDarkTheme ? '#ccc' : '#333'} />
-                <YAxis name="True Positive Rate" stroke={isDarkTheme ? '#ccc' : '#333'} />
-                <RechartsTooltip contentStyle={{ backgroundColor: isDarkTheme ? '#333' : '#fff', color: isDarkTheme ? '#fff' : '#000' }} />
-                <Area type="monotone" dataKey="tpr" stroke="#8884d8" fill="#8884d8" fillOpacity={0.3} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+    <div style={{ padding: 20 }}>
+      <h1 style={{ marginTop: 0 }}>ML Engine</h1>
+      <div role="note" style={{ ...cardStyle(theme), borderColor: '#fab219', color: theme.text }}>
+        <strong>Synthetic-data experiment</strong> ({results.config.n_per_class} humans + {results.config.n_per_class} bots, seed {results.config.seed}).
+        These numbers show the pipeline works; they are not real-world accuracy. Regenerate with{' '}
+        <code>python packages/ml-engine/scripts/thesis_experiment.py --out docs/thesis/results/synthetic</code>.
       </div>
 
-      <div style={{ display: 'flex', gap: '20px' }}>
-        <div style={{ ...cardStyle, flex: 1 }}>
-          <h3>Model Comparison</h3>
-          <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: `1px solid ${isDarkTheme ? '#333' : '#ddd'}`, color: isDarkTheme ? '#aaa' : '#555' }}>
-                <th style={{ padding: '10px' }}>Model</th>
-                <th style={{ padding: '10px' }}>Accuracy</th>
-                <th style={{ padding: '10px' }}>Precision</th>
-                <th style={{ padding: '10px' }}>Recall</th>
-                <th style={{ padding: '10px' }}>F1-Score</th>
-              </tr>
-            </thead>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
+        <StatsCard theme={theme} title="F1 (hold-out)" value={pct(test.f1)} detail={`threshold ${test.threshold.toFixed(3)}`} />
+        <StatsCard theme={theme} title="False positive rate" value={pct(test.fpr)} detail={`target ≤ ${pct(tuning.max_fpr)}`} />
+        <StatsCard theme={theme} title="Bot recall" value={pct(test.recall)} detail={`precision ${pct(test.precision)}`} />
+        <StatsCard theme={theme} title="AUC-ROC" value={test.auc_roc.toFixed(4)} />
+        <StatsCard theme={theme} title="Inference latency p95" value={`${results.latency.p95_ms.toFixed(2)} ms`} detail={`p99 ${results.latency.p99_ms.toFixed(2)} ms`} />
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20 }}>
+        <div style={{ ...cardStyle(theme), flex: '1 1 320px' }}>
+          <h3 style={{ marginTop: 0 }}>Confusion matrix (hold-out, tuned threshold)</h3>
+          <table style={{ borderCollapse: 'collapse', color: theme.text, fontSize: 15 }}>
+            <thead><tr style={{ color: theme.textSecondary }}><th></th><th style={cell}>predicted human</th><th style={cell}>predicted bot</th></tr></thead>
             <tbody>
-              {[{m: 'AEGIS Ensemble (Active)', a: '98.5%', p: '98.8%', r: '98.2%', f: '98.5%'},
-                {m: 'XGBoost', a: '96.2%', p: '95.1%', r: '97.4%', f: '96.2%'},
-                {m: 'Random Forest', a: '94.8%', p: '93.5%', r: '95.1%', f: '94.3%'},
-                {m: 'Logistic Regression', a: '82.1%', p: '80.2%', r: '79.5%', f: '79.8%'}].map((row, i) => (
-                <tr key={i} style={{ borderBottom: `1px solid ${isDarkTheme ? '#333' : '#eee'}`, fontWeight: i === 0 ? 'bold' : 'normal', color: i === 0 ? '#1890ff' : (isDarkTheme ? '#fff' : '#000') }}>
-                  <td style={{ padding: '10px' }}>{row.m}</td>
-                  <td style={{ padding: '10px' }}>{row.a}</td>
-                  <td style={{ padding: '10px' }}>{row.p}</td>
-                  <td style={{ padding: '10px' }}>{row.r}</td>
-                  <td style={{ padding: '10px' }}>{row.f}</td>
-                </tr>
-              ))}
+              <tr><th style={{ ...cell, textAlign: 'left', color: theme.textSecondary }}>actual human</th><td style={cell}>{tn}</td><td style={cell}>{fp}</td></tr>
+              <tr><th style={{ ...cell, textAlign: 'left', color: theme.textSecondary }}>actual bot</th><td style={cell}>{fn}</td><td style={cell}>{tp}</td></tr>
             </tbody>
           </table>
         </div>
+        <div style={{ ...cardStyle(theme), flex: '1 1 320px' }}>
+          <h3 style={{ marginTop: 0 }}>Decision threshold</h3>
+          <table style={{ borderCollapse: 'collapse', color: theme.text, fontSize: 14, width: '100%' }}>
+            <thead><tr style={{ color: theme.textSecondary }}>
+              <th style={{ ...cell, textAlign: 'left' }}>threshold</th><th style={cell}>recall</th><th style={cell}>FPR</th><th style={cell}>F1</th>
+            </tr></thead>
+            <tbody>
+              {[results.test_default, test].map(m => (
+                <tr key={m.threshold}><td style={{ ...cell, textAlign: 'left' }}>{m.threshold.toFixed(4)}</td>
+                  <td style={cell}>{pct(m.recall)}</td><td style={cell}>{pct(m.fpr)}</td><td style={cell}>{m.f1.toFixed(4)}</td></tr>
+              ))}
+            </tbody>
+          </table>
+          <p style={{ color: theme.textSecondary, fontSize: 13 }}>
+            Tuned for FPR ≤ {pct(tuning.tuning_fpr)} on out-of-fold predictions of {tuning.n_held_out_humans} humans.
+          </p>
+        </div>
+      </div>
 
-        <div style={{ ...cardStyle, flex: 1 }}>
-          <h3>Training History</h3>
-          <div style={{ height: '250px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={historyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={isDarkTheme ? '#333' : '#ccc'} />
-                <XAxis dataKey="epoch" stroke={isDarkTheme ? '#ccc' : '#333'} />
-                <YAxis yAxisId="left" stroke="#82ca9d" />
-                <YAxis yAxisId="right" orientation="right" stroke="#ff4d4f" />
-                <RechartsTooltip contentStyle={{ backgroundColor: isDarkTheme ? '#333' : '#fff', color: isDarkTheme ? '#fff' : '#000' }} />
-                <Legend />
-                <Line yAxisId="left" type="monotone" dataKey="accuracy" stroke="#82ca9d" name="Accuracy (%)" />
-                <Line yAxisId="right" type="monotone" dataKey="loss" stroke="#ff4d4f" name="Loss" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+      <div style={cardStyle(theme)}>
+        <h3 style={{ marginTop: 0 }}>Group ablation: bot recall at FPR ≤ {pct(tuning.max_fpr)} (5-fold CV, ±1 std)</h3>
+        <div style={{ height: 380 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={groups} layout="vertical" margin={{ left: 30, right: 90 }}>
+              <CartesianGrid horizontal={false} stroke={theme.grid} />
+              <XAxis type="number" domain={[0, 100]} unit="%" {...axis} />
+              <YAxis type="category" dataKey="name" width={150} {...axis} />
+              <Tooltip {...tooltip} formatter={(v: number) => `${v}%`} />
+              <Bar dataKey="recall" name="recall" fill={theme.series1} radius={[0, 4, 4, 0]} barSize={18}>
+                <LabelList dataKey="label" position="right" fill={theme.textSecondary} fontSize={12} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div style={cardStyle(theme)}>
+        <h3 style={{ marginTop: 0 }}>Recall per bot type (fresh test set; human FPR {pct(results.per_bot_type.human_fpr)})</h3>
+        <div style={{ height: 260 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={bots} layout="vertical" margin={{ left: 30, right: 50 }}>
+              <CartesianGrid horizontal={false} stroke={theme.grid} />
+              <XAxis type="number" domain={[0, 100]} unit="%" {...axis} />
+              <YAxis type="category" dataKey="name" width={150} {...axis} />
+              <Tooltip {...tooltip} formatter={(v: number) => `${v}%`} />
+              <Bar dataKey="recall" name="recall" fill={theme.series1} radius={[0, 4, 4, 0]} barSize={18}>
+                <LabelList dataKey="recall" position="right" fill={theme.textSecondary} fontSize={12} formatter={(v: number) => `${v}%`} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>

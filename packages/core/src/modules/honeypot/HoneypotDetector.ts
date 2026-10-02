@@ -66,7 +66,7 @@ export class HoneypotDetector {
     const signals: DetectionSignal[] = [];
     
     if (this.isTrapEndpoint(path)) {
-      signals.push({ type: 'honeypot_trap_endpoint', severity: 'high', description: `Hit tar pit endpoint: ${path}` } as any);
+      signals.push({ category: 'behavioral', type: 'honeypot.trap_endpoint', value: 90, confidence: 0.95, description: `Hit tar pit endpoint: ${path}`, weight: 2.0 });
       this.recordTrap('endpoint');
     }
     
@@ -112,7 +112,7 @@ export class HoneypotDetector {
     if (body) {
       for (const field of this.formFieldNames) {
         if (body[field]) {
-          signals.push({ type: 'honeypot_form_filled', severity: 'critical', description: `Honeypot form field filled: ${field}` } as any);
+          signals.push({ category: 'behavioral', type: 'honeypot.form_filled', value: 100, confidence: 0.98, description: `Honeypot form field filled: ${field}`, weight: 2.0 });
           this.recordTrap('hidden_field');
         }
       }
@@ -120,10 +120,10 @@ export class HoneypotDetector {
     
     if (timeSincePageLoadMs !== undefined) {
       if (timeSincePageLoadMs < 100) {
-        signals.push({ type: 'timing_trap_fast', severity: 'critical', description: 'Form submitted impossibly fast (<100ms)' } as any);
+        signals.push({ category: 'behavioral', type: 'honeypot.timing_fast', value: 95, confidence: 0.95, description: 'Form submitted impossibly fast (<100ms)', weight: 2.0 });
         this.recordTrap('timing');
       } else if (timeSincePageLoadMs < 1000) {
-        signals.push({ type: 'timing_trap_suspicious', severity: 'high', description: 'Form submitted suspiciously fast (<1s)' } as any);
+        signals.push({ category: 'behavioral', type: 'honeypot.timing_suspicious', value: 60, confidence: 0.7, description: 'Form submitted suspiciously fast (<1s)', weight: 1.2 });
       }
     }
     
@@ -134,7 +134,7 @@ export class HoneypotDetector {
     return this.trapEndpoints.has(path);
   }
 
-  public getTrapResponse(path: string): { statusCode: number; body: string; delay: number } {
+  public getTrapResponse(_path: string): { statusCode: number; body: string; delay: number } {
     return {
       statusCode: 200,
       body: '<html><body><h1>Processing...</h1></body></html>',

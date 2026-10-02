@@ -12,6 +12,7 @@ export class TLSFingerprinter {
   private signatures: Map<string, TLSSignature> = new Map();
   private logger: Logger;
   private recentFingerprints: Map<string, { count: number; lastSeen: number; ips: Set<string> }> = new Map();
+  private cleanupInterval: ReturnType<typeof setInterval>;
 
   private metrics = {
     totalLookups: 0,
@@ -23,7 +24,8 @@ export class TLSFingerprinter {
     this.logger = new Logger('TLSFingerprinter');
     this.loadSignatures();
     // Periodically clean up tracked frequencies
-    setInterval(() => this.cleanup(), 60000);
+    this.cleanupInterval = setInterval(() => this.cleanup(), 60000);
+    this.cleanupInterval.unref?.();
   }
 
   public analyze(tls: TLSInfo, userAgent: string, ip: string): DetectionSignal[] {
@@ -83,25 +85,13 @@ export class TLSFingerprinter {
     return signals;
   }
 
-  private checkBrowserTlsConsistency(tls: TLSInfo, ua: string): DetectionSignal | null {
-    const isChrome = ua.includes('Chrome');
-    const isFirefox = ua.includes('Firefox');
-
-    // Basic heuristic checks:
-    // If it claims to be Chrome but the TLS client hello doesn't match standard Chrome JA3 patterns
-    // This is a simplified check for demonstration
-    if (isChrome && tls.ja3 && tls.ja3.startsWith('771,4865-4866')) {
-      // This is expected for some non-Chrome agents
-      return {
-        category: 'protocol',
-        type: 'tls.browser_inconsistency',
-        value: 80,
-        confidence: 0.85,
-        description: 'TLS fingerprint does not match claimed Chrome browser',
-        weight: 1.8,
-      };
-    }
-
+  /**
+   * UA vs TLS consistency needs a maintained database of real browser JA3/JA4
+   * fingerprints. The previous prefix rule ('771,4865-4866') matched every
+   * TLS 1.3 browser, real Chrome included, so it is disabled until such a
+   * database exists (Phase B).
+   */
+  private checkBrowserTlsConsistency(_tls: TLSInfo, _ua: string): DetectionSignal | null {
     return null;
   }
 
@@ -218,6 +208,11 @@ export class TLSFingerprinter {
 
   public getMetrics() {
     return this.metrics;
+  }
+
+  public destroy(): void {
+    clearInterval(this.cleanupInterval);
+    this.recentFingerprints.clear();
   }
 
   public cleanup(): void {

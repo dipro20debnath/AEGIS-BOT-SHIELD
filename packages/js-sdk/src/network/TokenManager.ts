@@ -1,27 +1,19 @@
+/**
+ * Holds the token issued by the AEGIS server. The browser never signs tokens
+ * itself: it has no secret, so any client-made "signature" could be forged.
+ */
 export class TokenManager {
   private currentToken: string | null = null;
-  private tokenExpiry: number = 0;
-  private readonly TOKEN_LIFETIME = 5 * 60 * 1000; // 5 minutes
+  private tokenExpiry = 0;
 
-  public generateToken(payload: any): string {
-    if (this.currentToken && Date.now() < this.tokenExpiry) {
-      return this.currentToken;
-    }
+  /** Store a server token valid for `ttlMs`; it is refreshed `skewMs` before expiry. */
+  public set(token: string, ttlMs: number, skewMs = 5_000): void {
+    this.currentToken = token;
+    this.tokenExpiry = Date.now() + Math.max(0, ttlMs - skewMs);
+  }
 
-    try {
-      const dataStr = JSON.stringify(payload);
-      // Basic base64 encode for mock token representation
-      const encoded = btoa(unescape(encodeURIComponent(dataStr)));
-      
-      // Add fake signature
-      this.currentToken = `Aegis.${encoded}.SIG123`;
-      this.tokenExpiry = Date.now() + this.TOKEN_LIFETIME;
-      
-      return this.currentToken;
-    } catch (e) {
-      console.error('Failed to generate token', e);
-      return '';
-    }
+  public get(): string | null {
+    return this.currentToken && Date.now() < this.tokenExpiry ? this.currentToken : null;
   }
 
   public clear(): void {

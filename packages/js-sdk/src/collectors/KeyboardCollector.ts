@@ -8,13 +8,18 @@
  * Key metrics:
  * - Dwell Time: how long each key is held (keydown→keyup)
  * - Flight Time: gap between releasing one key and pressing the next
- * - Typing Speed: characters per minute
+ * - Typing Speed: words per minute (5 keystrokes = 1 word)
  * - Cadence Entropy: Shannon entropy of inter-key timing distribution
  *   (higher = more variable = more human-like)
  * - Paste Detection: Ctrl+V / rapid text insertion
  * - Correction Ratio: backspace/delete count vs total keys
- * - Bigram Timing: timing patterns for common letter pairs
+ *
+ * Privacy: only timings and a Char/Correction category are kept. The key
+ * code is held just until its keyup (to pair it with its keydown) and is
+ * never stored or sent.
  */
+import { binnedEntropy, mean, std } from './stats';
+
 export interface KeyboardAnalysis {
   eventCount: number;
   avgDwellTime: number;
@@ -29,7 +34,16 @@ export interface KeyboardAnalysis {
 }
 
 export class KeyboardCollector {
-  private keyEvents: Array<{ key: string; type: 'down' | 'up'; t: number }> = [];
+  private dwellTimes: number[] = [];
+  private flightTimes: number[] = [];
+  /** keydown time per physical key, only while the key is held */
+  private pressed: Map<string, number> = new Map();
+  private lastKeyUp: number | null = null;
+  private firstKeyDown: number | null = null;
+  private lastKeyDown: number | null = null;
+  private keyDownCount = 0;
+  private correctionCount = 0;
+  private eventCount = 0;
   private pasteCount = 0;
   private isCollecting = false;
   private maxEvents: number;
@@ -44,10 +58,12 @@ export class KeyboardCollector {
   public start(): void {
     if (this.isCollecting) return;
     this.isCollecting = true;
-    this.onKeyDownHandler = (e: KeyboardEvent) => this.recordKeyDown(e);
-    this.onKeyUpHandler = (e: KeyboardEvent) => this.recordKeyUp(e);
-    this.onPasteHandler = (e: ClipboardEvent) => this.recordPaste(e);
-    
+    this.onKeyDownHandler = (e: KeyboardEvent) => {
+      if (!e.repeat) this.keyDown(e.code || e.key, isCorrectionKey(e.key), e.timeStamp);
+    };
+    this.onKeyUpHandler = (e: KeyboardEvent) => this.keyUp(e.code || e.key, e.timeStamp);
+    this.onPasteHandler = () => this.paste();
+
     document.addEventListener('keydown', this.onKeyDownHandler, { passive: true });
     document.addEventListener('keyup', this.onKeyUpHandler, { passive: true });
     document.addEventListener('paste', this.onPasteHandler, { passive: true });
@@ -60,103 +76,78 @@ export class KeyboardCollector {
     if (this.onPasteHandler) document.removeEventListener('paste', this.onPasteHandler);
   }
 
-  private recordKeyDown(e: KeyboardEvent): void {
-    const isCorrection = e.key === 'Backspace' || e.key === 'Delete';
-    const keyCategory = isCorrection ? 'Correction' : 'Char';
-    
-    this.keyEvents.push({ key: keyCategory, type: 'down', t: Date.now() });
-    if (this.keyEvents.length > this.maxEvents) this.keyEvents.shift();
+  /** Record a key press (t in ms). Public so sessions can be replayed and tested. */
+  public keyDown(keyId: string, isCorrection: boolean, t: number): void {
+    if (this.pressed.has(keyId)) return; // auto-repeat
+    this.pressed.set(keyId, t);
+    this.eventCount++;
+    this.keyDownCount++;
+    if (isCorrection) this.correctionCount++;
+    if (this.firstKeyDown === null) this.firstKeyDown = t;
+    this.lastKeyDown = t;
+
+    if (this.lastKeyUp !== null) {
+      const flight = t - this.lastKeyUp; // negative when keys overlap (rollover)
+      if (flight > -1000 && flight < 5000) push(this.flightTimes, flight, this.maxEvents);
+    }
   }
 
-  private recordKeyUp(e: KeyboardEvent): void {
-    const isCorrection = e.key === 'Backspace' || e.key === 'Delete';
-    const keyCategory = isCorrection ? 'Correction' : 'Char';
-
-    this.keyEvents.push({ key: keyCategory, type: 'up', t: Date.now() });
-    if (this.keyEvents.length > this.maxEvents) this.keyEvents.shift();
+  public keyUp(keyId: string, t: number): void {
+    const down = this.pressed.get(keyId);
+    if (down === undefined) return;
+    this.pressed.delete(keyId);
+    this.eventCount++;
+    const dwell = t - down;
+    if (dwell >= 0 && dwell < 5000) push(this.dwellTimes, dwell, this.maxEvents);
+    this.lastKeyUp = t;
   }
 
-  private recordPaste(e: ClipboardEvent): void {
+  public paste(): void {
     this.pasteCount++;
   }
 
   public getData(): KeyboardAnalysis {
-    const downEvents = this.keyEvents.filter(e => e.type === 'down');
-    const upEvents = this.keyEvents.filter(e => e.type === 'up');
-    
-    const dwellTimes: number[] = [];
-    const flightTimes: number[] = [];
-    
-    for (let i = 0; i < Math.min(downEvents.length, upEvents.length); i++) {
-      const dt = upEvents[i].t - downEvents[i].t;
-      if (dt >= 0 && dt < 5000) dwellTimes.push(dt);
-    }
+    const avgDwellTime = mean(this.dwellTimes);
+    const avgFlightTime = mean(this.flightTimes);
 
-    for (let i = 1; i < downEvents.length; i++) {
-      const ft = downEvents[i].t - upEvents[i - 1]?.t;
-      if (ft >= -1000 && ft < 5000) flightTimes.push(ft);
-    }
-
-    const avgDwellTime = this.avg(dwellTimes);
-    const avgFlightTime = this.avg(flightTimes);
-
-    let totalDuration = 0;
-    let typingSpeed = 0;
-    if (downEvents.length > 1) {
-      totalDuration = downEvents[downEvents.length - 1].t - downEvents[0].t;
-      typingSpeed = totalDuration > 0 ? (downEvents.length / (totalDuration / 60000)) : 0;
-    }
-
-    const corrections = downEvents.filter(e => e.key === 'Correction').length;
-    const correctionRatio = downEvents.length > 0 ? corrections / downEvents.length : 0;
+    const totalDuration = this.firstKeyDown !== null && this.lastKeyDown !== null
+      ? this.lastKeyDown - this.firstKeyDown
+      : 0;
+    const keysPerMinute = totalDuration > 0 ? (this.keyDownCount - 1) / (totalDuration / 60000) : 0;
 
     return {
-      eventCount: this.keyEvents.length,
+      eventCount: this.eventCount,
       avgDwellTime,
-      dwellTimeStd: this.std(dwellTimes, avgDwellTime),
+      dwellTimeStd: std(this.dwellTimes, avgDwellTime),
       avgFlightTime,
-      flightTimeStd: this.std(flightTimes, avgFlightTime),
-      typingSpeed,
+      flightTimeStd: std(this.flightTimes, avgFlightTime),
+      typingSpeed: keysPerMinute / 5,
       pasteCount: this.pasteCount,
-      correctionRatio,
-      cadenceEntropy: this.calculateCadenceEntropy(flightTimes),
+      correctionRatio: this.keyDownCount > 0 ? this.correctionCount / this.keyDownCount : 0,
+      cadenceEntropy: binnedEntropy(this.flightTimes, 10),
       totalDuration
     };
   }
 
-  private calculateCadenceEntropy(flightTimes: number[]): number {
-    if (flightTimes.length === 0) return 0;
-    const bins: Record<number, number> = {};
-    for (const t of flightTimes) {
-      const bin = Math.floor(t / 10) * 10;
-      bins[bin] = (bins[bin] || 0) + 1;
-    }
-    
-    let entropy = 0;
-    const total = flightTimes.length;
-    for (const key in bins) {
-      const p = bins[key] / total;
-      entropy -= p * Math.log2(p);
-    }
-    return entropy;
-  }
-
   public reset(): void {
-    this.keyEvents = [];
+    this.dwellTimes = [];
+    this.flightTimes = [];
+    this.pressed.clear();
+    this.lastKeyUp = null;
+    this.firstKeyDown = null;
+    this.lastKeyDown = null;
+    this.keyDownCount = 0;
+    this.correctionCount = 0;
+    this.eventCount = 0;
     this.pasteCount = 0;
   }
+}
 
-  public getEventCount(): number {
-    return this.keyEvents.length;
-  }
+function isCorrectionKey(key: string): boolean {
+  return key === 'Backspace' || key === 'Delete';
+}
 
-  private avg(arr: number[]): number {
-    return arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
-  }
-
-  private std(arr: number[], mean: number): number {
-    if (arr.length === 0) return 0;
-    const variance = arr.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / arr.length;
-    return Math.sqrt(variance);
-  }
+function push(values: number[], value: number, max: number): void {
+  values.push(value);
+  if (values.length > max) values.shift();
 }

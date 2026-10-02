@@ -77,6 +77,7 @@ export class ThreatDatabase {
 
     if (this.persistPath && options?.autoSaveIntervalMs) {
       this.autoSaveInterval = setInterval(() => this.saveToDisk(), options.autoSaveIntervalMs);
+      this.autoSaveInterval.unref?.();
     }
   }
 

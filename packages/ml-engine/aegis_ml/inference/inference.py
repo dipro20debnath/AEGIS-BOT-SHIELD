@@ -61,14 +61,9 @@ class InferenceEngine:
         try:
             features = self.extractor.extract_batch([request_data])
             
-            # 3. Predict
-            is_bot = self.classifier.predict(features)[0]
-            
-            # 4. Confidence Score (if available)
-            if hasattr(self.classifier.model, 'predict_proba'):
-                score = self.classifier.model.predict_proba(features)[0][1]
-            else:
-                score = 1.0 if is_bot else 0.0
+            # 3. Predict: one ensemble pass gives the bot probability and the label
+            score = self.classifier.predict_proba(features)[0]
+            is_bot = score >= self.classifier.threshold
                 
             # 5. Cache Result
             self.cache[client_id] = {

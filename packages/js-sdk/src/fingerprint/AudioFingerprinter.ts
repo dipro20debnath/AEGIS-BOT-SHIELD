@@ -1,40 +1,31 @@
 export class AudioFingerprinter {
+    /**
+     * Renders a short oscillator through a compressor in an OfflineAudioContext
+     * (no speakers, no autoplay restriction) and hashes the output samples,
+     * which differ slightly across audio stacks.
+     */
     public async collect(): Promise<string> {
         try {
-            const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-            if (!AudioContext) return 'not_supported';
-            
-            const audioCtx = new AudioContext();
-            const oscillator = audioCtx.createOscillator();
-            const analyser = audioCtx.createAnalyser();
-            const gain = audioCtx.createGain();
-            const dynamicsCompressor = audioCtx.createDynamicsCompressor();
+            const OfflineCtx = window.OfflineAudioContext || (window as any).webkitOfflineAudioContext;
+            if (!OfflineCtx) return 'not_supported';
 
+            const ctx = new OfflineCtx(1, 5000, 44100);
+            const oscillator = ctx.createOscillator();
             oscillator.type = 'triangle';
-            oscillator.frequency.setValueAtTime(10000, audioCtx.currentTime);
+            oscillator.frequency.setValueAtTime(10000, ctx.currentTime);
 
-            gain.gain.value = 0;
+            const compressor = ctx.createDynamicsCompressor();
+            compressor.threshold.setValueAtTime(-50, ctx.currentTime);
+            compressor.knee.setValueAtTime(40, ctx.currentTime);
+            compressor.ratio.setValueAtTime(12, ctx.currentTime);
 
-            oscillator.connect(dynamicsCompressor);
-            dynamicsCompressor.connect(analyser);
-            analyser.connect(gain);
-            gain.connect(audioCtx.destination);
-
+            oscillator.connect(compressor);
+            compressor.connect(ctx.destination);
             oscillator.start(0);
 
-            return new Promise((resolve) => {
-                setTimeout(async () => {
-                    const dataArray = new Float32Array(analyser.frequencyBinCount);
-                    analyser.getFloatFrequencyData(dataArray);
-                    oscillator.stop();
-                    gain.disconnect();
-                    analyser.disconnect();
-                    dynamicsCompressor.disconnect();
-                    
-                    const hashInput = dataArray.join(',');
-                    resolve(await this.sha256(hashInput));
-                }, 50); // Wait for data accumulation
-            });
+            const buffer = await ctx.startRendering();
+            const samples = buffer.getChannelData(0).slice(4500, 5000);
+            return await this.sha256(Array.from(samples, v => v.toFixed(6)).join(','));
         } catch (e) {
             return 'error';
         }

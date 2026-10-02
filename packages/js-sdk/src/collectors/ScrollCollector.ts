@@ -4,7 +4,14 @@
  * Captures scroll behavior metrics.
  * Humans scroll with varying speeds, read pauses, and momentum.
  * Bots often scroll instantaneously, constantly, or not at all.
+ *
+ * - maxScrollDepth: deepest point reached as a fraction of the scrollable height (0-1)
+ * - avgScrollSpeed: px/s between consecutive scroll events
+ * - momentumScrolls: events inside an inertial run (speed decaying for >= 3 steps),
+ *   typical of touchpads and touch screens, rare for programmatic scrolling
  */
+import { mean } from './stats';
+
 export interface ScrollAnalysis {
   eventCount: number;
   maxScrollDepth: number;
@@ -28,10 +35,8 @@ export class ScrollCollector {
   public start(): void {
     if (this.isCollecting) return;
     this.isCollecting = true;
-    this.onScrollHandler = () => this.recordScroll();
+    this.onScrollHandler = (e: Event) => this.addPosition(currentScrollY(), scrollableHeight(), e.timeStamp);
     document.addEventListener('scroll', this.onScrollHandler, { passive: true });
-    // Initial position
-    this.recordScroll();
   }
 
   public stop(): void {
@@ -39,59 +44,53 @@ export class ScrollCollector {
     if (this.onScrollHandler) document.removeEventListener('scroll', this.onScrollHandler);
   }
 
-  private recordScroll(): void {
-    const y = window.scrollY || document.documentElement.scrollTop;
-    if (y > this.maxDepth) this.maxDepth = y;
-    
-    this.events.push({ y, t: Date.now() });
-    if (this.events.length > this.maxEvents) {
-      this.events.shift();
-    }
+  /** Record a scroll position y (px) of a page with `scrollable` px of scroll range, at t ms. */
+  public addPosition(y: number, scrollable: number, t: number): void {
+    const prev = this.events[this.events.length - 1];
+    if (prev && t <= prev.t) return;
+    if (scrollable > 0) this.maxDepth = Math.max(this.maxDepth, Math.min(1, y / scrollable));
+    this.events.push({ y, t });
+    if (this.events.length > this.maxEvents) this.events.shift();
   }
 
   public getData(): ScrollAnalysis {
+    const speeds: number[] = [];
     let directionChanges = 0;
-    let momentumScrolls = 0;
-    let totalSpeed = 0;
-    let speedCount = 0;
-
     let prevDirection = 0;
 
     for (let i = 1; i < this.events.length; i++) {
       const dy = this.events[i].y - this.events[i - 1].y;
-      const dt = this.events[i].t - this.events[i - 1].t;
-
-      if (dt > 0) {
-        const speed = Math.abs(dy / dt);
-        totalSpeed += speed;
-        speedCount++;
-
-        // Basic momentum heuristic: very high speed but smooth deceleration
-        if (speed > 5) {
-          momentumScrolls++;
-        }
-      }
-
+      const dt = (this.events[i].t - this.events[i - 1].t) / 1000;
+      speeds.push(dt > 0 ? Math.abs(dy) / dt : 0);
       if (dy !== 0) {
         const dir = Math.sign(dy);
-        if (prevDirection !== 0 && dir !== prevDirection) {
-          directionChanges++;
-        }
+        if (prevDirection !== 0 && dir !== prevDirection) directionChanges++;
         prevDirection = dir;
+      }
+    }
+
+    // Count events in runs where speed decreases for at least 3 consecutive steps
+    let momentumScrolls = 0;
+    let run = 0;
+    for (let i = 1; i < speeds.length; i++) {
+      if (speeds[i] > 0 && speeds[i] < speeds[i - 1]) {
+        run++;
+        if (run === 3) momentumScrolls += 3;
+        else if (run > 3) momentumScrolls++;
+      } else {
+        run = 0;
       }
     }
 
     const first = this.events[0];
     const last = this.events[this.events.length - 1];
-    const totalDuration = (last && first) ? last.t - first.t : 0;
-
     return {
       eventCount: this.events.length,
       maxScrollDepth: this.maxDepth,
-      avgScrollSpeed: speedCount > 0 ? totalSpeed / speedCount : 0,
+      avgScrollSpeed: mean(speeds),
       directionChanges,
       momentumScrolls,
-      totalDuration
+      totalDuration: first && last ? last.t - first.t : 0
     };
   }
 
@@ -99,4 +98,13 @@ export class ScrollCollector {
     this.events = [];
     this.maxDepth = 0;
   }
+}
+
+function currentScrollY(): number {
+  return window.scrollY || document.documentElement.scrollTop || 0;
+}
+
+function scrollableHeight(): number {
+  const doc = document.documentElement;
+  return Math.max(0, Math.max(doc.scrollHeight, document.body?.scrollHeight ?? 0) - window.innerHeight);
 }

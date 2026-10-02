@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "description": "Feature contract between the browser SDK (packages/js-sdk/src/telemetry.ts), the servers and the ML extractor (packages/ml-engine/aegis_ml/features/extractor.py). Keys, order and units must match in all three. Session and network features are computed server-side; all others come from the SDK.",
+  "categories": {
+    "mouse": {
+      "source": "sdk",
+      "features": [
+        ["mouse_avg_velocity", "px/s", "Mean pointer speed within strokes"],
+        ["mouse_velocity_std", "px/s", "Std of pointer speed"],
+        ["mouse_max_velocity", "px/s", "Maximum pointer speed"],
+        ["mouse_avg_acceleration", "px/s^2", "Mean signed acceleration"],
+        ["mouse_acceleration_std", "px/s^2", "Std of acceleration"],
+        ["mouse_avg_jerk", "px/s^3", "Mean absolute jerk"],
+        ["mouse_straightness_index", "0-1", "Mean over strokes of direct distance / path length"],
+        ["mouse_curvature_score", "0-1", "Mean turning angle between segments / pi"],
+        ["mouse_click_precision", "0-1", "1 = click at target centre, 0 = at its corner or outside"],
+        ["mouse_micro_tremor_freq", "Hz", "Zero-crossing estimate on small movements"],
+        ["mouse_fitts_law_r2", "0-1", "R^2 of movement time vs log2(D/W+1) over clicks"],
+        ["mouse_direction_changes", "count", "Sign reversals of x or y velocity"],
+        ["mouse_pause_count", "count", "Gaps > 100 ms between pointer events"],
+        ["mouse_avg_pause_duration", "ms", "Mean length of those gaps"],
+        ["mouse_event_count", "count", "Pointer samples recorded"]
+      ]
+    },
+    "keyboard": {
+      "source": "sdk",
+      "features": [
+        ["kb_avg_dwell_time", "ms", "Mean key hold time (keydown to its own keyup)"],
+        ["kb_dwell_time_std", "ms", "Std of hold time"],
+        ["kb_avg_flight_time", "ms", "Mean keyup to next keydown (negative under rollover)"],
+        ["kb_flight_time_std", "ms", "Std of flight time"],
+        ["kb_typing_speed", "WPM", "Keystrokes per minute / 5"],
+        ["kb_paste_count", "count", "Paste events"],
+        ["kb_correction_ratio", "0-1", "Backspace/Delete share of keystrokes"],
+        ["kb_cadence_entropy", "bits", "Shannon entropy of flight times in 10 ms bins"],
+        ["kb_total_events", "count", "Keydown + keyup events"],
+        ["kb_total_duration", "s", "First to last keydown"]
+      ]
+    },
+    "scroll": {
+      "source": "sdk",
+      "features": [
+        ["scroll_avg_velocity", "px/s", "Mean scroll speed between events"],
+        ["scroll_direction_changes", "count", "Up/down reversals"],
+        ["scroll_max_depth", "0-1", "Deepest point reached / scrollable height"],
+        ["scroll_event_count", "count", "Scroll events"],
+        ["scroll_momentum_ratio", "0-1", "Share of events inside inertial (decaying-speed) runs"]
+      ]
+    },
+    "touch": {
+      "source": "sdk",
+      "features": [
+        ["touch_avg_pressure", "0-1", "Mean reported touch force (0 when unsupported)"],
+        ["touch_avg_radius", "px", "Mean contact radius"],
+        ["touch_swipe_velocity", "px/s", "Mean swipe speed"],
+        ["touch_tap_count", "count", "Touches moving < 10 px"],
+        ["touch_multi_touch_ratio", "0-1", "Share of events with > 1 finger"]
+      ]
+    },
+    "session": {
+      "source": "server",
+      "features": [
+        ["session_duration", "s", "First to current request in the session"],
+        ["session_request_count", "count", "Requests in the session"],
+        ["session_unique_paths", "count", "Distinct paths requested"],
+        ["session_avg_time_between_requests", "s", "Mean inter-request gap"],
+        ["session_reputation", "0-1", "Risk from session history (0 = clean)"]
+      ]
+    },
+    "network": {
+      "source": "server",
+      "features": [
+        ["is_vpn", "0/1", "Known VPN ASN"],
+        ["is_tor", "0/1", "Tor exit node"],
+        ["is_datacenter", "0/1", "Cloud/hosting IP range"],
+        ["is_residential_proxy", "0/1", "Residential proxy indicators"],
+        ["ip_reputation", "0-1", "IP risk (0 = clean)"]
+      ]
+    },
+    "fingerprint": {
+      "source": "sdk",
+      "features": [
+        ["has_webgl", "0/1", "WebGL context available"],
+        ["has_canvas", "0/1", "2D canvas available"],
+        ["plugin_count", "count", "navigator.plugins.length"],
+        ["is_headless", "0/1", "Headless detector verdict"],
+        ["headless_confidence", "0-1", "Headless detector confidence"]
+      ]
+    }
+  }
+}
