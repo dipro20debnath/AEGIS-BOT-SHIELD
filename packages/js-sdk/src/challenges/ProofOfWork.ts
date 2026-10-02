@@ -10,7 +10,7 @@ export class ProofOfWork {
     let hash = '';
     const target = '0'.repeat(difficulty);
     
-    while (true) {
+    for (;;) {
       hash = await this.sha256(challenge + nonce.toString());
       if (hash.startsWith(target)) {
         break;

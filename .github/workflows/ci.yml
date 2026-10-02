@@ -4,24 +4,30 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
-  core-tests:
+  node:
+    name: Node ${{ matrix.node-version }} - build, test, lint
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18, 20]
+        node-version: [20, 22]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
+          cache: npm
       - run: npm ci
-      - run: npm run build --workspace=packages/core
-      - run: npm test --workspace=packages/core
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - run: npm run build
+      - run: npm test
+      - run: npm run lint
 
-  python-tests:
+  python:
+    name: Python ${{ matrix.python-version }} - tests
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -31,20 +37,39 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - run: pip install -e packages/server-python[dev]
-      - run: pip install -e packages/ml-engine[dev]
-      - run: pytest packages/server-python/tests/ -v
-      - run: pytest packages/ml-engine/tests/ -v
+          cache: pip
+      - run: pip install -e "packages/ml-engine[test]" -e "packages/server-python[test]"
+      - run: pytest packages/ml-engine/tests packages/server-python/tests -v
+
+  e2e:
+    name: End-to-end (Chromium -> SDK -> Python server -> ML)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: npm ci
+      - run: npm run build
+      - run: pip install -e packages/ml-engine -e packages/server-python fastapi uvicorn
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
 
   security-audit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - run: npm audit --audit-level=high
-      - run: pip install safety && safety check
-
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: npm ci && npm run lint
+      - run: pip install pip-audit -e packages/ml-engine -e "packages/server-python[test]"
+      - run: pip-audit --skip-editable

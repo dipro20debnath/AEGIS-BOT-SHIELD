@@ -134,7 +134,7 @@ export class HoneypotDetector {
     return this.trapEndpoints.has(path);
   }
 
-  public getTrapResponse(path: string): { statusCode: number; body: string; delay: number } {
+  public getTrapResponse(_path: string): { statusCode: number; body: string; delay: number } {
     return {
       statusCode: 200,
       body: '<html><body><h1>Processing...</h1></body></html>',
