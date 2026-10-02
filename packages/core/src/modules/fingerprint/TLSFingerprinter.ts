@@ -85,25 +85,13 @@ export class TLSFingerprinter {
     return signals;
   }
 
-  private checkBrowserTlsConsistency(tls: TLSInfo, ua: string): DetectionSignal | null {
-    const isChrome = ua.includes('Chrome');
-    const isFirefox = ua.includes('Firefox');
-
-    // Basic heuristic checks:
-    // If it claims to be Chrome but the TLS client hello doesn't match standard Chrome JA3 patterns
-    // This is a simplified check for demonstration
-    if (isChrome && tls.ja3 && tls.ja3.startsWith('771,4865-4866')) {
-      // This is expected for some non-Chrome agents
-      return {
-        category: 'protocol',
-        type: 'tls.browser_inconsistency',
-        value: 80,
-        confidence: 0.85,
-        description: 'TLS fingerprint does not match claimed Chrome browser',
-        weight: 1.8,
-      };
-    }
-
+  /**
+   * UA vs TLS consistency needs a maintained database of real browser JA3/JA4
+   * fingerprints. The previous prefix rule ('771,4865-4866') matched every
+   * TLS 1.3 browser, real Chrome included, so it is disabled until such a
+   * database exists (Phase B).
+   */
+  private checkBrowserTlsConsistency(_tls: TLSInfo, _ua: string): DetectionSignal | null {
     return null;
   }
 

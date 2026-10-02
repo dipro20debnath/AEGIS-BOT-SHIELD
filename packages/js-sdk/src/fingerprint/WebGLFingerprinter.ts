@@ -1,7 +1,7 @@
 export class WebGLFingerprinter {
     public async collect(): Promise<any> {
         const canvas = document.createElement('canvas');
-        let gl = (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
+        const gl = (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
         if (!gl) return null;
 
         const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');

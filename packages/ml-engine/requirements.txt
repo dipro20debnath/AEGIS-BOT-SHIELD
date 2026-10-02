@@ -1,11 +1,9 @@
+# Core (training, inference); optional extras are defined in pyproject.toml:
+#   pip install -e "packages/ml-engine[server]"   # FastAPI inference service
+#   pip install -e "packages/ml-engine[deep]"     # torch, sequence models
+#   pip install -e "packages/ml-engine[explain]"  # SHAP
 scikit-learn>=1.2.0
 xgboost>=1.7.0
-lightgbm>=3.3.0
 numpy>=1.24.0
-pandas>=2.0.0
-onnxruntime>=1.15.0
-torch>=2.0.0
-Flask>=2.3.0
-shap>=0.41.0
 matplotlib>=3.7.0
 seaborn>=0.12.0

@@ -22,20 +22,23 @@
 | Results on real data | Not started |
 | Thesis writing | Not started (Dec 1–15) |
 
-### 0.0 Component audit (2026-10-02, measured, not estimated)
+### 0.0 Component status after Phase A (2026-10-03, measured)
 
-| Component | Compiles | Tests | Wired to the rest |
-|-----------|----------|-------|-------------------|
-| ML engine (Python) | Yes | 30 real tests pass | Exposes `/predict`, but nothing calls it |
-| Core engine (TS) | **No: 74 TS errors** | 0/10 run: tests target paths/APIs that do not exist; jest/ts-jest not installed | No |
-| JS SDK (TS) | **No: 3 TS errors** | None | Sends camelCase keys (`avgVelocity`); ML expects `mouse_avg_velocity` |
-| Server Node (TS) | **No: 15 TS errors** | None | Does not call ML engine |
-| Server Python | Imports | 17 "pass" but test dummy classes, not `aegis_shield` | Does not call ML engine |
-| Dashboard (React) | Cannot build: no `public/index.html`, no `react-scripts` | None | **All numbers hardcoded** (e.g. 89,000-sample confusion matrix, "epochs" for tree models). Do not use in the thesis |
-| Data-collection website | Does not exist | — | — |
+| Component | Builds | Tests | Wired |
+|-----------|--------|-------|-------|
+| ML engine (Python) | Yes | 31 | Used by the Python server (local model) and Node server (ML service URL) |
+| Core engine (TS) | Yes (was 74 errors) | 55 | DetectionEngine runs the real modules |
+| JS SDK (TS) | Yes (was 3 errors) + 35 KB browser bundle | 24 | Sends the 50-feature contract to /aegis/telemetry |
+| Server Python | Yes | 40 (FastAPI, Flask, Django, Node interop, ML in loop) | Telemetry endpoint, tokens, ML scoring |
+| Server Node (TS) | Yes (was 15 errors) | 15 (Express, Fastify, http, Python interop) | Core engine + ML service |
+| Dashboard | Yes (Vite) | type-checked | Reads live server stats; ML page reads results.json |
+| End-to-end | — | 4 (real Chromium -> SDK -> server -> ML) | — |
+| Data-collection website | Phase G | — | — |
 
-Thesis-critical path: SDK → logging endpoint → dataset → ML engine. The
-TS core/server-node errors do not block data collection.
+Before Phase A (2026-10-02 audit): only the ML engine worked; core/SDK/Node did
+not compile, no layer called another, the SDK sent no behavioural data, and the
+dashboard showed hardcoded numbers.
+
 
  (IRB submission moved to Oct 21)
 
@@ -197,6 +200,36 @@ integration bugs; unit tests on mocks did not.
 
 ---
 
+### 2026-10-03 — Phase A: bugs that would have hurt real users or the study
+Found while making the layers work together (each fixed and covered by a test):
+
+| Where | Problem | Effect if shipped |
+|-------|---------|-------------------|
+| SDK HeadlessDetector | Called `Notification.requestPermission()` | Every visitor/participant gets a notification-permission prompt |
+| SDK HeadlessDetector | Loaded `http://localhost:9999/...` | Every visitor's browser probes their own machine |
+| SDK HeadlessDetector | WebRTC local-candidate check; "0 plugins = headless" | Privacy concern; all mobile and privacy browsers look like bots |
+| SDK RequestInterceptor | Token header added to third-party requests | Token leaked; CORS preflight breaks payment/analytics APIs |
+| SDK collectors | Units/meanings differed from ML (px/ms vs px/s, click precision inverted, keydown/keyup mis-paired under rollover) | Real data on a different scale than training data |
+| Core RiskScorer | Weighted average across layers; confidence cancelled for lone signals | Extra weak evidence *lowered* risk; one weak hint could challenge |
+| Core IPAnalyzer | Private IPs flagged as bogon (90) | Everyone behind a proxy / on localhost blocked |
+| Core GeoIPResolver | Sent visitor IPs to ip-api.com over HTTP, no timeout | Privacy leak (IRB issue), latency |
+| Core TLSFingerprinter | "Chrome + JA3 starts with 771,4865-4866" = bot | Matches every TLS 1.3 browser incl. real Chrome (disabled) |
+| Python/Node servers | Missing token = +50 / risk 100 | First page load of every visitor challenged/blocked |
+| Python server | "googlebot" UA = block; crawler without Accept-Language | Real Googlebot blocked (SEO) |
+| Python server | Session tokens single-use | Second request of every visitor rejected |
+| Tokens | Three incompatible formats | No server could verify any SDK token |
+| Dashboard / Node stats | Hardcoded numbers | Misleading figures in a thesis demo |
+
+### 2026-10-03 — End-to-end observation (RQ3, qualitative)
+`npm run test:e2e` drives a real Chromium against the FastAPI example with a
+trained model. Playwright with its default user agent (`HeadlessChrome`) is
+denied on the first page load by header/UA rules. With a normal Chrome user
+agent and `navigator.webdriver` hidden ("stealth"), the **network/header layer
+lets the page load (score 0)**, but the SDK layer flags it (headless checks, no
+mouse micro-tremor, uniform typing) and the **login is blocked**. This is a
+concrete instance of a bot that only the behavioural layer catches; quantify it
+with the November bot traffic.
+
 ## 5. Results — synthetic data (v1, 2026-10-02)
 
 Reproduce (from `packages/ml-engine`):
@@ -269,7 +302,7 @@ mean 1.27 ms · p50 1.24 ms · p95 1.66 ms · p99 2.77 ms (target < 5 ms ✔)
 
 ## 6. Open TODOs for the thesis
 
-- [ ] Ethics/IRB submission (needs supervisor signature) — planned Oct 21; prepare packet by Oct 20
+- [ ] Ethics/IRB submission (needs supervisor signature) — planned Oct 21; drafts in `docs/thesis/irb/`
 - [ ] Data-collection website + logging endpoint; consent forms EN + BN
 - [ ] Bot scripts: requests/curl, Selenium, Puppeteer-stealth, Playwright + residential proxy, Scrapy
 - [ ] Re-run §5 on real data; report 95% confidence intervals (bootstrap) for FPR and recall

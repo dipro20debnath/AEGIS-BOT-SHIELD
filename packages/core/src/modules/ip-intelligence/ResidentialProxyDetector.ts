@@ -1,5 +1,5 @@
 import { DetectionSignal } from '../../types/index.js';
-import { GeoIPResolver, GeoData } from './GeoIPResolver.js';
+import { GeoData } from './GeoIPResolver.js';
 import { Logger } from '../../utils/logger.js';
 
 /** Residential proxy detection result */
@@ -190,7 +190,7 @@ export class ResidentialProxyDetector {
 
   private analyzeFlowPattern(ip: string, requestType: 'page' | 'api' | 'asset'): DetectionSignal | null {
     const now = Date.now();
-    let flow = this.ipFlowTracker.get(ip) || { pageViews: 0, apiCalls: 0, assetsLoaded: 0, firstSeen: now };
+    const flow = this.ipFlowTracker.get(ip) || { pageViews: 0, apiCalls: 0, assetsLoaded: 0, firstSeen: now };
     
     if (requestType === 'page') flow.pageViews++;
     if (requestType === 'api') flow.apiCalls++;
