@@ -32,6 +32,7 @@ export class SlidingWindowLimiter {
     
     const cleanupMs = options.cleanupIntervalMs || Math.max(60_000, this.windowSizeMs * 2);
     this.cleanupInterval = setInterval(() => this.cleanup(), cleanupMs);
+    this.cleanupInterval.unref?.();
   }
 
   public isAllowed(key: string): { allowed: boolean; remaining: number; resetMs: number } {

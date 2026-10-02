@@ -54,6 +54,7 @@ export class AdaptiveRateLimiter {
 
     const updateMs = options.updateIntervalMs || 10_000; // Default 10s analysis
     this.updateInterval = setInterval(() => this.analyzeTraffic(), updateMs);
+    this.updateInterval.unref?.();
   }
 
   /**
@@ -76,19 +77,21 @@ export class AdaptiveRateLimiter {
 
     if (!allowed && this._isAttackMode) {
       signals.push({
-        type: 'RATE_LIMIT_EXCEEDED_ATTACK_MODE',
-        severity: 'high',
+        category: 'network',
+        type: 'rate_limit.exceeded_attack_mode',
+        value: 90,
         confidence: 0.9,
-        timestamp: Date.now(),
-        details: { key, endpoint }
+        description: `Rate limit exceeded during attack mode (key=${key}${endpoint ? `, endpoint=${endpoint}` : ''})`,
+        weight: 1.5,
       });
     } else if (!allowed) {
       signals.push({
-        type: 'RATE_LIMIT_EXCEEDED',
-        severity: 'medium',
+        category: 'network',
+        type: 'rate_limit.exceeded',
+        value: 70,
         confidence: 0.8,
-        timestamp: Date.now(),
-        details: { key, endpoint }
+        description: `Rate limit exceeded (key=${key}${endpoint ? `, endpoint=${endpoint}` : ''})`,
+        weight: 1.2,
       });
     }
 

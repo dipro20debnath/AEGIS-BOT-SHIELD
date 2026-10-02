@@ -132,6 +132,22 @@ must be made on the November real-data experiment (human data ~Nov 11–25).
 
 ---
 
+### 2.4 Rule-based risk fusion in the core engine (2026-10-03)
+`packages/core/src/engine/RiskScorer.ts` fuses signals from all layers:
+- Within a category: weighted mean of `value x confidence` (weights = signal weights).
+  The old code divided by `sum(weight x confidence)`, which cancels confidence
+  for a lone signal: a 0.4-confidence hint counted at full value.
+- Across categories: **noisy-OR**, `score = 100 * (1 - prod(1 - s_c/100))`.
+  The old weighted average let a weak signal in one layer *lower* a decisive
+  one in another (measured: honeypot hit 98 + weak header hint -> 60, i.e.
+  "challenge" instead of "block"). Noisy-OR treats layers as independent
+  evidence, so adding a layer can only raise the score — the formal reason
+  defense-in-depth helps. Two independent 50s give 75.
+- Critical boosts (headless >= 85; value >= 95 & confidence >= 0.9 -> x1.2) unchanged.
+- Thesis point: report this as the fusion rule for the rule-based layers; the
+  ML ensemble is a separate scorer (§2.1). Independence is an assumption —
+  correlated layers (e.g. datacenter IP + headless) will be over-counted.
+
 ## 3. Contributions — what can honestly be claimed
 
 | Claim | Status |

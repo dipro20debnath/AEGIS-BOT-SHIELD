@@ -30,7 +30,7 @@ export class HTTP2Fingerprinter {
     const consistency = this.checkSettingsUaConsistency(http2, userAgent);
     if (consistency) signals.push(consistency);
 
-    const pseudoOrder = this.analyzePseudoHeaderOrder(http2.pseudoHeaders);
+    const pseudoOrder = this.analyzePseudoHeaderOrder(http2.pseudoHeaderOrder ?? []);
     if (pseudoOrder) signals.push(pseudoOrder);
 
     return signals;
@@ -46,7 +46,7 @@ export class HTTP2Fingerprinter {
     return profiles;
   }
 
-  private hashSettings(settings: Record<string, number>): string {
+  private hashSettings(settings?: Record<string, number>): string {
     if (!settings) return '';
     return [
       settings.HEADER_TABLE_SIZE || 4096,

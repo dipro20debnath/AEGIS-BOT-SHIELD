@@ -48,13 +48,18 @@ export class IPAnalyzer {
   private knownBotIps: Set<string> = new Set();
   private totalAnalyzed = 0;
   private totalBlocked = 0;
+  private flagPrivateIps: boolean;
 
   constructor(options?: {
     blocklist?: string[];
     allowlist?: string[];
     torListUrl?: string;
+    externalGeoLookup?: boolean;
+    /** Flag private/loopback source IPs (only meaningful when the server is internet-facing without a proxy) */
+    flagPrivateIps?: boolean;
   }) {
-    this.geoResolver = new GeoIPResolver();
+    this.flagPrivateIps = options?.flagPrivateIps ?? false;
+    this.geoResolver = new GeoIPResolver({ externalLookup: options?.externalGeoLookup ?? false });
     this.logger = new Logger('IPAnalyzer');
     if (options?.blocklist) options.blocklist.forEach(ip => this.customBlocklist.add(ip));
     if (options?.allowlist) options.allowlist.forEach(ip => this.customAllowlist.add(ip));
@@ -65,7 +70,9 @@ export class IPAnalyzer {
    * Perform comprehensive IP analysis.
    * Returns IPIntelligence data and detection signals.
    */
-  public async analyze(ip: string): Promise<{ intelligence: IPIntelligence; signals: DetectionSignal[] }> {
+  public async analyze(rawIp: string): Promise<{ intelligence: IPIntelligence; signals: DetectionSignal[] }> {
+    // Node reports IPv4 clients on dual-stack sockets as IPv4-mapped IPv6
+    const ip = rawIp.startsWith('::ffff:') && rawIp.includes('.') ? rawIp.slice(7) : rawIp;
     this.totalAnalyzed++;
     const signals: DetectionSignal[] = [];
     
@@ -79,10 +86,14 @@ export class IPAnalyzer {
       signals.push(this.createSignal('ip.blocklisted', 100, 1.0, 'IP is on blocklist'));
     }
 
-    // 2. Check bogon/private
-    const isBogon = this.isBogonIP(ip);
+    // 2. Check bogon/private. Private and loopback addresses are normal behind a
+    //    reverse proxy or in local development, so they are only flagged on request.
+    const isPrivate = this.isPrivateIP(ip);
+    const isBogon = !isPrivate && this.isBogonIP(ip);
     if (isBogon) {
       signals.push(this.createSignal('ip.bogon', 90, 0.95, 'Bogon/reserved IP address'));
+    } else if (isPrivate && this.flagPrivateIps) {
+      signals.push(this.createSignal('ip.private', 60, 0.6, 'Private/loopback source IP'));
     }
 
     // 3. Check Tor exit nodes
@@ -143,19 +154,29 @@ export class IPAnalyzer {
   }
 
   /**
-   * Check if IP is in reserved/bogon ranges
+   * Private, loopback, link-local and carrier-grade NAT ranges
    */
-  private isBogonIP(ip: string): boolean {
-    const bogonRanges = [
-      '0.0.0.0/8',
+  private isPrivateIP(ip: string): boolean {
+    if (ip === '::1' || ip.startsWith('::ffff:127.')) return true;
+    const privateRanges = [
       '10.0.0.0/8',
       '100.64.0.0/10',
       '127.0.0.0/8',
       '169.254.0.0/16',
       '172.16.0.0/12',
+      '192.168.0.0/16',
+    ];
+    return privateRanges.some(cidr => this.ipInCidr(ip, cidr));
+  }
+
+  /**
+   * Check if IP is in reserved/bogon (non-routable, non-private) ranges
+   */
+  private isBogonIP(ip: string): boolean {
+    const bogonRanges = [
+      '0.0.0.0/8',
       '192.0.0.0/24',
       '192.0.2.0/24',
-      '192.168.0.0/16',
       '198.18.0.0/15',
       '198.51.100.0/24',
       '203.0.113.0/24',
@@ -265,7 +286,7 @@ export class IPAnalyzer {
    * Create a standard detection signal
    */
   private createSignal(type: string, value: number, confidence: number, description: string): DetectionSignal {
-    return { type, value, confidence, description, timestamp: Date.now() };
+    return { category: 'network', type, value, confidence, description, weight: 1.0 };
   }
 
   /**

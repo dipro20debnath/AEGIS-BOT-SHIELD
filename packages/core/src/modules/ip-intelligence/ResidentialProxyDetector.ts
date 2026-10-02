@@ -150,8 +150,10 @@ export class ResidentialProxyDetector {
   private analyzeLatencyDistance(geo: GeoData, rttMs: number): DetectionSignal | null {
     if (rttMs > 250) {
       return {
-        name: 'latency_distance_mismatch',
-        category: 'oat-automated-threat',
+        type: 'proxy.latency_distance_mismatch',
+        category: 'network',
+        value: 50,
+        weight: 1.0,
         confidence: 0.6,
         description: `High TCP RTT (${rttMs}ms) inconsistent with geographical location.`
       };
@@ -175,8 +177,10 @@ export class ResidentialProxyDetector {
 
     if (sameFpDiffIp.length > 3) {
       return {
-        name: 'subnet_velocity_anomaly',
-        category: 'oat-automated-threat',
+        type: 'proxy.subnet_velocity_anomaly',
+        category: 'network',
+        value: 75,
+        weight: 1.0,
         confidence: 0.8,
         description: `Rapid rotation of IPs in /24 subnet for identical device fingerprint.`
       };
@@ -198,8 +202,10 @@ export class ResidentialProxyDetector {
     
     if (lifespan > 10 && flow.apiCalls > 20 && flow.pageViews === 0 && flow.assetsLoaded === 0) {
       return {
-        name: 'non_residential_flow',
-        category: 'oat-automated-threat',
+        type: 'proxy.non_residential_flow',
+        category: 'network',
+        value: 65,
+        weight: 1.0,
         confidence: 0.7,
         description: `Traffic flow pattern resembles API scraper rather than residential browsing.`
       };
@@ -217,8 +223,10 @@ export class ResidentialProxyDetector {
     const flow = this.ipFlowTracker.get(ip);
     if (flow && flow.apiCalls > 100 && flow.assetsLoaded < 5) {
       return {
-        name: 'residential_isp_abuse',
-        category: 'oat-automated-threat',
+        type: 'proxy.residential_isp_abuse',
+        category: 'network',
+        value: 80,
+        weight: 1.0,
         confidence: 0.85,
         description: `IP belongs to residential ISP (${geo.asn}) but exhibits server-like automated behavior.`
       };
@@ -229,8 +237,10 @@ export class ResidentialProxyDetector {
   private analyzeMtuTunnel(mss: number): DetectionSignal | null {
     if (mss > 0 && mss < 1460 && mss >= 1300) {
       return {
-        name: 'mtu_tunnel_detected',
-        category: 'oat-automated-threat',
+        type: 'proxy.mtu_tunnel_detected',
+        category: 'network',
+        value: 40,
+        weight: 1.0,
         confidence: 0.5,
         description: `TCP MSS is ${mss}, indicating a potential VPN/proxy tunnel overhead.`
       };

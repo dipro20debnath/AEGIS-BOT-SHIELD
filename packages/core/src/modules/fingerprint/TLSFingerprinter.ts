@@ -12,6 +12,7 @@ export class TLSFingerprinter {
   private signatures: Map<string, TLSSignature> = new Map();
   private logger: Logger;
   private recentFingerprints: Map<string, { count: number; lastSeen: number; ips: Set<string> }> = new Map();
+  private cleanupInterval: ReturnType<typeof setInterval>;
 
   private metrics = {
     totalLookups: 0,
@@ -23,7 +24,8 @@ export class TLSFingerprinter {
     this.logger = new Logger('TLSFingerprinter');
     this.loadSignatures();
     // Periodically clean up tracked frequencies
-    setInterval(() => this.cleanup(), 60000);
+    this.cleanupInterval = setInterval(() => this.cleanup(), 60000);
+    this.cleanupInterval.unref?.();
   }
 
   public analyze(tls: TLSInfo, userAgent: string, ip: string): DetectionSignal[] {
@@ -218,6 +220,11 @@ export class TLSFingerprinter {
 
   public getMetrics() {
     return this.metrics;
+  }
+
+  public destroy(): void {
+    clearInterval(this.cleanupInterval);
+    this.recentFingerprints.clear();
   }
 
   public cleanup(): void {
