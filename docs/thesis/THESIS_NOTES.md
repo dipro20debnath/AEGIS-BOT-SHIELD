@@ -16,11 +16,39 @@
 | Thesis proposal (LaTeX) | Done — `docs/thesis_proposal.tex` |
 | ML pipeline runs end-to-end | Done (fixed 2026-10-02, see §4) |
 | Synthetic-data experiment | Done — `docs/thesis/results/synthetic/` |
-| Ethics / IRB application | **Due Oct 1–7 — not yet confirmed** |
-| Real human data (30–50 participants) | Planned Nov 1–20 |
-| Real bot traffic (5 tools) | Planned Nov 1–20 |
+| Ethics / IRB application | **Submission planned Oct 21** (moved from Oct 1–7) |
+| Real human data (30–50 participants) | Nov 11–25, after IRB approval (see §0.1) |
+| Real bot traffic (5 tools) | Oct 22 – Nov 10 (no IRB needed, see §0.1) |
 | Results on real data | Not started |
 | Thesis writing | Not started (Dec 1–15) |
+
+### 0.1 Revised timeline (IRB submission moved to Oct 21)
+
+Approval usually takes 2–3 weeks, so it is expected **Nov 4–11** instead of
+late October. That moves the human study from Nov 1–20 to about Nov 11–25, so
+it now runs in parallel with the analysis.
+
+| Dates | Work | Needs IRB? |
+|-------|------|-----------|
+| Oct 3–20 | Prepare IRB packet (protocol, consent EN+BN, data handling plan); build data-collection website + logging endpoint; write the 5 bot scripts | No |
+| **Oct 21** | **Submit IRB** (supervisor signature) | — |
+| Oct 22 – Nov 10 | Collect bot traffic against the test site; pilot the full pipeline on real bot data + synthetic humans; dry-run the website with the researcher only | No: no human participants |
+| ~Nov 4–11 | IRB approval expected | — |
+| Nov 11–25 | Human data collection (target 30–50; minimum 30) | Yes |
+| Nov 20 – Dec 5 | Train/evaluate on real data, group ablation, bootstrap CIs; write Ch. 1–3 in parallel | — |
+| Dec 1–15 | Ch. 4–8 | — |
+| Dec 15–20 | Slides | — |
+| Dec 22–30 | Defense | — |
+
+Risks:
+- Approval after Nov 11 leaves less than 2 weeks for 30+ participants.
+  Mitigation: recruit and schedule participants in advance; book a lab
+  session where 10–15 people take part at once.
+- IEEE ICCIT (deadline est. Oct–Nov) cannot include real human data. Target
+  ECCE (Nov–Dec) or ICIEV (Dec–Jan) for a paper with real results.
+- Ask the supervisor whether the study qualifies for expedited/exempt review
+  (minimal risk: anonymised timing data only, no keystroke content, no
+  screenshots); that could shorten approval.
 
 ---
 
@@ -36,7 +64,7 @@
 **Every number above comes from synthetic data whose distributions were
 designed by us. They show the pipeline works and illustrate the multi-layer
 argument; they are not evidence of real-world accuracy.** The thesis claims
-must be made on the November real-data experiment.
+must be made on the November real-data experiment (human data ~Nov 11–25).
 
 ---
 
@@ -210,7 +238,7 @@ mean 1.27 ms · p50 1.24 ms · p95 1.66 ms · p99 2.77 ms (target < 5 ms ✔)
 
 ## 6. Open TODOs for the thesis
 
-- [ ] Ethics/IRB submission (needs supervisor signature) — this week
+- [ ] Ethics/IRB submission (needs supervisor signature) — planned Oct 21; prepare packet by Oct 20
 - [ ] Data-collection website + logging endpoint; consent forms EN + BN
 - [ ] Bot scripts: requests/curl, Selenium, Puppeteer-stealth, Playwright + residential proxy, Scrapy
 - [ ] Re-run §5 on real data; report 95% confidence intervals (bootstrap) for FPR and recall
