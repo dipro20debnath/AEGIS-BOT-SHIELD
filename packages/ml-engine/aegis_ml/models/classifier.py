@@ -23,7 +23,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import cross_val_score, StratifiedKFold
 from sklearn.metrics import (accuracy_score, precision_score, recall_score,
                              f1_score, roc_auc_score, confusion_matrix,
-                             classification_report)
+                             classification_report, roc_curve)
 
 
 class FlatForest:
@@ -87,6 +87,9 @@ class BotClassifier:
         self.is_fitted = False
         self.feature_names: List[str] = []
         self._fast_forest: Optional[FlatForest] = None
+        # Decision threshold on the bot probability; tune_threshold() sets it
+        # from a validation set to meet a false-positive-rate budget.
+        self.threshold = 0.5
         self._init_models()
 
     def _init_models(self):
@@ -149,7 +152,32 @@ class BotClassifier:
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """Predict bot (1) or human (0)."""
-        return (self.predict_proba(X) > 0.5).astype(int)
+        return (self.predict_proba(X) >= self.threshold).astype(int)
+
+    def tune_threshold(self, X_val: np.ndarray, y_val: np.ndarray,
+                       max_fpr: float = 0.02) -> Dict[str, float]:
+        """Pick the threshold with the highest bot recall whose false-positive
+        rate on the validation set stays within max_fpr.
+
+        Use a validation split that the model was not trained on, and report
+        final metrics on a separate test split.
+        """
+        return self.tune_threshold_from_probs(self.predict_proba(X_val), y_val, max_fpr)
+
+    def tune_threshold_from_probs(self, probs: np.ndarray, y: np.ndarray,
+                                  max_fpr: float = 0.02) -> Dict[str, float]:
+        """Same as tune_threshold, from held-out bot probabilities (e.g.
+        out-of-fold predictions, which give many more human samples than a
+        single small validation split)."""
+        fpr, tpr, thresholds = roc_curve(y, probs)
+        allowed = np.where((fpr <= max_fpr) & np.isfinite(thresholds))[0]
+        if len(allowed) == 0:
+            self.threshold = 1.0
+            return {'threshold': self.threshold, 'val_fpr': 0.0, 'val_recall': 0.0}
+        best = allowed[np.argmax(tpr[allowed])]
+        self.threshold = float(min(thresholds[best], 1.0))
+        return {'threshold': self.threshold, 'val_fpr': float(fpr[best]),
+                'val_recall': float(tpr[best])}
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """Return probability of being a bot."""
@@ -159,16 +187,24 @@ class BotClassifier:
         base_preds = self._get_base_predictions(X_scaled)
         return self.meta_model.predict_proba(base_preds)[:, 1]
 
-    def evaluate(self, X: np.ndarray, y: np.ndarray) -> Dict[str, Any]:
-        """Full evaluation: accuracy, precision, recall, F1, AUC-ROC, confusion matrix."""
+    def evaluate(self, X: np.ndarray, y: np.ndarray,
+                 threshold: Optional[float] = None) -> Dict[str, Any]:
+        """Full evaluation: accuracy, precision, recall, F1, FPR, AUC-ROC, confusion matrix.
+
+        threshold defaults to the classifier's current decision threshold.
+        """
+        threshold = self.threshold if threshold is None else threshold
         probs = self.predict_proba(X)
-        preds = (probs > 0.5).astype(int)
-        
+        preds = (probs >= threshold).astype(int)
+        tn, fp, fn, tp = confusion_matrix(y, preds, labels=[0, 1]).ravel()
+
         return {
+            'threshold': float(threshold),
             'accuracy': accuracy_score(y, preds),
             'precision': precision_score(y, preds),
             'recall': recall_score(y, preds),
             'f1': f1_score(y, preds),
+            'fpr': float(fp / (fp + tn)) if (fp + tn) else 0.0,
             'auc_roc': roc_auc_score(y, probs),
             'confusion_matrix': confusion_matrix(y, preds).tolist(),
         }
@@ -212,7 +248,8 @@ class BotClassifier:
                 'meta_model': self.meta_model,
                 'scaler': self.scaler,
                 'is_fitted': self.is_fitted,
-                'feature_names': self.feature_names
+                'feature_names': self.feature_names,
+                'threshold': self.threshold,
             }, f)
 
     def load(self, path: str):
@@ -223,4 +260,5 @@ class BotClassifier:
             self.scaler = data['scaler']
             self.is_fitted = data['is_fitted']
             self.feature_names = data['feature_names']
+            self.threshold = data.get('threshold', 0.5)
         self._build_fast_forest()

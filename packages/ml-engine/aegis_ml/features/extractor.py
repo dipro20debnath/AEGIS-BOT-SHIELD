@@ -67,6 +67,16 @@ class FeatureExtractor:
         ],
     }
 
+    # Coarser groups for group ablation. The four behavioral categories carry
+    # overlapping information, so removing any one of them alone barely moves
+    # the metrics; removing them together shows their joint contribution.
+    FEATURE_GROUPS = {
+        'behavior': ['mouse', 'keyboard', 'scroll', 'touch'],
+        'session': ['session'],
+        'network': ['network'],
+        'fingerprint': ['fingerprint'],
+    }
+
     def __init__(self):
         self.all_feature_names = []
         self.category_indices = {}
@@ -172,6 +182,10 @@ class FeatureExtractor:
             data.get('plugin_count', 0.0), data.get('is_headless', 0.0),
             data.get('headless_confidence', 0.0)
         ], dtype=np.float32)
+
+    def group_indices(self, group: str) -> List[int]:
+        """Feature indices belonging to a FEATURE_GROUPS entry."""
+        return sorted(i for cat in self.FEATURE_GROUPS[group] for i in self.category_indices[cat])
 
     def get_feature_importance_by_category(self, importances: np.ndarray) -> Dict[str, float]:
         """Aggregate feature importances by category (for thesis ablation study)."""
