@@ -35,3 +35,11 @@ export { ThreatDatabase } from './modules/threat-intel/ThreatDatabase.js';
 // Utilities
 export { Logger } from './utils/logger.js';
 export * from './utils/crypto.js';
+
+// Security
+export { InputValidator } from './security/InputValidator.js';
+export type { InputFinding, InputThreat, InputValidatorOptions } from './security/InputValidator.js';
+export { securityHeaders, DEFAULT_CSP } from './security/SecurityHeaders.js';
+export type { SecurityHeaderOptions } from './security/SecurityHeaders.js';
+export type { SignableRequest, VerifyResult } from './security/AntiTamper.js';
+export { AntiTamper, signRequest, parseSignatureHeader, canonicalString, SIGNATURE_HEADER } from './security/AntiTamper.js';

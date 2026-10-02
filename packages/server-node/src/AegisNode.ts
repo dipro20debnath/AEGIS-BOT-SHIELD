@@ -61,6 +61,8 @@ export interface RequestInfo {
   ip: string;
   headers: Record<string, string | string[] | undefined>;
   cookies?: Record<string, string>;
+  /** Parsed query string (inspected for injection payloads) */
+  query?: Record<string, unknown>;
   body?: unknown;
 }
 
@@ -313,6 +315,7 @@ export class AegisNode {
       headers,
       method: req.method,
       path: req.path,
+      query: behavioralData ? undefined : req.query as Record<string, string> | undefined,
       body: behavioralData ? undefined : req.body,
       behavioralData,
       timestamp: Date.now(),

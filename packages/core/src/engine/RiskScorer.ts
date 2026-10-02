@@ -5,7 +5,7 @@ import { RiskScore, DetectionSignal } from '../types/index.js';
  * from all defense layers into a composite risk score.
  *
  * Scoring algorithm:
- * 1. Group signals by category (network, protocol, behavioral, device, reputation)
+ * 1. Group signals by category (network, protocol, behavioral, device, reputation, payload)
  * 2. Per category: weighted mean of signal values, each discounted by confidence
  * 3. Across categories: noisy-OR, score = 100 * (1 - prod(1 - s_c / 100)).
  *    Categories are treated as independent layers, so evidence from another
@@ -24,6 +24,7 @@ export class RiskScorer {
       behavioral: 1,
       device: 1,
       reputation: 1,
+      payload: 1,
       ...multipliers,
     };
   }
@@ -47,6 +48,7 @@ export class RiskScorer {
       behavioral: this.calculateCategoryScore(grouped['behavioral'] || []),
       device: this.calculateCategoryScore(grouped['device'] || []),
       reputation: this.calculateCategoryScore(grouped['reputation'] || []),
+      payload: this.calculateCategoryScore(grouped['payload'] || []),
     };
 
     // Noisy-OR across independent categories
@@ -141,6 +143,7 @@ export class RiskScorer {
         behavioral: 0,
         device: 0,
         reputation: 0,
+        payload: 0,
       },
       factors: {},
       confidence: 0,

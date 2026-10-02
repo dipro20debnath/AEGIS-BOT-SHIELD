@@ -114,6 +114,8 @@ export interface ModuleConfig {
   threatIntel: boolean;
   behavioral: boolean;
   challenges: boolean;
+  /** Pattern checks for XSS / SQLi / CRLF / prototype pollution / path traversal payloads */
+  inputValidation: boolean;
 }
 
 // === Request & Response ===
@@ -309,6 +311,8 @@ export interface RiskScore {
     behavioral: number;
     device: number;
     reputation: number;
+    /** Injection payloads in path, query, body or headers (InputValidator) */
+    payload: number;
   };
   /** Individual factor contributions */
   factors: Record<string, number>;
@@ -318,7 +322,7 @@ export interface RiskScore {
 
 export interface DetectionSignal {
   /** Signal category */
-  category: 'network' | 'protocol' | 'behavioral' | 'device' | 'reputation' | 'challenge';
+  category: 'network' | 'protocol' | 'behavioral' | 'device' | 'reputation' | 'payload' | 'challenge';
   /** Signal type name */
   type: string;
   /** Signal value 0-100 */

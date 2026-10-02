@@ -17,6 +17,7 @@ import { HeaderAnalyzer } from '../modules/fingerprint/HeaderAnalyzer.js';
 import { TLSFingerprinter } from '../modules/fingerprint/TLSFingerprinter.js';
 import { HTTP2Fingerprinter } from '../modules/fingerprint/HTTP2Fingerprinter.js';
 import { HoneypotDetector } from '../modules/honeypot/HoneypotDetector.js';
+import { InputValidator } from '../security/InputValidator.js';
 import { ThreatDatabase } from '../modules/threat-intel/ThreatDatabase.js';
 import { SessionManager } from '../modules/session/SessionManager.js';
 import { Logger } from '../utils/logger.js';
@@ -40,6 +41,7 @@ export class DetectionEngine {
   private tlsFingerprinter?: TLSFingerprinter;
   private http2Fingerprinter?: HTTP2Fingerprinter;
   private honeypot?: HoneypotDetector;
+  private inputValidator?: InputValidator;
   private threatDb?: ThreatDatabase;
   private sessions?: SessionManager;
 
@@ -77,6 +79,7 @@ export class DetectionEngine {
     if (modules.tlsFingerprint) this.tlsFingerprinter = new TLSFingerprinter();
     if (modules.http2Fingerprint) this.http2Fingerprinter = new HTTP2Fingerprinter();
     if (modules.honeypot) this.honeypot = new HoneypotDetector();
+    if (modules.inputValidation) this.inputValidator = new InputValidator();
     if (modules.threatIntel) this.threatDb = new ThreatDatabase();
     if (modules.sessionTracking && this.config.secretKey) {
       this.sessions = new SessionManager({ secretKey: this.config.secretKey });
@@ -171,6 +174,9 @@ export class DetectionEngine {
       }
       if (this.honeypot) {
         signals.push(...this.honeypot.checkRequest(request.path, request.method, request.body).signals);
+      }
+      if (this.inputValidator) {
+        signals.push(...this.inputValidator.analyze(request).signals);
       }
 
       let sessionToken: string | undefined;
@@ -373,6 +379,7 @@ export function classifyThreats(signals: DetectionSignal[], path: string): Threa
   }
   if (has('honeypot.trap_endpoint')) threats.add(ThreatCategory.OAT_011_SCRAPING);
   if (has('threat.user-agent') || has('threat.pattern')) threats.add(ThreatCategory.OAT_011_SCRAPING);
+  if (has('input.')) threats.add(ThreatCategory.OAT_014_VULNERABILITY_SCANNING);
   if (has('behavior.headless_browser') && isAuthPath) threats.add(ThreatCategory.OAT_008_CREDENTIAL_STUFFING);
   return [...threats];
 }

@@ -13,10 +13,11 @@ Provides middleware for Django, Flask, and FastAPI/Starlette. Each adapter:
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from .detector import RequestAnalyzer, Signal, noisy_or
 from .ml import MLScorer, make_scorer
+from .security import InputValidator
 from .models import AegisConfig, AegisResult
 from .sessions import SESSION_COOKIE, Session, SessionTracker
 from .telemetry import TelemetryError, TelemetryService, decide, user_agent_hash
@@ -46,6 +47,7 @@ class AegisMiddlewareBase:
         self.sessions = SessionTracker()
         self.scorer = scorer or make_scorer(self.config.ml_model_path, self.config.ml_url)
         self.telemetry = TelemetryService(self.config, self.sessions, self.scorer, self.analyzer, on_record)
+        self.input_validator = InputValidator() if self.config.input_validation else None
 
     # --- helpers -------------------------------------------------------------
 
@@ -88,14 +90,20 @@ class AegisMiddlewareBase:
     # --- protected requests --------------------------------------------------
 
     def evaluate(self, method: str, path: str, remote_addr: str, headers: Dict[str, str],
-                 cookies: Dict[str, str]) -> Tuple[AegisResult, Dict[str, str]]:
-        """Decide on a request. Returns the result and headers to add to the response."""
+                 cookies: Dict[str, str], query: Union[str, bytes, None] = None) -> Tuple[AegisResult, Dict[str, str]]:
+        """Decide on a request. Returns the result and headers to add to the response.
+
+        `query` is the raw query string; it and the path are checked for injection
+        payloads. Request bodies are not read here (that would consume the stream).
+        """
         session, cookie_headers = self._session(cookies)
         try:
             self.sessions.record_request(session, path)
             ip = self.client_ip(remote_addr, headers)
             h = {k.lower(): v for k, v in headers.items()}
             signals: List[Signal] = list(self.analyzer.signals(ip, h, method, path))
+            if self.input_validator:
+                signals.extend(self.input_validator.analyze(path, query, headers=h)[1])
 
             claims = None
             token = h.get(TOKEN_HEADER)
@@ -167,7 +175,8 @@ class AegisDjangoMiddleware(AegisMiddlewareBase):
         if not self._should_protect(path):
             return self.get_response(request)
 
-        result, extra = self.evaluate(request.method, path, remote, headers, request.COOKIES)
+        result, extra = self.evaluate(request.method, path, remote, headers, request.COOKIES,
+                                      request.META.get("QUERY_STRING", ""))
         request.aegis = result
         if _blocks(result):
             r = self.denial(result)
@@ -210,7 +219,8 @@ class AegisFlaskMiddleware(AegisMiddlewareBase):
         if not self._should_protect(request.path):
             return None
 
-        result, extra = self.evaluate(request.method, request.path, remote, headers, request.cookies)
+        result, extra = self.evaluate(request.method, request.path, remote, headers, request.cookies,
+                                      request.query_string)
         g.aegis = result
         g.aegis_headers = extra
         if _blocks(result):
@@ -257,7 +267,8 @@ class AegisFastAPIMiddleware:
         if not self.base._should_protect(path):
             return await self.app(scope, receive, send)
 
-        result, extra = self.base.evaluate(method, path, remote, headers, request.cookies)
+        result, extra = self.base.evaluate(method, path, remote, headers, request.cookies,
+                                           scope.get("query_string", b""))
         scope.setdefault("state", {})["aegis"] = result
         if _blocks(result):
             r = self.base.denial(result)

@@ -5,7 +5,7 @@
 > inside each section.
 >
 > **Student:** Dipro Debnath · **Supervisor:** Rishad Amin Pulok (Lecturer, CSE, Metropolitan University)
-> **Semester:** Fall 2026 · **Last updated:** 2026-10-02
+> **Semester:** Fall 2026 · **Last updated:** 2026-10-03
 
 ---
 
@@ -34,6 +34,9 @@
 | Dashboard | Yes (Vite) | type-checked | Reads live server stats; ML page reads results.json |
 | End-to-end | — | 4 (real Chromium -> SDK -> server -> ML) | — |
 | Data-collection website | Phase G | — | — |
+
+Phase B progress (2026-10-03): B1 security layer done. Core 86 tests, Node 18,
+Python 63 (incl. Node<->Python request-signature interop), e2e 4.
 
 Before Phase A (2026-10-02 audit): only the ML engine worked; core/SDK/Node did
 not compile, no layer called another, the SDK sent no behavioural data, and the
@@ -150,6 +153,37 @@ must be made on the November real-data experiment (human data ~Nov 11–25).
 - Thesis point: report this as the fusion rule for the rule-based layers; the
   ML ensemble is a separate scorer (§2.1). Independence is an assumption —
   correlated layers (e.g. datacenter IP + headless) will be over-counted.
+
+### 2.5 Application-layer (payload) category (2026-10-03, Phase B1)
+`InputValidator` (core TS + `aegis_shield/security.py`) adds pattern checks for
+XSS, SQLi, path traversal, CRLF (headers) and prototype-pollution keys in the
+path, query string and (Node) body. Its signals get their **own category
+`payload`** instead of `protocol`:
+- Measured problem: inside one category the score is a weighted *mean*. A SQLi
+  signal (85 x 0.7) placed in `protocol` next to stronger header anomalies
+  pulled the protocol score down: attack request 75 vs. clean 77.
+- Payload inspection is independent evidence from header fingerprinting, so it
+  is fused with noisy-OR like the other layers; the test now asserts that the
+  injection request always scores higher.
+- Maps to OWASP OAT-014 (Vulnerability Scanning).
+- Limits for Ch. 7: pattern matching, not a WAF. Obfuscated payloads evade it.
+  Free text can match. Password/token fields are skipped to avoid both false
+  positives and logging secrets. The Python adapters inspect path + query only,
+  because reading the body in middleware would consume the request stream.
+- Benign-text test set (EN + Bangla, "O'Brien", "union jack", "Price < 500")
+  produces no findings; a real FPR needs the November traffic.
+
+`AntiTamper` signs server-to-server calls: `X-Aegis-Signature: t,n,s`, HMAC over
+`METHOD\npath?query\nt\nnonce\nsha256(body)`, 300 s skew, nonce replay cache.
+The nonce is checked **after** the HMAC, so unsigned requests cannot fill or
+burn the cache. Node and Python produce byte-identical signatures (tested both
+ways). Not usable from browsers (the secret would be public); browser requests
+keep using the server-issued AEGIS token.
+
+`securityHeaders` / `SecurityHeadersMiddleware`: OWASP Secure Headers defaults
+(CSP `default-src 'self'`, HSTS 1 y, X-Frame-Options DENY, nosniff,
+Referrer-Policy, Permissions-Policy, COOP). These harden the protected site;
+they do not detect bots and should not be counted as a detection layer.
 
 ## 3. Contributions — what can honestly be claimed
 

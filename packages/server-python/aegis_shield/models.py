@@ -27,6 +27,8 @@ class AegisConfig(BaseModel):
     #: Confirm Googlebot/Bingbot claims with reverse DNS (blocking lookups)
     verify_search_engines: bool = False
     max_telemetry_bytes: int = 64 * 1024
+    #: Check path and query string for XSS / SQLi / path traversal / CRLF payloads
+    input_validation: bool = True
 
     @field_validator("secret_key")
     @classmethod

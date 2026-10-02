@@ -28,7 +28,7 @@ const plugin: FastifyPluginAsync<AegisNodeOptions> = async (fastify: FastifyInst
     try {
       const { decision, headers } = await aegis.evaluate({
         method: request.method, path, ip: request.ip, headers: request.headers,
-        cookies: parseCookies(request.headers.cookie), body: request.body,
+        cookies: parseCookies(request.headers.cookie), query: request.query as Record<string, unknown>, body: request.body,
       });
       request.aegis = decision;
       reply.headers(headers);
