@@ -1,133 +1,172 @@
 import pytest
-import time
-import os
-from unittest.mock import Mock, patch
 
-# Assume classes exist or mock them
-class AegisConfig:
-    def __init__(self, secret_key="test_secret", included_paths=None, excluded_paths=None):
-        self.secret_key = secret_key
-        self.included_paths = included_paths or []
-        self.excluded_paths = excluded_paths or []
+from aegis_shield.middleware import AegisMiddlewareBase
+from conftest import BROWSER_HEADERS, CHROME_UA, SECRET, SITE_KEY, telemetry_body
 
-class AegisResult:
-    def __init__(self, allowed, reason=None):
-        self.allowed = allowed
-        self.reason = reason
 
-# Dummy mocks for testing
-class TokenVerifier:
-    def __init__(self, config):
-        self.config = config
-    def verify(self, token):
-        if token == "valid": return True, None
-        if token == "expired": return False, "expired"
-        if token == "tampered": return False, "tampered signature"
-        if token == "replayed": return False, "replay nonce"
-        return False, "invalid"
+def token_for(base, human=True, headers=BROWSER_HEADERS):
+    return base.handle_telemetry(telemetry_body(human), "198.51.100.10", headers, {}).body["token"]
 
-class RequestAnalyzer:
-    def __init__(self, config):
-        self.config = config
-    def analyze(self, req):
-        if req.get("user_agent") == "bot": return 0.9, "known bot"
-        if "missing" in req: return 0.5, "missing headers"
-        return 0.1, "normal"
 
-class AegisMiddlewareBase:
-    def __init__(self, config):
-        self.config = config
-    def should_protect(self, path):
-        if path in self.config.excluded_paths: return False
-        if not self.config.included_paths or path in self.config.included_paths: return True
-        return False
-        
-def timing_safe_compare(a, b):
-    if len(a) != len(b): return False
-    result = 0
-    for x, y in zip(a, b):
-        result |= ord(x) ^ ord(y)
-    return result == 0
+def test_browser_without_token_is_allowed_on_normal_pages(base):
+    result, _ = base.evaluate("GET", "/products", "198.51.100.10", BROWSER_HEADERS, {})
+    assert result.action == "allow"
 
-def generate_request_id():
-    import uuid
-    return str(uuid.uuid4())
 
-class TestTokenVerifier:
-    def test_verify_valid_token(self):
-        verifier = TokenVerifier(AegisConfig())
-        valid, _ = verifier.verify("valid")
-        assert valid is True
+def test_token_required_paths_challenge_without_token(base):
+    result, _ = base.evaluate("POST", "/checkout/pay", "198.51.100.10", BROWSER_HEADERS, {})
+    assert result.action == "challenge"
+    assert "token_required" in result.reason
 
-    def test_reject_expired_token(self):
-        verifier = TokenVerifier(AegisConfig())
-        valid, reason = verifier.verify("expired")
-        assert valid is False
-        assert "expired" in reason
 
-    def test_reject_tampered_signature(self):
-        verifier = TokenVerifier(AegisConfig())
-        valid, reason = verifier.verify("tampered")
-        assert valid is False
-        assert "tampered" in reason
+def test_valid_human_token_passes_required_path(base):
+    headers = {**BROWSER_HEADERS, "X-Aegis-Token": token_for(base)}
+    result, _ = base.evaluate("POST", "/checkout/pay", "198.51.100.10", headers, {})
+    assert result.action == "allow"
+    assert "telemetry_score" in result.reason
+    assert result.payload["verdict"] == "allow"
 
-    def test_reject_replay_nonce(self):
-        verifier = TokenVerifier(AegisConfig())
-        valid, reason = verifier.verify("replayed")
-        assert valid is False
-        assert "replay" in reason
 
-    def test_hmac_timing_safe(self):
-        assert timing_safe_compare("test", "test") is True
+def test_bot_token_carries_its_score(base):
+    headers = {**BROWSER_HEADERS, "X-Aegis-Token": token_for(base, human=False)}
+    result, _ = base.evaluate("GET", "/products", "198.51.100.10", headers, {})
+    assert result.action == "block"
 
-    def test_derive_key_consistency(self):
-        pass # placeholder
 
-class TestRequestAnalyzer:
-    def test_analyze_normal_request(self):
-        analyzer = RequestAnalyzer(AegisConfig())
-        score, _ = analyzer.analyze({"user_agent": "browser"})
-        assert score < 0.5
+def test_token_bound_to_user_agent(base):
+    token = token_for(base)
+    headers = {**BROWSER_HEADERS, "user-agent": CHROME_UA.replace("120.0", "121.0"), "X-Aegis-Token": token}
+    result, _ = base.evaluate("POST", "/checkout", "198.51.100.10", headers, {})
+    assert "token_user_agent_mismatch" in result.reason
+    assert result.action == "challenge"
 
-    def test_detect_bot_user_agent(self):
-        analyzer = RequestAnalyzer(AegisConfig())
-        score, reason = analyzer.analyze({"user_agent": "bot"})
-        assert score >= 0.9
-        assert "bot" in reason
 
-    def test_detect_missing_headers(self):
-        analyzer = RequestAnalyzer(AegisConfig())
-        score, reason = analyzer.analyze({"missing": True})
-        assert score == 0.5
-        assert "missing" in reason
+def test_invalid_token_is_a_signal(base):
+    result, _ = base.evaluate("GET", "/", "1.2.3.4", {**BROWSER_HEADERS, "X-Aegis-Token": "AEGIS.v1.x.y"}, {})
+    assert "invalid_token" in result.reason
 
-    def test_score_behavioral_data(self):
-        pass
 
-    def test_known_bot_patterns(self):
-        pass
+def test_monitor_mode_never_blocks():
+    base = AegisMiddlewareBase(SITE_KEY, SECRET, mode="monitor", require_token_paths=["/checkout"])
+    bot = base.handle_telemetry(telemetry_body(False), "1.2.3.4", BROWSER_HEADERS, {}).body
+    assert bot["verdict"] == "monitor"
+    result, _ = base.evaluate("POST", "/checkout", "1.2.3.4", {"user-agent": "sqlmap/1.7"}, {})
+    assert result.action == "monitor"
 
-class TestMiddlewareBase:
-    def test_should_protect_included_path(self):
-        base = AegisMiddlewareBase(AegisConfig(included_paths=["/api/secure"]))
-        assert base.should_protect("/api/secure") is True
 
-    def test_should_skip_excluded_path(self):
-        base = AegisMiddlewareBase(AegisConfig(included_paths=["/api"], excluded_paths=["/api/public"]))
-        assert base.should_protect("/api/public") is False
+def test_excluded_and_protected_paths():
+    base = AegisMiddlewareBase(SITE_KEY, SECRET, protected_paths=["/api"])
+    assert base._should_protect("/api/cart")
+    assert not base._should_protect("/about")
+    assert not base._should_protect("/health")
 
-    def test_fail_open_on_error(self):
-        pass
 
-class TestUtils:
-    def test_timing_safe_compare_equal(self):
-        assert timing_safe_compare("secure123", "secure123") is True
+def test_fail_open_on_internal_error(base, monkeypatch):
+    monkeypatch.setattr(base.analyzer, "signals", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    result, _ = base.evaluate("GET", "/", "1.2.3.4", BROWSER_HEADERS, {})
+    assert result.action == "allow" and result.reason == "analysis_error"
 
-    def test_timing_safe_compare_unequal(self):
-        assert timing_safe_compare("secure123", "secure124") is False
-        assert timing_safe_compare("sec", "secure123") is False
 
-    def test_generate_request_id_unique(self):
-        id1 = generate_request_id()
-        id2 = generate_request_id()
-        assert id1 != id2
+def test_session_cookie_reused(base):
+    _, headers = base.evaluate("GET", "/", "1.2.3.4", BROWSER_HEADERS, {})
+    sid = headers["Set-Cookie"].split(";")[0].split("=")[1]
+    _, again = base.evaluate("GET", "/b", "1.2.3.4", BROWSER_HEADERS, {"aegis_sid": sid})
+    assert again == {}
+    session = base.sessions.get_or_create(sid)
+    assert session.request_times and len(session.paths) == 2
+
+
+def test_rejects_short_secret():
+    with pytest.raises(ValueError):
+        AegisMiddlewareBase(SITE_KEY, "short")
+
+
+# --- framework adapters --------------------------------------------------------
+
+def test_fastapi_adapter():
+    pytest.importorskip("fastapi")
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from aegis_shield import AegisFastAPIMiddleware
+
+    app = FastAPI()
+
+    @app.get("/products")
+    def products():
+        return {"ok": True}
+
+    @app.post("/checkout")
+    def checkout():
+        return {"paid": True}
+
+    app.add_middleware(AegisFastAPIMiddleware, site_key=SITE_KEY, secret_key=SECRET, require_token_paths=["/checkout"])
+    client = TestClient(app, headers=BROWSER_HEADERS)
+
+    page = client.get("/products")
+    assert page.status_code == 200 and "aegis_sid" in page.cookies
+    assert client.post("/checkout").status_code == 403
+    token = client.post("/aegis/telemetry", content=telemetry_body()).json()["token"]
+    assert client.post("/checkout", headers={"X-Aegis-Token": token}).json() == {"paid": True}
+    bot = client.post("/aegis/telemetry", content=telemetry_body(False)).json()
+    blocked = client.get("/products", headers={"X-Aegis-Token": bot["token"]})
+    assert blocked.status_code == 403 and blocked.json() == {"aegis": "block"}
+
+
+def test_flask_adapter():
+    pytest.importorskip("flask")
+    from flask import Flask
+    from aegis_shield import AegisFlaskMiddleware
+
+    app = Flask(__name__)
+
+    @app.post("/checkout")
+    def checkout():
+        return {"paid": True}
+
+    AegisFlaskMiddleware(app, site_key=SITE_KEY, secret_key=SECRET, require_token_paths=["/checkout"])
+    client = app.test_client()
+    denied = client.post("/checkout", headers=BROWSER_HEADERS)
+    assert denied.status_code == 403 and "aegis_sid=" in denied.headers.get("Set-Cookie", "")
+    r = client.post("/aegis/telemetry", data=telemetry_body(), headers=BROWSER_HEADERS)
+    assert r.status_code == 200
+    ok = client.post("/checkout", headers={**BROWSER_HEADERS, "X-Aegis-Token": r.get_json()["token"]})
+    assert ok.status_code == 200 and ok.get_json() == {"paid": True}
+
+
+def test_django_adapter():
+    pytest.importorskip("django")
+    import django
+    from django.conf import settings
+
+    if not settings.configured:
+        settings.configure(
+            DEBUG=True, SECRET_KEY="django-test", ROOT_URLCONF=__name__, ALLOWED_HOSTS=["*"],
+            MIDDLEWARE=["aegis_shield.AegisDjangoMiddleware"],
+            AEGIS={"site_key": SITE_KEY, "secret_key": SECRET, "require_token_paths": ["/checkout"]},
+        )
+        django.setup()
+    from django.test import Client
+
+    client = Client(headers=BROWSER_HEADERS)
+    denied = client.post("/checkout")
+    assert denied.status_code == 403 and "aegis_sid" in denied.cookies
+    r = client.post("/aegis/telemetry", data=telemetry_body(), content_type="application/json")
+    assert r.status_code == 200
+    ok = client.post("/checkout", headers={"X-Aegis-Token": r.json()["token"]})
+    assert ok.status_code == 200 and ok.json() == {"paid": True}
+
+
+def _checkout_view(request):
+    from django.http import JsonResponse
+    return JsonResponse({"paid": True})
+
+
+def _urlpatterns():
+    try:
+        from django.urls import path
+        return [path("checkout", _checkout_view)]
+    except Exception:
+        return []
+
+
+urlpatterns = _urlpatterns()
