@@ -31,7 +31,7 @@ describe('aegisExpress', () => {
     const { app } = make();
     const res = await request(app).post('/api/login').set(BROWSER_HEADERS).send({ u: 'a' });
     expect(res.status).toBe(403);
-    expect(res.body).toEqual({ aegis: 'challenge', telemetry: '/aegis/telemetry' });
+    expect(res.body).toEqual({ aegis: 'challenge', telemetry: '/aegis/telemetry', challenge: '/aegis/challenge' });
   });
 
   it('issues a token for human telemetry that unlocks the protected path', async () => {

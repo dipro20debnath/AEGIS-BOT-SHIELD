@@ -1,8 +1,11 @@
 export * from './types';
 export * from './AegisClient';
 export * from './detection/HeadlessDetector';
+export * from './detection/AntiDetectDetector';
 export * from './challenges/ProofOfWork';
 export * from './challenges/ChallengeManager';
+export * from './challenges/MemoryHardChallenge';
+export { scrypt, leadingZeroBits } from './challenges/scrypt';
 export * from './network/TokenManager';
 export * from './network/RequestInterceptor';
 export * from './telemetry';
@@ -11,3 +14,4 @@ export * from './collectors/KeyboardCollector';
 export * from './collectors/ScrollCollector';
 export * from './collectors/TouchCollector';
 export * from './fingerprint/DeviceFingerprinter';
+export * from './fingerprint/WebGPUFingerprinter';

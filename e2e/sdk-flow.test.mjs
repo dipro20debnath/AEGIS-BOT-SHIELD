@@ -75,7 +75,7 @@ test('a scripted client without token is challenged on the login API', async () 
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'demo', password: 'demo' }),
   });
   assert.equal(response.status, 403);
-  assert.deepEqual(await response.json(), { aegis: 'challenge', telemetry: '/aegis/telemetry' });
+  assert.deepEqual(await response.json(), { aegis: 'challenge', telemetry: '/aegis/telemetry', challenge: '/aegis/challenge' });
 });
 
 test('default headless Chromium is denied at the first page load', async () => {
@@ -102,4 +102,28 @@ test('the same stealth browser is blocked at login in enforce mode', async () =>
   const r = await stealthLogin(enforce);
   assert.equal(r.pageStatus, 200, 'network/header layer lets the page load');
   assert.equal(r.loginStatus, 403, 'behaviour layer blocks the login');
+});
+
+test('the SDK solves the memory-hard challenge in WebAssembly; proof of work alone does not unlock login', async () => {
+  const context = await browser.newContext({ userAgent: CHROME_UA, extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' } });
+  const page = await context.newPage();
+  await page.goto(enforce + '/');
+  await page.waitForFunction(() => window.Aegis && window.Aegis.client);
+  const solved = await page.evaluate(async () => {
+    const client = window.Aegis.client;
+    let solution = null;
+    client.on('challenge', s => { solution = s; });
+    const ok = await client.passChallenge();
+    return { ok, solution };
+  });
+  assert.equal(solved.ok, true, 'server accepted the browser-computed scrypt solution');
+  assert.equal(solved.solution.engine, 'wasm');
+  console.log(`# memory-hard challenge in Chromium: ${solved.solution.attempts} attempts, ${Math.round(solved.solution.timeMs)} ms`);
+
+  // The login path needs behavioural telemetry; a PoW token alone is answered with another challenge
+  const status = await page.evaluate(() => fetch('/api/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'demo', password: 'demo' }),
+  }).then(r => r.status));
+  assert.equal(status, 403);
+  await context.close();
 });

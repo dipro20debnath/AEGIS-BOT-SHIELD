@@ -11,11 +11,13 @@ Provides middleware for Django, Flask, and FastAPI/Starlette. Each adapter:
 - fails open on internal errors when `fail_open` is set
 """
 import json
+import time
 import logging
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from .detector import RequestAnalyzer, Signal, noisy_or
+from .challenge import MemoryHardChallenger
 from .feeds import FEED_SEVERITY, IPReputation
 from .ml import MLScorer, make_scorer
 from .security import InputValidator
@@ -23,6 +25,7 @@ from .session_patterns import session_signals
 from .models import AegisConfig, AegisResult
 from .sessions import SESSION_COOKIE, Session, SessionTracker
 from .telemetry import TelemetryError, TelemetryService, decide, user_agent_hash
+from .verifier import generate_token
 from .utils import get_client_ip
 from .verifier import TokenVerifier
 
@@ -57,6 +60,7 @@ class AegisMiddlewareBase:
         self.telemetry = TelemetryService(self.config, self.sessions, self.scorer, self.analyzer, on_record,
                                           self.reputation)
         self.input_validator = InputValidator() if self.config.input_validation else None
+        self.challenger = MemoryHardChallenger(secret_key, self.config.pow_n, self.config.pow_r, self.config.pow_bits)
 
     # --- helpers -------------------------------------------------------------
 
@@ -79,6 +83,43 @@ class AegisMiddlewareBase:
 
     def is_telemetry_request(self, method: str, path: str) -> bool:
         return method.upper() == "POST" and path == self.config.telemetry_path
+
+    def is_aegis_endpoint(self, method: str, path: str) -> bool:
+        """Requests the middleware answers itself: telemetry and the proof-of-work challenge."""
+        return self.is_telemetry_request(method, path) or (
+            path == self.config.challenge_path and method.upper() in ("GET", "POST"))
+
+    def handle_endpoint(self, method: str, path: str, body: bytes, remote_addr: str, headers: Dict[str, str],
+                        cookies: Dict[str, str]) -> HandlerResponse:
+        if path == self.config.challenge_path:
+            return self.handle_challenge(method, body, headers, cookies)
+        return self.handle_telemetry(body, remote_addr, headers, cookies)
+
+    # --- proof-of-work challenge ---------------------------------------------
+
+    def handle_challenge(self, method: str, body: bytes, headers: Dict[str, str],
+                         cookies: Dict[str, str]) -> HandlerResponse:
+        """GET: issue a challenge. POST {challenge, nonce}: verify it and return a token."""
+        session, cookie_headers = self._session(cookies)
+        no_store = {**cookie_headers, "Cache-Control": "no-store"}
+        if method.upper() == "GET":
+            return HandlerResponse(200, self.challenger.issue(), no_store)
+        try:
+            data = json.loads(body or b"{}")
+            ok, reason = self.challenger.verify(data.get("challenge"), data.get("nonce"))
+        except (ValueError, AttributeError):
+            ok, reason = False, "malformed"
+        if not ok:
+            return HandlerResponse(403, {"error": "challenge failed", "reason": reason}, no_store)
+        ua = next((v for k, v in headers.items() if k.lower() == "user-agent"), "")
+        # Carry the behavioural (telemetry) score so the work does not erase that evidence. Request
+        # signals are not carried: every request recomputes them, and carrying them would count them twice.
+        # "tel" marks that the session sent telemetry, which token-required paths need.
+        token = generate_token({"sid": session.id, "score": session.telemetry_score or 0, "verdict": "allow", "pow": 1,
+                                "tel": int(session.telemetry_score is not None),
+                                "uah": user_agent_hash(ua), "exp": int(time.time()) + self.config.token_ttl},
+                               self.config.secret_key)
+        return HandlerResponse(200, {"token": token, "expiresIn": self.config.token_ttl, "verdict": "allow"}, no_store)
 
     # --- telemetry endpoint --------------------------------------------------
 
@@ -128,6 +169,8 @@ class AegisMiddlewareBase:
                 if claims and claims.get("uah") != user_agent_hash(h.get("user-agent", "")):
                     claims = None
                     signals.append(("token_user_agent_mismatch", 60))
+                elif claims and claims.get("pow"):
+                    signals.append(("pow_solved", float(claims.get("score", 0))))
                 elif claims:
                     signals.append(("telemetry_score", float(claims.get("score", 0))))
                 else:
@@ -137,7 +180,12 @@ class AegisMiddlewareBase:
             score = round(noisy_or(s for _, s in signals), 1)
             action = decide(score, self.config)
             reasons = [name for name, _ in signals]
-            if requires_token and claims is None and action == "allow":
+            # A solved challenge answers "challenge"; it never lifts a block
+            if action == "challenge" and claims and claims.get("pow"):
+                action = "allow"
+            # Proof of work alone does not replace the behavioural evidence a token-required path asks for
+            has_telemetry = claims is not None and (not claims.get("pow") or bool(claims.get("tel")))
+            if requires_token and not has_telemetry and action == "allow":
                 action = "monitor" if self.config.mode == "monitor" else "challenge"
                 reasons.append("token_required")
 
@@ -168,6 +216,7 @@ class AegisMiddlewareBase:
         body: Dict[str, Any] = {"aegis": result.action}
         if result.action == "challenge":
             body["telemetry"] = self.config.telemetry_path
+            body["challenge"] = self.config.challenge_path
         return HandlerResponse(403, body, {"X-Aegis-Action": result.action, "Cache-Control": "no-store"})
 
 
@@ -192,8 +241,8 @@ class AegisDjangoMiddleware(AegisMiddlewareBase):
         headers = dict(request.headers)
         remote = request.META.get("REMOTE_ADDR", "")
 
-        if self.is_telemetry_request(request.method, path):
-            r = self.handle_telemetry(request.body, remote, headers, request.COOKIES)
+        if self.is_aegis_endpoint(request.method, path):
+            r = self.handle_endpoint(request.method, path, request.body, remote, headers, request.COOKIES)
             return self._to_django(JsonResponse(r.body, status=r.status), r.headers)
         if not self._should_protect(path):
             return self.get_response(request)
@@ -237,8 +286,9 @@ class AegisFlaskMiddleware(AegisMiddlewareBase):
         g.aegis_headers = {}
         headers = dict(request.headers)
         remote = request.remote_addr or ""
-        if self.is_telemetry_request(request.method, request.path):
-            r = self.handle_telemetry(request.get_data(), remote, headers, request.cookies)
+        if self.is_aegis_endpoint(request.method, request.path):
+            r = self.handle_endpoint(request.method, request.path, request.get_data(), remote, headers,
+                                     request.cookies)
             g.aegis_headers = r.headers
             return jsonify(r.body), r.status
         if not self._should_protect(request.path):
@@ -287,9 +337,9 @@ class AegisFastAPIMiddleware:
         headers = {k.lower(): v for k, v in request.headers.items()}
         remote = scope["client"][0] if scope.get("client") else ""
 
-        if self.base.is_telemetry_request(method, path):
+        if self.base.is_aegis_endpoint(method, path):
             body = await request.body()
-            r = self.base.handle_telemetry(body, remote, headers, request.cookies)
+            r = self.base.handle_endpoint(method, path, body, remote, headers, request.cookies)
             return await JSONResponse(r.body, status_code=r.status, headers=r.headers)(scope, receive, send)
         if not self.base._should_protect(path):
             return await self.app(scope, receive, send)

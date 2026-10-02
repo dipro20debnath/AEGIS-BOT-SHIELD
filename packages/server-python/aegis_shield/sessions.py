@@ -24,6 +24,8 @@ class Session:
     request_times: List[float] = field(default_factory=list)
     paths: Set[str] = field(default_factory=set)
     risk_history: List[float] = field(default_factory=list)
+    #: Latest score from SDK telemetry (None: this session never sent telemetry)
+    telemetry_score: Optional[float] = None
     #: Last 100 requests with their kind and status (session_patterns.py)
     requests: List[RequestRecord] = field(default_factory=list)
 

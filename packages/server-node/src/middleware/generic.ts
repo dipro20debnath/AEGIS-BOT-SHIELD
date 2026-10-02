@@ -19,7 +19,7 @@ export function aegisGeneric(options: AegisNodeOptions, shared?: AegisNode) {
       const method = req.method || 'GET';
       const info = { method, path, ip: req.socket.remoteAddress || '', headers: req.headers, cookies: parseCookies(req.headers.cookie) };
 
-      if (aegis.isTelemetryRequest(method, path)) {
+      if (aegis.isAegisEndpoint(method, path)) {
         const chunks: Buffer[] = [];
         let size = 0;
         for await (const chunk of req) {
@@ -30,7 +30,7 @@ export function aegisGeneric(options: AegisNodeOptions, shared?: AegisNode) {
           }
           chunks.push(chunk as Buffer);
         }
-        send(res, await aegis.handleTelemetry({ ...info, body: Buffer.concat(chunks).toString('utf8') }));
+        send(res, await aegis.handleEndpoint({ ...info, body: Buffer.concat(chunks).toString('utf8') }));
         return;
       }
       if (!aegis.shouldProtect(path)) { next(); return; }

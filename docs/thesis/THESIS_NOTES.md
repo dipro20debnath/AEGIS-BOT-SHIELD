@@ -35,8 +35,9 @@
 | End-to-end | — | 4 (real Chromium -> SDK -> server -> ML) | — |
 | Data-collection website | Phase G | — | — |
 
-Phase B progress (2026-10-03): B1 security layer and B2 live feeds + session
-patterns done. Core 106 tests, Node 19, Python 71, ML 31, e2e 4.
+Phase B progress (2026-10-03): B1 security layer, B2 live feeds + session
+patterns, B3 anti-detect + WebGPU + memory-hard challenge done. Core 110 tests,
+SDK 45, Node 23, Python 77, ML 31, e2e 5.
 
 Before Phase A (2026-10-02 audit): only the ML engine worked; core/SDK/Node did
 not compile, no layer called another, the SDK sent no behavioural data, and the
@@ -229,6 +230,74 @@ JavaScript needed, so they catch plain HTTP-library bots:
 - Evasion: random delays plus link-following plus asset loading (a real browser)
   pass all of these checks; that is the behavioural SDK layer's job. This
   layering argument supports RQ3.
+
+### 2.7 Anti-detect browsers, WebGPU and the memory-hard challenge (2026-10-03, Phase B3)
+**AntiDetectDetector** (SDK): anti-detect browsers (Multilogin, GoLogin,
+Dolphin, AdsPower) replace individual fingerprint values per profile. Each
+value looks plausible on its own; the detector looks for *combinations* a real
+device cannot produce. 8 passive checks, fused with noisy-OR; "suspected" at >= 0.7:
+| Check | Example | Weight |
+|---|---|---|
+| uaPlatformMismatch | Windows UA, `navigator.platform` = MacIntel | 0.9 |
+| clientHintsMismatch | UA vs `userAgentData` platform/version/mobile | 0.9 |
+| gpuOsMismatch | Apple M-series or Metal renderer on a Windows UA; Direct3D on Mac | 0.8 |
+| webglWebgpuMismatch | WebGL says NVIDIA, WebGPU adapter says Apple (tools spoof WebGL, often not WebGPU) | 0.7 |
+| timezoneMismatch | `Intl` zone offset differs from `Date.getTimezoneOffset()` | 0.8 |
+| screenInconsistent | window larger than the screen, avail > total | 0.5 |
+| languageMismatch | `navigator.language` differs from `languages[0]` | 0.6 |
+| nativeOverride | navigator getter redefined by script (also catches puppeteer-stealth) | 0.9 |
+- False-positive guards that are in the tests: Android (Linux platform),
+  iPadOS (Mac platform) and hybrid-GPU laptops (Intel/AMD iGPU with an NVIDIA/AMD
+  dGPU report different vendors in WebGL and WebGPU) are accepted.
+- The result goes to the server as `antiDetect {score, checks}`, **outside the
+  50-feature ML contract**, so trained models stay valid. The server adds the
+  rule signal `anti_detect` = 80 x score, but only when score >= 0.5.
+- Limit: a profile that keeps all values consistent and patches at the C++
+  level (not in JS) passes. No real anti-detect browser was available for
+  testing; all cases are constructed from documented leak patterns. **Test this
+  with a real GoLogin/Multilogin trial in November before claiming detection rates.**
+
+**WebGPUFingerprinter**: adapter vendor, architecture, features and limits.
+Requests an adapter only (no device), with a 1.5 s timeout because some drivers
+hang. Browsers deliberately coarsen `GPUAdapterInfo` to the vendor/family, so it
+identifies the GPU family, not the machine. Headless Chromium has no adapter,
+so "unsupported" is normal and not a bot signal. Its main use is the WebGL
+cross-check above. Do a literature check before calling it novel; WebGPU
+fingerprinting papers appeared from 2023 on.
+
+**Memory-hard proof of work** (SDK + both servers):
+- **Puzzle:** find a nonce with scrypt(challenge:nonce, seed, N=4096, r=8, p=1)
+  having >= 4 leading zero bits. That is 4 MiB of memory per attempt and 16
+  attempts expected. The challenge is HMAC-signed and expires after 120 s.
+- **Implementation:** scrypt's ROMix runs in a 1,182-byte WebAssembly module
+  generated from a script (CI checks that the committed bytes match the
+  generator). PBKDF2 uses WebCrypto. Servers verify with the built-in
+  `crypto.scrypt` / `hashlib.scrypt`. Outputs match Node's scrypt and the RFC
+  7914 test vector. Node and Python issue and verify each other's challenges.
+- **Measured in Chromium** (4-core cloud container, N=4096, r=8, one scrypt):
+  WASM 13.7 ms median, pure JS 44.7 ms (3.3x slower), server-side native check
+  9.5 ms. A full solve in the e2e test took 14 attempts / 166 ms. Low-end phones
+  will be several times slower: **measure on real devices before choosing `bits`.**
+- **Bugs found while building it** (good material for Ch. 4):
+  1. WebCrypto exists only in secure contexts (HTTPS/localhost). On a plain-HTTP
+     page the solver crashed. Fixed with a JS SHA-256/HMAC/PBKDF2 fallback,
+     tested against Node's crypto.
+  2. **Policy hole:** if a PoW token satisfied `require_token_paths`, a bot could
+     pay ~0.2 s of CPU and skip the whole behavioural layer at login. Now a PoW
+     token unlocks a token-required path only when the session also sent
+     telemetry (`tel` claim). PoW on its own only turns a "challenge" verdict
+     into "allow", and never lifts a "block". The e2e test checks this with a real browser.
+  3. **Double counting:** the PoW token first carried the last request risk.
+     The next request recomputes the same request signals, so noisy-OR counted
+     them twice: a client at 62.5 jumped to 86 (block) after solving. The token
+     now carries only the telemetry score.
+- **DoS:** each challenge id is burnt before the scrypt check, so one issued
+  challenge costs the server at most one ~10 ms verification. Both endpoints
+  still need rate limiting.
+- **What it proves:** CPU time and memory, not humanity. Cost estimate: 1 million
+  credential-stuffing attempts at 16 x 13.7 ms is about 61 CPU-hours. That is an
+  economic deterrent for mass automation, not a defence against a single
+  targeted bot.
 
 ## 3. Contributions — what can honestly be claimed
 
