@@ -1,110 +1,78 @@
-import { Request, Response, NextFunction } from 'express';
-import { TokenVerifier } from '../TokenVerifier.js';
-import { Logger } from '@aegis/core';
+import type { Request, Response, NextFunction } from 'express';
+import { AegisNode, AegisNodeOptions, HandlerResponse, parseCookies } from '../AegisNode.js';
 
-export interface AegisExpressOptions {
-  siteKey: string;
-  secretKey: string;
-  /** Paths to protect (default: all) */
-  protectedPaths?: string[];
-  /** Paths to exclude from protection */
-  excludedPaths?: string[];
-  /** Action on block: 'reject' | 'challenge' | 'log' */
-  blockAction?: 'reject' | 'challenge' | 'log';
-  /** Custom block response */
-  onBlock?: (req: Request, res: Response, result: any) => void;
-  /** Custom challenge response */
-  onChallenge?: (req: Request, res: Response, result: any) => void;
-  /** Token header name */
-  tokenHeader?: string;
-  /** Enable request logging */
-  logging?: boolean;
-  /** Risk score thresholds */
-  thresholds?: { block: number; challenge: number };
+export type AegisExpressOptions = AegisNodeOptions & {
+  /** Custom response for blocked/challenged requests */
+  onDeny?: (req: Request, res: Response, decision: import('../AegisNode.js').AegisDecision) => void;
+  /** Called with the decision for every analysed request */
+  onDecision?: (req: Request, decision: import('../AegisNode.js').AegisDecision) => void;
+};
+
+function send(res: Response, r: HandlerResponse): void {
+  for (const [name, value] of Object.entries(r.headers)) res.setHeader(name, value);
+  res.status(r.status).json(r.body);
 }
 
 /**
- * AEGIS BOT SHIELD Express Middleware
+ * AEGIS BOT SHIELD Express middleware.
  *
- * Protects Express.js routes from automated bot attacks.
- * Extracts AEGIS token from request headers, verifies it,
- * and makes a verdict decision (allow/block/challenge).
+ * Answers the SDK's telemetry endpoint and decides on every protected
+ * request. The decision is available as `req.aegis` in route handlers.
  *
  * @example
  * ```typescript
- * import express from 'express';
- * import { aegisExpress } from '@aegis/server-node';
- *
- * const app = express();
  * app.use(aegisExpress({
  *   siteKey: process.env.AEGIS_SITE_KEY!,
  *   secretKey: process.env.AEGIS_SECRET_KEY!,
- *   protectedPaths: ['/api/login', '/api/checkout'],
- *   blockAction: 'reject',
+ *   requireTokenPaths: ['/api/login', '/api/checkout'],
  * }));
  * ```
+ * Pass an existing `AegisNode` as second argument to share state (e.g. with aegisRoutes).
  */
-export function aegisExpress(options: AegisExpressOptions) {
-  const verifier = new TokenVerifier(options.secretKey);
-  const logger = new Logger('AegisExpress');
-  const tokenHeader = options.tokenHeader || 'x-aegis-token';
-  const thresholds = options.thresholds || { block: 80, challenge: 50 };
+export function aegisExpress(options: AegisExpressOptions, shared?: AegisNode) {
+  const aegis = shared ?? new AegisNode(options);
 
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const middleware = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      // 1. Check if path should be protected
-      if (options.excludedPaths?.some(p => req.path.startsWith(p))) { next(); return; }
-      if (options.protectedPaths && !options.protectedPaths.some(p => req.path.startsWith(p))) { next(); return; }
+      const cookies = parseCookies(req.headers.cookie);
+      const info = { method: req.method, path: req.path, ip: req.ip || req.socket.remoteAddress || '', headers: req.headers, cookies };
 
-      // 2. Extract token
-      const token = req.headers[tokenHeader] as string | undefined;
-
-      // 3. Build AegisRequest from Express request
-      const aegisRequest = {
-        ip: req.ip || req.socket.remoteAddress || '0.0.0.0',
-        headers: req.headers as Record<string, string>,
-        method: req.method,
-        path: req.path,
-        query: req.query as Record<string, string>,
-        body: req.body,
-        aegisToken: token,
-        timestamp: Date.now(),
-        requestId: req.headers['x-request-id'] as string || generateRequestId(),
-      };
-
-      // 4. Verify token and get result
-      const result = await verifier.verify(aegisRequest);
-
-      // 5. Attach result to request for downstream use
-      (req as any).aegis = result;
-
-      // 6. Make verdict decision
-      if (result.riskScore >= thresholds.block) {
-        if (options.onBlock) { options.onBlock(req, res, result); return; }
-        res.status(403).json({ error: 'Request blocked by AEGIS Bot Shield', requestId: result.requestId });
+      if (aegis.isTelemetryRequest(req.method, req.path)) {
+        const body = req.body !== undefined && Object.keys(req.body ?? {}).length > 0 ? req.body : await readBody(req);
+        send(res, await aegis.handleTelemetry({ ...info, body }));
         return;
       }
+      if (!aegis.shouldProtect(req.path)) { next(); return; }
 
-      if (result.riskScore >= thresholds.challenge) {
-        if (options.onChallenge) { options.onChallenge(req, res, result); return; }
-        res.status(429).json({ challenge: true, type: 'pow', difficulty: 4, requestId: result.requestId });
+      const { decision, headers } = await aegis.evaluate({ ...info, body: req.body });
+      (req as any).aegis = decision;
+      for (const [name, value] of Object.entries(headers)) res.setHeader(name, value);
+      options.onDecision?.(req, decision);
+
+      if (decision.verdict === 'block' || decision.verdict === 'challenge') {
+        if (options.onDeny) { options.onDeny(req, res, decision); return; }
+        send(res, aegis.denial(decision));
         return;
       }
-
-      // 7. Log if enabled
-      if (options.logging) {
-        logger.info('Request analyzed', { path: req.path, ip: aegisRequest.ip, score: result.riskScore, verdict: result.verdict });
-      }
-
       next();
     } catch (error) {
-      // Fail-open: never crash the application
-      logger.error('AEGIS middleware error', error as Error);
+      // Fail open: a detection error must never take the site down
       next();
     }
   };
+  return Object.assign(middleware, { aegis });
 }
 
-function generateRequestId(): string {
-  return `aegis_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+function readBody(req: Request, limit = 64 * 1024): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > limit) { reject(new Error('body too large')); req.destroy(); return; }
+      chunks.push(chunk);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
 }
