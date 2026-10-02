@@ -204,7 +204,7 @@ export interface BehavioralPayload {
 export interface MouseData {
   /** Total events collected */
   eventCount: number;
-  /** Average velocity (px/ms) */
+  /** Average velocity (px/s) */
   avgVelocity: number;
   /** Velocity standard deviation */
   velocityStd: number;
@@ -212,11 +212,11 @@ export interface MouseData {
   avgAcceleration: number;
   /** Average jerk (rate of acceleration change) */
   avgJerk: number;
-  /** Curvature score (0-1, 1=perfectly straight=suspicious) */
+  /** Straightness (0-1, mean over strokes; 1 = perfectly straight = suspicious) */
   straightnessIndex: number;
   /** Click count */
   clickCount: number;
-  /** Average click precision (distance from target center) */
+  /** Click precision (0-1, 1 = click at the target's centre) */
   clickPrecision: number;
   /** Micro-tremor frequency (Hz) - humans have 8-12Hz tremor */
   microTremorFreq: number;
@@ -237,7 +237,7 @@ export interface KeyboardData {
   avgFlightTime: number;
   /** Flight time standard deviation */
   flightTimeStd: number;
-  /** Typing speed (chars/min) */
+  /** Typing speed (words/min) */
   typingSpeed: number;
   /** Paste events detected */
   pasteCount: number;
