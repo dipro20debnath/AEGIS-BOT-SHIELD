@@ -16,7 +16,7 @@
 | Thesis proposal (LaTeX) | Done — `docs/thesis_proposal.tex` |
 | ML pipeline runs end-to-end | Done (fixed 2026-10-02, see §4) |
 | Synthetic-data experiment | Done — `docs/thesis/results/synthetic/` |
-| Ethics / IRB application | **Submission planned Oct 21** (moved from Oct 1–7) |
+| Ethics / IRB application | **Submission planned Oct 21**; drafts ready in `docs/thesis/irb/` (protocol, consent EN+BN, data dictionary) — fill the [bracketed] fields, supervisor review |
 | Real human data (30–50 participants) | Nov 11–25, after IRB approval (see §0.1) |
 | Real bot traffic (5 tools) | Oct 22 – Nov 10 (no IRB needed, see §0.1) |
 | Results on real data | Not started |
