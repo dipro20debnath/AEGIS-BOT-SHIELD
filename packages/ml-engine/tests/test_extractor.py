@@ -43,3 +43,13 @@ class TestFeatureExtractor:
     def test_batch_extraction(self):
         X = FeatureExtractor().extract_batch([{}, {}, {}])
         assert X.shape == (3, 50)
+
+
+def test_matches_shared_feature_contract():
+    """contracts/features.json is shared with the JS SDK; keys and order must match."""
+    import json
+    from pathlib import Path
+    contract = json.loads((Path(__file__).resolve().parents[3] / 'contracts' / 'features.json').read_text())
+    categories = {cat: [f[0] for f in spec['features']] for cat, spec in contract['categories'].items()}
+    assert categories == FeatureExtractor.FEATURE_CATEGORIES
+    assert list(categories) == list(FeatureExtractor.FEATURE_CATEGORIES)
