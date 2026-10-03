@@ -24,6 +24,7 @@ from .security import InputValidator
 from .session_patterns import session_signals
 from .models import AegisConfig, AegisResult
 from .sessions import SESSION_COOKIE, Session, SessionTracker
+from .store import Store, create_redis_store
 from .telemetry import TelemetryError, TelemetryService, decide, user_agent_hash
 from .verifier import generate_token
 from .utils import get_client_ip
@@ -46,11 +47,18 @@ class AegisMiddlewareBase:
 
     def __init__(self, site_key: str, secret_key: str, *, scorer: Optional[MLScorer] = None,
                  on_record: Optional[Callable[[Dict[str, Any]], None]] = None,
-                 reputation: Optional[IPReputation] = None, **kwargs: Any):
+                 reputation: Optional[IPReputation] = None, store: Optional[Store] = None, **kwargs: Any):
         self.config = AegisConfig(site_key=site_key, secret_key=secret_key, **kwargs)
-        self.verifier = TokenVerifier(secret_key, max_token_age=self.config.token_ttl)
+        #: Shared state (Redis) when several processes serve the site; None = in-process
+        self.store: Optional[Store] = store
+        if self.store is None and self.config.redis_url:
+            self.store = create_redis_store(self.config.redis_url)
+        self.verifier = TokenVerifier(secret_key, max_token_age=self.config.token_ttl, store=self.store)
         self.analyzer = RequestAnalyzer(self.config.verify_search_engines)
-        self.sessions = SessionTracker()
+        self.sessions = SessionTracker(store=self.store)
+        if self.config.rate_limit or self.config.endpoint_limits:
+            from .store import MemoryStore
+            self._limit_store: Store = self.store or MemoryStore()
         self.scorer = scorer or make_scorer(self.config.ml_model_path, self.config.ml_url)
         self.reputation: Optional[IPReputation] = reputation
         if self.reputation is None and self.config.live_feeds:
@@ -60,7 +68,24 @@ class AegisMiddlewareBase:
         self.telemetry = TelemetryService(self.config, self.sessions, self.scorer, self.analyzer, on_record,
                                           self.reputation)
         self.input_validator = InputValidator() if self.config.input_validation else None
-        self.challenger = MemoryHardChallenger(secret_key, self.config.pow_n, self.config.pow_r, self.config.pow_bits)
+        self.challenger = MemoryHardChallenger(secret_key, self.config.pow_n, self.config.pow_r, self.config.pow_bits,
+                                               store=self.store)
+
+    def rate_limited(self, ip: str, path: str) -> Optional[str]:
+        """Count this request against the per-IP and per-endpoint limits; the exceeded limit, if any.
+        If the shared store is unreachable the limits are skipped (the rest of the analysis still runs)."""
+        exceeded = None
+        try:
+            if self.config.rate_limit and \
+                    self._limit_store.hit(f"rl:{ip}", self.config.rate_limit_window) > self.config.rate_limit:
+                exceeded = "per-IP window"
+            for prefix, (limit, window) in self.config.endpoint_limits.items():
+                if path.startswith(prefix) and self._limit_store.hit(f"rl:{prefix}|{ip}", window) > limit:
+                    exceeded = f"endpoint {prefix}"
+        except Exception as exc:
+            logger.warning("AEGIS rate-limit store unavailable: %s", exc)
+            return None
+        return exceeded
 
     # --- helpers -------------------------------------------------------------
 
@@ -109,6 +134,9 @@ class AegisMiddlewareBase:
             ok, reason = self.challenger.verify(data.get("challenge"), data.get("nonce"))
         except (ValueError, AttributeError):
             ok, reason = False, "malformed"
+        except Exception:  # shared store unreachable: refuse rather than risk accepting a replay
+            logger.exception("AEGIS challenge verification failed")
+            return HandlerResponse(503, {"error": "challenge verification unavailable"}, no_store)
         if not ok:
             return HandlerResponse(403, {"error": "challenge failed", "reason": reason}, no_store)
         ua = next((v for k, v in headers.items() if k.lower() == "user-agent"), "")
@@ -127,11 +155,16 @@ class AegisMiddlewareBase:
                          cookies: Dict[str, str]) -> HandlerResponse:
         ip = self.client_ip(remote_addr, headers)
         session, cookie_headers = self._session(cookies)
-        self.sessions.record_request(session, self.config.telemetry_path, "POST")
+        # Stored by record_risk once the telemetry is scored (one write), or below on errors
+        self.sessions.record_request(session, self.config.telemetry_path, "POST", save=False)
+        if (self.config.rate_limit or self.config.endpoint_limits) and self.rate_limited(ip, self.config.telemetry_path):
+            self.sessions.save(session)
+            return HandlerResponse(429, {"error": "rate limit exceeded"}, {**cookie_headers, "Retry-After": "60"})
         try:
             result, _ = self.telemetry.process(body, ip, headers, session)
             return HandlerResponse(200, result, {**cookie_headers, "Cache-Control": "no-store"})
         except TelemetryError as exc:
+            self.sessions.save(session)
             return HandlerResponse(exc.status, {"error": str(exc)}, cookie_headers)
         except Exception as exc:  # never let scoring bugs take the endpoint down
             logger.exception("AEGIS telemetry processing failed")
@@ -148,10 +181,13 @@ class AegisMiddlewareBase:
         """
         session, cookie_headers = self._session(cookies)
         try:
-            self.sessions.record_request(session, path, method, headers)
+            # Stored once per request (record_risk for denied requests, record_response otherwise)
+            self.sessions.record_request(session, path, method, headers, save=False)
             ip = self.client_ip(remote_addr, headers)
             h = {k.lower(): v for k, v in headers.items()}
             signals: List[Signal] = list(self.analyzer.signals(ip, h, method, path))
+            if (self.config.rate_limit or self.config.endpoint_limits) and self.rate_limited(ip, path):
+                signals.append(("rate_limit.exceeded", 100))
             if self.input_validator:
                 signals.extend(self.input_validator.analyze(path, query, headers=h)[1])
             if self.config.session_patterns:
@@ -189,9 +225,13 @@ class AegisMiddlewareBase:
                 action = "monitor" if self.config.mode == "monitor" else "challenge"
                 reasons.append("token_required")
 
-            self.sessions.record_risk(session, score)
-            return AegisResult(action=action, score=score, reason=",".join(reasons), payload=claims,
-                               is_bot=action == "block", session_id=session.id), cookie_headers
+            # Allowed requests reach the app, and the adapter reports the response status:
+            # the session is stored then, once (record_response). Denied ones are stored now.
+            self.sessions.record_risk(session, score, save=action in ("block", "challenge"))
+            result = AegisResult(action=action, score=score, reason=",".join(reasons), payload=claims,
+                                 is_bot=action == "block", session_id=session.id)
+            result._session = session  # record_response reuses it instead of reloading from the store
+            return result, cookie_headers
         except Exception as exc:
             logger.exception("AEGIS request analysis failed")
             action = "allow" if self.config.fail_open else "challenge"
@@ -200,7 +240,7 @@ class AegisMiddlewareBase:
     def record_response(self, result: Optional[AegisResult], status: int) -> None:
         """Report the response status of an evaluated request (feeds the 4xx-probing check)."""
         if result is not None and result.session_id:
-            session = self.sessions.get(result.session_id)
+            session = result._session or self.sessions.get(result.session_id)
             if session is not None:
                 self.sessions.record_response(session, status)
 

@@ -19,6 +19,7 @@
 | Ethics / IRB application | **Submission planned Oct 21**; drafts ready in `docs/thesis/irb/` (protocol, consent EN+BN, data dictionary) — fill the [bracketed] fields, supervisor review |
 | Real human data (30–50 participants) | Nov 11–25, after IRB approval (see §0.1) |
 | Real bot traffic (5 tools) | Oct 22 – Nov 10 (no IRB needed, see §0.1) |
+| Phase D (Redis, live dashboard, GraphQL, edge worker, load test) | Done — §2.11, `docs/thesis/results/phase_d/` |
 | Results on real data | Not started |
 | Thesis writing | Not started (Dec 1–15) |
 
@@ -500,6 +501,136 @@ humanized / replay bots):
 two low-contrast hues also differ in line style, so the figures survive
 grayscale printing.
 
+### 2.11 Phase D: shared state, live dashboard, GraphQL, edge, load test (2026-10-03)
+
+**D1 Shared state in Redis** (`packages/core/src/store/`, `aegis_shield/store.py`,
+same key layout in both languages):
+- **Why:** with several server processes, in-process state is wrong, not just
+  slow. Each process would accept a replayed proof-of-work solution or signed
+  request once, and a rate limit of N would be N per process.
+- **Design:**
+  | State | Redis operation | Consistency |
+  |---|---|---|
+  | Spent challenges, request nonces, single-use tokens | `SET … PX ttl NX` | Atomic: exactly one instance wins |
+  | Rate-limit windows | Sorted-set sliding log in one Lua script, Redis clock | Atomic; immune to clock skew between instances |
+  | Sessions | One JSON value per session, TTL 30 min | Last-writer-wins (a lost update drops one request time) |
+- **Verified:** two server instances on one store (in-memory shared object and
+  a live Redis):
+  - a challenge redeemed at A is rejected at B (`replay`);
+  - a rate limit of 2 is enforced across A and B (3rd request blocked);
+  - the telemetry score from A is carried into a token issued by B.
+- **Outage behaviour (found by testing, then fixed):** the first version let
+  a Redis outage turn into fail-open. The store error escaped the analysis,
+  the adapter's "never take the site down" rule let the request through, and
+  a login without a token reached the application (HTTP 401 from the app
+  instead of 403 from AEGIS). Now store reads and writes degrade: the request
+  is analysed with a fresh session, without rate limits. Replay checks refuse
+  (`503`) rather than accept. Re-tested by stopping Redis under a running
+  server: 403 before, during and after the outage.
+  - **Thesis point:** availability-first error handling can silently become a
+    security bypass once a dependency is added. Each dependency failure needs
+    its own decision (degrade vs. refuse).
+
+**D2 WebSocket live feed** (`server-node/src/live.ts`; dashboard `useLiveStats`):
+- **Batching:** events go out in batches every 250 ms, at most 200 per batch,
+  with a count of the rest. A traffic spike costs one message per client per
+  250 ms, not one per request.
+- **Slow clients:** a client with more than 1 MB buffered skips batches, so
+  the server's memory does not grow.
+- **Access control:** the `authorize` and `allowedOrigins` options control who
+  may connect (tested: wrong origin 403, no credentials 401, valid 101).
+- **Dashboard fallback:** the dashboard falls back to 5 s polling and
+  reconnects with backoff; verified in Chromium by killing the server.
+- **Bug found while verifying:** the bar chart stayed empty under live
+  updates. Recharts restarted its entry animation on every update, so the bars
+  never finished drawing. Animation is now off for live charts.
+
+**D3 GraphQL** (`server-node/src/graphql.ts`): read-only (no Mutation type).
+- **Limits against cost amplification:** 8 KB documents, 10 root fields per
+  operation counted through aliases and fragments, `limit` ≤ 500, so at most
+  10 × 500 events per request.
+- **No depth limit needed:** the schema has no recursive types.
+
+**D4 Cloudflare Worker** (`packages/edge-cloudflare`):
+- **What it does:** token verification with WebCrypto (HMAC-SHA256 +
+  AES-256-GCM), user-agent binding, block-verdict refusal, the
+  proof-of-work-is-not-telemetry rule, and rate limiting.
+- **Tested in Node (12 tests):** tokens from both `@aegis/core` and the Python
+  server verify; forged, expired and other-UA tokens are rejected; spoofed
+  `X-Aegis-Edge` headers are stripped.
+- **Tested in workerd** (`wrangler dev`, the real Workers runtime), in front of
+  the Express demo:
+  | Request | Result |
+  |---|---|
+  | Valid token | 200, forwarded with `verified; score=12` |
+  | No token | 403 challenge |
+  | Forged token | 403 |
+  | Token with block verdict | 403 |
+  | Token from another user agent | 403 |
+  | 130 requests against a 120/min binding | 113 × 200, 17 × 429 (some budget already used) |
+- **Browser through the edge:** headless Playwright still got blocked by the
+  origin (telemetry score 100: headless + anti-detect signals). The edge passed
+  the origin's verdict on unchanged.
+- **Limits:**
+  - the Rate Limiting binding counts per Cloudflare location and is eventually
+    consistent;
+  - the per-isolate fallback bounds only one isolate;
+  - not deployed to a real zone (needs the student's Cloudflare account).
+
+**D5 Load test** (`loadtest/`, results `docs/thesis/results/phase_d/load_test.{md,json}`):
+- **Method:**
+  - closed-loop generator with 32 keep-alive connections;
+  - every latency recorded, so percentiles are exact;
+  - each request from a random 10.x client address via `X-Forwarded-For`, so
+    per-IP limits are evaluated but never triggered;
+  - servers in monitor mode, so every request runs the whole pipeline and the
+    handler;
+  - 3 × 10 s runs per scenario, median reported;
+  - unloaded latency measured separately with 1 connection.
+- **Machine:** 4-vCPU Xeon VM, with the generator and Redis on the same
+  machine. Absolute numbers are a lower bound; compare rows with each other.
+- **Results** (page request; server time = 1 / saturated throughput of one process):
+  | | req/s | Server time per request | Unloaded p50 |
+  |---|---|---|---|
+  | Express | 6123 | 0.163 ms | 0.20 ms |
+  | Express + AEGIS | 2816 | 0.355 ms (+0.19) | 0.48 ms |
+  | Express + AEGIS, Redis | 2716 | 0.368 ms (+0.21) | 0.75 ms |
+  | FastAPI | 1693 | 0.591 ms | 0.73 ms |
+  | FastAPI + AEGIS | 1247 | 0.802 ms (+0.21) | 0.86 ms |
+  | FastAPI + AEGIS, Redis | 724 | 1.381 ms (+0.79) | 1.38 ms |
+  | FastAPI + AEGIS, Redis, 4 workers (128 conns) | 1878 | – | – |
+  | Telemetry + ML, Node → ML service (HTTP) | 936 | 1.07 ms | 1.94 ms |
+  | Telemetry + ML, Python in-process | 458 | 2.18 ms | 2.35 ms |
+- **Answer for the thesis:** the rule pipeline costs about **0.2 ms of server
+  time per request** in both languages, well under the 5 ms target. The ML
+  model dominates the telemetry endpoint (≈1–2 ms), consistent with §5.5.
+- **Findings, each measured before acting on it:**
+  1. **Python + Redis was slow** (490 req/s at first). A profile showed 626 µs
+     per request versus 51 µs in memory: three synchronous Redis calls of
+     ~100–200 µs each (`PING` 100 µs here, `redis-cli --latency` 0.54 ms).
+     - Saving the session once per request (with the response status) brought
+       it to 404 µs.
+     - hiredis gave only 626 → 581 µs.
+     - Moving the analysis into Starlette's threadpool made it *worse*
+       (432 req/s; ML 281 vs 437) because of GIL contention, so it was
+       reverted.
+     - Kept: fewer round trips, and scaling out with workers, which Redis
+       makes correct.
+  2. **Four uvicorn workers at first showed no gain** (630 vs 590 req/s).
+     Per-process CPU showed one worker at 68% and three at 9–17%: keep-alive
+     connections stay with the worker that accepted them. With 128
+     connections, three workers were busy and throughput was 1856–2165 req/s.
+  3. **uvicorn 0.50's multi-worker mode adds ≈44 ms per keep-alive request,**
+     even without AEGIS (43.9 ms vs 0.68 ms with one worker). The 4-worker
+     latencies are reported as an artefact; only that row's throughput counts.
+  4. **Node's RSS with in-process state reached ~720 MB** after ~100 k distinct
+     simulated clients (each creates sessions and per-IP entries), vs ~470 MB
+     with Redis. This is bounded only by the caps in the engine maps (sessions
+     are cleared at 100 k). Profile it in Phase F (memory per client, eviction
+     policy).
+  5. **FastAPI + AEGIS in-process had a high p99** (95–176 ms vs a p95 of
+     33 ms). Not investigated yet (likely GC or eviction pauses); Phase F.
+
 ## 3. Contributions — what can honestly be claimed
 
 | Claim | Status |
@@ -507,6 +638,8 @@ grayscale printing.
 | 5-layer defense in one open-source SDK | Implementation exists; integration across layers still partial |
 | Group ablation showing layer complementarity | Shown on synthetic data; must be repeated on real data |
 | Sub-5 ms ensemble inference | Measured: p50 1.24 ms, p99 2.77 ms (§5.5) |
+| Low per-request overhead | Measured: ≈0.2 ms server time per request for the rule pipeline in Node and Python; telemetry with ML ≈1–2 ms (§2.11) |
+| Horizontally scalable with correct shared state | Replay, rate limits and sessions shared through Redis; verified with two instances and 4 workers; Redis outage degrades without bypass (§2.11) |
 | Vectorized RandomForest evaluation (FlatForest) | Engineering contribution: 10.24 → 0.21 ms, identical output |
 | Residential proxy detection, LLM honeypot traps, WebGPU fingerprinting | **Do a literature search before calling these "novel"** — related work appeared in 2025–26 |
 | Bangladesh-context evaluation | Requires the real-data study |

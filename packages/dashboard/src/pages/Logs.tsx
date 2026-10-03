@@ -1,20 +1,21 @@
 import React, { useMemo, useState } from 'react';
 import ApiStatus from '../components/ApiStatus';
 import RequestTable from '../components/RequestTable';
-import { StatsEvent, toCsv, useApi } from '../api';
+import LiveIndicator from '../components/LiveIndicator';
+import { toCsv, useLiveStats } from '../api';
 import { Theme, cardStyle, VERDICT_ORDER } from '../theme';
 
 const PAGE_SIZE = 50;
 
 const Logs: React.FC<{ theme: Theme }> = ({ theme }) => {
-  const events = useApi<StatsEvent[]>('/aegis/events?limit=500');
+  const live = useLiveStats();
   const [search, setSearch] = useState('');
   const [verdict, setVerdict] = useState('all');
   const [page, setPage] = useState(0);
 
-  const filtered = useMemo(() => (events.data ?? []).filter(e =>
+  const filtered = useMemo(() => live.events.filter(e =>
     (verdict === 'all' || e.verdict === verdict)
-    && (search === '' || e.path.includes(search) || e.ip.includes(search) || e.reasons.some(r => r.includes(search)))), [events.data, search, verdict]);
+    && (search === '' || e.path.includes(search) || e.ip.includes(search) || e.reasons.some(r => r.includes(search)))), [live.events, search, verdict]);
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, pages - 1);
 
@@ -31,8 +32,11 @@ const Logs: React.FC<{ theme: Theme }> = ({ theme }) => {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1 style={{ marginTop: 0 }}>Request Logs</h1>
-      <ApiStatus loading={events.loading} error={events.error} hasData={!!events.data} theme={theme} />
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap' }}>
+        <h1 style={{ marginTop: 0 }}>Request Logs</h1>
+        <LiveIndicator status={live.status} theme={theme} />
+      </div>
+      <ApiStatus loading={live.loading} error={live.error} hasData={!!live.summary} theme={theme} />
       <div style={{ ...cardStyle(theme), display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
         <label>Search <input style={{ ...input, width: 260 }} value={search} placeholder="path, IP prefix or signal"
           onChange={e => { setSearch(e.target.value); setPage(0); }} /></label>

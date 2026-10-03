@@ -41,7 +41,8 @@ def leading_zero_bits(data: bytes) -> int:
 
 
 class MemoryHardChallenger:
-    def __init__(self, secret: str, n: int = 4096, r: int = 8, bits: int = 4, ttl_seconds: int = 120):
+    def __init__(self, secret: str, n: int = 4096, r: int = 8, bits: int = 4, ttl_seconds: int = 120,
+                 store=None):
         if not secret:
             raise ValueError("MemoryHardChallenger requires a secret")
         if n < 2 or n & (n - 1) or n > 1 << 16:
@@ -52,6 +53,8 @@ class MemoryHardChallenger:
         self.n, self.r, self.bits, self.ttl = n, r, bits, ttl_seconds
         self._used: Dict[str, float] = {}
         self._lock = threading.Lock()
+        #: Shared store (aegis_shield.store) for spent challenge ids across processes
+        self.store = store
 
     def _sign(self, data: str) -> str:
         return _b64(hmac.new(self.secret, data.encode("utf-8"), hashlib.sha256).digest())
@@ -83,11 +86,15 @@ class MemoryHardChallenger:
         now = time.time() if now is None else now
         if int(now) > claims["exp"]:
             return False, "expired"
-        with self._lock:
-            if claims["id"] in self._used:
+        if self.store is not None:
+            if not self.store.claim_once(f"pow:{claims['id']}", claims["exp"] + 60 - now):
                 return False, "replay"
-            self._used = {k: v for k, v in self._used.items() if v >= now} if len(self._used) > 10_000 else self._used
-            self._used[claims["id"]] = claims["exp"]
+        else:
+            with self._lock:
+                if claims["id"] in self._used:
+                    return False, "replay"
+                self._used = {k: v for k, v in self._used.items() if v >= now} if len(self._used) > 10_000 else self._used
+                self._used[claims["id"]] = claims["exp"]
         n, r = claims["n"], claims["r"]
         digest = hashlib.scrypt(f"{challenge}:{nonce}".encode("utf-8"), salt=claims["seed"].encode("utf-8"),
                                 n=n, r=r, p=1, dklen=32, maxmem=256 * n * r + 1024 * 1024)

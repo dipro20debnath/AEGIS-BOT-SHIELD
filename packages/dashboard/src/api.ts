@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /** Shapes returned by the server status API (packages/server-node/src/routes.ts). */
 export interface StatsSummary {
@@ -65,6 +65,108 @@ export function useApi<T>(path: string, intervalMs = 5000): ApiState<T> {
   }, [path, intervalMs]);
 
   return state;
+}
+
+export type LiveStatus = 'connecting' | 'live' | 'polling';
+
+export interface LiveStats {
+  summary: StatsSummary | null;
+  /** Most recent first, at most 500 */
+  events: StatsEvent[];
+  status: LiveStatus;
+  error: string | null;
+  loading: boolean;
+}
+
+const MAX_EVENTS = 500;
+
+type LiveMessage =
+  | { type: 'hello'; summary: StatsSummary; events: StatsEvent[] }
+  | { type: 'events'; events: StatsEvent[]; dropped: number }
+  | { type: 'summary'; summary: StatsSummary };
+
+/**
+ * Stats and events pushed over the server's WebSocket feed (/aegis/live,
+ * packages/server-node/src/live.ts). While the socket is down it polls the
+ * REST endpoints instead and keeps retrying the socket with backoff.
+ */
+export function useLiveStats(): LiveStats {
+  const [summary, setSummary] = useState<StatsSummary | null>(null);
+  const [events, setEvents] = useState<StatsEvent[]>([]);
+  const [status, setStatus] = useState<LiveStatus>('connecting');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const seeded = useRef(false);
+
+  useEffect(() => {
+    let closed = false;
+    let ws: WebSocket | null = null;
+    let retry = 1000;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let pollTimer: ReturnType<typeof setInterval> | undefined;
+
+    const poll = async () => {
+      try {
+        const [s, e] = await Promise.all([
+          fetch('/aegis/stats').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+          fetch('/aegis/events?limit=500').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+        ]);
+        if (closed) return;
+        setSummary(s as StatsSummary);
+        setEvents(e as StatsEvent[]);
+        setError(null);
+        seeded.current = true;
+      } catch (err) {
+        if (!closed) setError((err as Error).message);
+      } finally {
+        if (!closed) setLoading(false);
+      }
+    };
+    const startPolling = () => {
+      setStatus('polling');
+      if (!pollTimer) { void poll(); pollTimer = setInterval(poll, 5000); }
+    };
+    const stopPolling = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = undefined; } };
+
+    const connect = () => {
+      if (closed) return;
+      const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      ws = new WebSocket(`${scheme}://${window.location.host}/aegis/live`);
+      ws.onopen = () => { retry = 1000; stopPolling(); setStatus('live'); setError(null); };
+      ws.onmessage = (message) => {
+        const data = JSON.parse(String(message.data)) as LiveMessage;
+        if (data.type === 'hello') {
+          setSummary(data.summary);
+          // The greeting carries the last 100 events; keep a longer history fetched earlier
+          if (!seeded.current) setEvents(data.events);
+          setLoading(false);
+          if (!seeded.current) {
+            seeded.current = true;
+            fetch('/aegis/events?limit=500').then(r => (r.ok ? r.json() : null)).then(e => { if (e && !closed) setEvents(e as StatsEvent[]); }).catch(() => undefined);
+          }
+        } else if (data.type === 'events') {
+          setEvents(prev => [...[...data.events].reverse(), ...prev].slice(0, MAX_EVENTS));
+        } else if (data.type === 'summary') {
+          setSummary(data.summary);
+        }
+      };
+      ws.onclose = () => {
+        if (closed) return;
+        startPolling();
+        retryTimer = setTimeout(connect, retry);
+        retry = Math.min(retry * 2, 30_000);
+      };
+    };
+    connect();
+    return () => {
+      closed = true;
+      stopPolling();
+      if (retryTimer) clearTimeout(retryTimer);
+      ws?.close();
+    };
+  }, []);
+
+  return { summary, events, status, error, loading };
 }
 
 export function formatTime(ts: number): string {

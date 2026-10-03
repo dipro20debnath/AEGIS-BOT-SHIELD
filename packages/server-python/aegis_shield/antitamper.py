@@ -60,7 +60,7 @@ def parse_signature_header(header: str) -> Optional[Tuple[int, str, str]]:
 class AntiTamper:
     """Verifies signed requests; nonces are remembered for twice the allowed clock skew."""
 
-    def __init__(self, secret: str, max_skew_seconds: int = 300, max_nonces: int = 100_000):
+    def __init__(self, secret: str, max_skew_seconds: int = 300, max_nonces: int = 100_000, store=None):
         if not secret:
             raise ValueError("AntiTamper requires a secret")
         self.secret = secret
@@ -68,6 +68,8 @@ class AntiTamper:
         self.max_nonces = max_nonces
         self._nonces: Dict[str, float] = {}
         self._lock = threading.Lock()
+        #: Shared store (aegis_shield.store) for nonces across processes
+        self.store = store
 
     def sign(self, method: str, path: str, body: Body = None, now: Optional[float] = None) -> str:
         return sign_request(method, path, body, self.secret, now)
@@ -87,6 +89,8 @@ class AntiTamper:
         if not hmac.compare_digest(_hmac(canonical_string(method, path, body, t, n), self.secret), s):
             return False, "bad_signature"
         # Checked last so unsigned requests cannot burn nonces
+        if self.store is not None:
+            return (True, None) if self.store.claim_once(f"sig:{n}", 2 * self.max_skew) else (False, "replay")
         with self._lock:
             self._evict(current)
             if n in self._nonces:

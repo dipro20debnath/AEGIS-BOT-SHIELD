@@ -139,8 +139,8 @@ class TelemetryService:
             signals.append(("ml_model", round(ml_score, 1)))
         score = round(noisy_or(scores), 1)
         verdict = decide(score, self.config)
-        self.sessions.record_risk(session, score)
         session.telemetry_score = score
+        self.sessions.record_risk(session, score)
 
         now = int(time.time())
         ua = next((v for k, v in headers.items() if k.lower() == "user-agent"), "")

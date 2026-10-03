@@ -13,6 +13,7 @@
  */
 import { randomBytes, scrypt as scryptCb } from 'crypto';
 import { hmacSign, hmacVerify, NonceCache } from '../utils/crypto.js';
+import type { AegisStore } from '../store/Store.js';
 
 export const POW_PREFIX = 'AEGIS.pow1.';
 
@@ -33,6 +34,8 @@ export interface MemoryHardOptions {
   /** Required leading zero bits; expected attempts = 2^bits. Default 4 */
   bits?: number;
   ttlSeconds?: number;
+  /** Shared store for spent challenge ids (RedisStore when several servers verify); default in-process */
+  store?: AegisStore;
 }
 
 export type PowVerifyResult =
@@ -59,6 +62,7 @@ export class MemoryHardChallenger {
   private readonly bits: number;
   private readonly ttl: number;
   private used: NonceCache;
+  private store?: AegisStore;
 
   constructor(private secret: string, options: MemoryHardOptions = {}) {
     if (!secret) throw new Error('MemoryHardChallenger requires a secret');
@@ -69,6 +73,7 @@ export class MemoryHardChallenger {
     if (this.n < 2 || (this.n & (this.n - 1)) !== 0 || this.n > 1 << 16) throw new Error('n must be a power of two <= 65536');
     if (this.r < 1 || this.r > 32 || this.bits < 0 || this.bits > 20) throw new Error('r or bits out of range');
     this.used = new NonceCache(this.ttl * 1000 + 60_000);
+    this.store = options.store;
   }
 
   public issue(now = Date.now()): PowChallenge {
@@ -97,7 +102,10 @@ export class MemoryHardChallenger {
     }
     if (Math.floor(now / 1000) > claims.exp) return { valid: false, reason: 'expired' };
     // Burn the id before the expensive check: one scrypt per issued challenge, at most
-    if (this.used.hasBeenUsed(claims.id)) return { valid: false, reason: 'replay' };
+    const fresh = this.store
+      ? await this.store.claimOnce(`pow:${claims.id}`, (claims.exp + 60) * 1000 - now)
+      : !this.used.hasBeenUsed(claims.id);
+    if (!fresh) return { valid: false, reason: 'replay' };
     const digest = await scryptAsync(`${challenge}:${nonce}`, claims.seed, claims.n, claims.r);
     if (leadingZeroBits(digest) < claims.bits) return { valid: false, reason: 'insufficient_work' };
     return { valid: true, id: claims.id };

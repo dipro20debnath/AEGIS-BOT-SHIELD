@@ -18,4 +18,8 @@ def get_config() -> Dict[str, Any]:
         config["ml_url"] = os.environ["AEGIS_ML_URL"]
     if os.getenv("AEGIS_TRUSTED_PROXIES"):
         config["trusted_proxies"] = [p.strip() for p in os.environ["AEGIS_TRUSTED_PROXIES"].split(",") if p.strip()]
+    if os.getenv("AEGIS_REDIS_URL"):
+        config["redis_url"] = os.environ["AEGIS_REDIS_URL"]
+    if os.getenv("AEGIS_RATE_LIMIT"):
+        config["rate_limit"] = int(os.environ["AEGIS_RATE_LIMIT"])
     return config
