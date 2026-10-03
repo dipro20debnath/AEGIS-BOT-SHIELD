@@ -20,6 +20,9 @@ Features = Dict[str, Dict[str, float]]
 
 
 class MLScorer:
+    #: Called when scoring fails (the middleware counts it in aegis_ml_errors_total)
+    on_error = None
+
     def score(self, features: Features) -> Optional[float]:
         raise NotImplementedError
 
@@ -77,6 +80,8 @@ class HttpModelScorer(MLScorer):
                 return float(json.load(response)["confidence_score"])
         except Exception as exc:  # network errors, 503 when no model is loaded
             logger.warning("ML service unavailable: %s", exc)
+            if self.on_error:
+                self.on_error()
             return None
 
 

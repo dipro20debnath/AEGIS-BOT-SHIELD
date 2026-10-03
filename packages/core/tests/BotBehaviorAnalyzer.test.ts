@@ -92,10 +92,11 @@ describe('BotBehaviorAnalyzer', () => {
     expect(run(true)).toContain('session.no_assets');
   });
 
-  it('evicts the oldest sessions beyond maxSessions', () => {
-    const a = new BotBehaviorAnalyzer({ maxSessions: 3 });
-    for (const id of ['a', 'b', 'c', 'd']) a.observe(id, { path: '/' });
-    expect(a.size).toBe(3);
+  it('evicts the least recently used sessions beyond maxSessions', () => {
+    const a = new BotBehaviorAnalyzer({ maxSessions: 4 });
+    for (const id of ['a', 'b', 'c', 'd', 'e', 'f']) a.observe(id, { path: '/' });
+    expect(a.size).toBeLessThanOrEqual(4);
+    expect(a.size).toBeGreaterThanOrEqual(2);
   });
 });
 

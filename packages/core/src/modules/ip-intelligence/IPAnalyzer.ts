@@ -1,6 +1,7 @@
 import { IPIntelligence, DetectionSignal } from '../../types/index.js';
 import { TorExitNodeChecker } from './TorExitNodeChecker.js';
 import { GeoIPResolver } from './GeoIPResolver.js';
+import { BoundedMap } from '../../utils/bounded.js';
 import { Logger } from '../../utils/logger.js';
 
 /** Known datacenter/cloud provider CIDR ranges */
@@ -43,7 +44,7 @@ export class IPAnalyzer {
   private geoResolver: GeoIPResolver;
   private logger: Logger;
   private torChecker?: TorExitNodeChecker;
-  private ipRequestCounts: Map<string, { count: number; firstSeen: number; lastSeen: number }> = new Map();
+  private ipRequestCounts: BoundedMap<string, { count: number; firstSeen: number; lastSeen: number }>;
   private customBlocklist: Set<string> = new Set();
   private customAllowlist: Set<string> = new Set();
   private knownBotIps: Set<string> = new Set();
@@ -59,8 +60,11 @@ export class IPAnalyzer {
     externalGeoLookup?: boolean;
     /** Flag private/loopback source IPs (only meaningful when the server is internet-facing without a proxy) */
     flagPrivateIps?: boolean;
+    /** IPs whose request velocity is tracked at once; the least recently seen is evicted (default 100,000) */
+    maxTrackedIps?: number;
   }) {
     this.flagPrivateIps = options?.flagPrivateIps ?? false;
+    this.ipRequestCounts = new BoundedMap(options?.maxTrackedIps);
     this.geoResolver = new GeoIPResolver({ externalLookup: options?.externalGeoLookup ?? false });
     this.logger = new Logger('IPAnalyzer');
     if (options?.blocklist) options.blocklist.forEach(ip => this.customBlocklist.add(ip));

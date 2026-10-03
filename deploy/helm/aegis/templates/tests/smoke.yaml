@@ -1,0 +1,55 @@
+{{- /* helm test <release>: probes, metrics and the telemetry -> token flow on each enabled API server */}}
+{{- $targets := list }}
+{{- if .Values.apiPython.enabled }}{{ $targets = append $targets (printf "http://%s:8000" (include "aegis.name" (dict "root" . "component" "api-python"))) }}{{ end }}
+{{- if .Values.apiNode.enabled }}{{ $targets = append $targets (printf "http://%s:3000" (include "aegis.name" (dict "root" . "component" "api-node"))) }}{{ end }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "aegis.name" (dict "root" . "component" "smoke-test") }}
+  labels:
+    {{- include "aegis.labels" (dict "root" . "component" "smoke-test") | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  restartPolicy: Never
+  {{- include "aegis.podSecurity" (dict "root" . "uid" 10001) | nindent 2 }}
+  containers:
+    - name: smoke
+      # The Python image has an interpreter and no extra tools; nothing else is pulled
+      image: {{ include "aegis.image" (dict "root" . "component" "api-python") }}
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      securityContext:
+        {{- toYaml .Values.containerSecurityContext | nindent 8 }}
+      env:
+        - name: TARGETS
+          value: {{ $targets | join " " | quote }}
+      command: ["python", "-c"]
+      args:
+        - |
+          import json, os, urllib.request
+          import time
+          FEATURES = {c: {} for c in ("mouse", "keyboard", "scroll", "touch", "fingerprint")}
+          TELEMETRY = {"v": 1, "siteKey": {{ .Values.siteKey | quote }}, "streamId": "helm-test",
+                       "timestamp": time.time() * 1000, "features": FEATURES}
+          UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
+          def call(url, body=None):
+              req = urllib.request.Request(url, data=body, headers={"User-Agent": UA, "Content-Type": "application/json"})
+              with urllib.request.urlopen(req, timeout=10) as r:
+                  return r.status, r.read().decode()
+          for base in os.environ["TARGETS"].split():
+              for path in ("/aegis/health", "/aegis/ready"):
+                  status, _ = call(base + path)
+                  assert status == 200, (base, path, status)
+              status, text = call(base + "/aegis/metrics")
+              assert "aegis_decisions_total" in text, (base, "metrics")
+              status, text = call(base + "/aegis/telemetry", json.dumps(TELEMETRY).encode())
+              assert json.loads(text).get("token", "").startswith("AEGIS.v1."), (base, text[:200])
+              print("ok", base)
+      resources:
+        limits: { memory: 128Mi }
+      volumeMounts:
+        - { name: tmp, mountPath: /tmp }
+  volumes:
+    - name: tmp
+      emptyDir: {}

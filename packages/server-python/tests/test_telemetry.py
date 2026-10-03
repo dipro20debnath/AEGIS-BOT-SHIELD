@@ -93,3 +93,40 @@ def test_ml_model_contributes_to_score(tmp_path):
     assert 0 <= human["ml_probability"] <= 1
     assert bot["ml_probability"] > human["ml_probability"]
     assert any(name == "ml_model" for name, _ in bot["signals"])
+
+
+def _session_cookie(response):
+    return {"aegis_sid": response.headers["Set-Cookie"].split(";")[0].split("=", 1)[1]}
+
+
+def test_telemetry_claiming_more_time_than_has_passed_is_flagged(base):
+    """Forger pattern: load the page, then immediately post telemetry claiming ~9.5 s of typing."""
+    _, page_headers = base.evaluate("GET", "/", "198.51.100.60", BROWSER_HEADERS, {})
+    cookies = {"aegis_sid": page_headers["Set-Cookie"].split(";")[0].split("=", 1)[1]}
+    r = base.handle_telemetry(telemetry_body(True), "198.51.100.60", BROWSER_HEADERS, cookies)
+    assert r.status == 200
+    claims = TokenVerifier(SECRET).verify(r.body["token"])
+    assert r.body["score"] >= 75 and r.body["verdict"] != "allow"
+    assert claims["score"] == r.body["score"]
+
+
+def test_same_telemetry_after_realistic_time_is_not_flagged(base, human_pace):
+    _, page_headers = base.evaluate("GET", "/", "198.51.100.61", BROWSER_HEADERS, {})
+    cookies = {"aegis_sid": page_headers["Set-Cookie"].split(";")[0].split("=", 1)[1]}
+    r = base.handle_telemetry(telemetry_body(True), "198.51.100.61", BROWSER_HEADERS, cookies)
+    assert r.body["verdict"] == "allow" and r.body["score"] < 50
+
+
+def test_first_contact_telemetry_is_not_timed(base):
+    """The page may come from a CDN: telemetry as the session's first request is not judged by time."""
+    r = base.handle_telemetry(telemetry_body(True), "198.51.100.62", BROWSER_HEADERS, {})
+    assert r.body["verdict"] == "allow"
+
+
+def test_claimed_interaction_seconds():
+    from aegis_shield.detector import claimed_interaction_seconds, timing_signals
+    features = {"keyboard": {"kb_total_duration": 4.0}, "mouse": {"mouse_pause_count": 10, "mouse_avg_pause_duration": 600}}
+    assert claimed_interaction_seconds(features) == 6.0
+    assert timing_signals(features, 3.0, True) == [("telemetry.impossible_timing", 75)]
+    assert timing_signals(features, 6.0, True) == []
+    assert timing_signals(features, 0.1, False) == []

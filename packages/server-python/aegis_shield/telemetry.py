@@ -19,7 +19,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pydantic import ValidationError
 
-from .detector import RequestAnalyzer, Signal, behavior_signals, noisy_or
+from .detector import RequestAnalyzer, Signal, behavior_signals, noisy_or, timing_signals
 from .feeds import FEED_SEVERITY, IPReputation
 from .ip_intel import classify_ip
 from .ml import MLScorer
@@ -112,6 +112,8 @@ class TelemetryService:
 
         signals: List[Signal] = list(self.analyzer.signals(ip, headers, "POST", self.config.telemetry_path))
         signals += behavior_signals(features, payload.headlessChecks)
+        # record_request already added this telemetry request to the session
+        signals += timing_signals(features, time.time() - session.created, len(session.request_times) > 1)
         # Spoofed-fingerprint evidence: only when several checks agree (score >= 0.5)
         if payload.antiDetect and payload.antiDetect.score >= 0.5:
             signals.append(("anti_detect", round(80 * payload.antiDetect.score, 1)))
