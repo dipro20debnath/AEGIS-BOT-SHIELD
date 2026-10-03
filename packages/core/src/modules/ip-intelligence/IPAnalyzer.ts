@@ -1,4 +1,5 @@
 import { IPIntelligence, DetectionSignal } from '../../types/index.js';
+import { TorExitNodeChecker } from './TorExitNodeChecker.js';
 import { GeoIPResolver } from './GeoIPResolver.js';
 import { Logger } from '../../utils/logger.js';
 
@@ -41,7 +42,7 @@ const VPN_ASNS = new Set([
 export class IPAnalyzer {
   private geoResolver: GeoIPResolver;
   private logger: Logger;
-  private torExitNodes: Set<string> = new Set();
+  private torChecker?: TorExitNodeChecker;
   private ipRequestCounts: Map<string, { count: number; firstSeen: number; lastSeen: number }> = new Map();
   private customBlocklist: Set<string> = new Set();
   private customAllowlist: Set<string> = new Set();
@@ -53,7 +54,8 @@ export class IPAnalyzer {
   constructor(options?: {
     blocklist?: string[];
     allowlist?: string[];
-    torListUrl?: string;
+    /** Live Tor exit list; without one no address is classified as Tor */
+    torChecker?: TorExitNodeChecker;
     externalGeoLookup?: boolean;
     /** Flag private/loopback source IPs (only meaningful when the server is internet-facing without a proxy) */
     flagPrivateIps?: boolean;
@@ -63,7 +65,7 @@ export class IPAnalyzer {
     this.logger = new Logger('IPAnalyzer');
     if (options?.blocklist) options.blocklist.forEach(ip => this.customBlocklist.add(ip));
     if (options?.allowlist) options.allowlist.forEach(ip => this.customAllowlist.add(ip));
-    this.loadTorExitNodes();
+    this.torChecker = options?.torChecker;
   }
 
   /**
@@ -97,7 +99,7 @@ export class IPAnalyzer {
     }
 
     // 3. Check Tor exit nodes
-    const isTor = this.torExitNodes.has(ip);
+    const isTor = this.torChecker?.isExitNode(ip) ?? false;
     if (isTor) {
       signals.push(this.createSignal('ip.tor', 85, 0.98, 'Known Tor exit node'));
     }
@@ -287,16 +289,6 @@ export class IPAnalyzer {
    */
   private createSignal(type: string, value: number, confidence: number, description: string): DetectionSignal {
     return { category: 'network', type, value, confidence, description, weight: 1.0 };
-  }
-
-  /**
-   * Load some static Tor exit nodes for demo/offline use
-   */
-  private loadTorExitNodes(): void {
-    const staticNodes = [
-      '197.234.240.231', '192.160.102.164', '185.245.87.182', '185.107.13.208' // Sample nodes
-    ];
-    staticNodes.forEach(ip => this.torExitNodes.add(ip));
   }
 
   /**

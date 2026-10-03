@@ -63,7 +63,7 @@ def test_behavior_signals():
 def test_classify_ip():
     assert classify_ip("127.0.0.1")["ip_reputation"] == 0
     assert classify_ip("159.65.1.1")["is_datacenter"] == 1
-    assert classify_ip("::ffff:185.245.87.182")["is_tor"] == 1
+    assert classify_ip("::ffff:185.245.87.182")["is_tor"] == 0  # no live list: nothing is Tor
     assert classify_ip("not-an-ip")["is_tor"] == 0
 
 

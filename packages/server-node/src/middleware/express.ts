@@ -37,9 +37,10 @@ export function aegisExpress(options: AegisExpressOptions, shared?: AegisNode) {
       const cookies = parseCookies(req.headers.cookie);
       const info = { method: req.method, path: req.path, ip: req.ip || req.socket.remoteAddress || '', headers: req.headers, cookies };
 
-      if (aegis.isTelemetryRequest(req.method, req.path)) {
-        const body = req.body !== undefined && Object.keys(req.body ?? {}).length > 0 ? req.body : await readBody(req);
-        send(res, await aegis.handleTelemetry({ ...info, body }));
+      if (aegis.isAegisEndpoint(req.method, req.path)) {
+        const body = req.method === 'GET' ? undefined
+          : req.body !== undefined && Object.keys(req.body ?? {}).length > 0 ? req.body : await readBody(req);
+        send(res, await aegis.handleEndpoint({ ...info, body }));
         return;
       }
       if (!aegis.shouldProtect(req.path)) { next(); return; }
@@ -48,6 +49,7 @@ export function aegisExpress(options: AegisExpressOptions, shared?: AegisNode) {
       (req as any).aegis = decision;
       for (const [name, value] of Object.entries(headers)) res.setHeader(name, value);
       options.onDecision?.(req, decision);
+      res.on('finish', () => aegis.recordResponse(decision, res.statusCode));
 
       if (decision.verdict === 'block' || decision.verdict === 'challenge') {
         if (options.onDeny) { options.onDeny(req, res, decision); return; }

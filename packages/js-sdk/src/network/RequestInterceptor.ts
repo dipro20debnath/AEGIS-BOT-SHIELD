@@ -8,6 +8,8 @@
  */
 export interface TokenSource {
   getToken(): Promise<string>;
+  /** Solve the server's challenge after a 403 "challenge"; resolves true when a new token is stored */
+  handleChallenge?(): Promise<boolean>;
 }
 
 export const TOKEN_HEADER = 'X-Aegis-Token';
@@ -61,20 +63,30 @@ export class RequestInterceptor {
     const origFetch = window.fetch;
     this.origFetch = origFetch;
     const self = this;
+    const withToken = async (input: RequestInfo | URL, init?: RequestInit): Promise<RequestInit | undefined> => {
+      try {
+        const token = await self.client.getToken();
+        if (!token) return init;
+        const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+        for (const [name, value] of self.headerValues(token)) headers.set(name, value);
+        return { ...init, headers };
+      } catch (e) {
+        console.error('Aegis fetch intercept error', e);
+        return init;
+      }
+    };
     window.fetch = async function (this: unknown, input: RequestInfo | URL, init?: RequestInit) {
       const url = input instanceof Request ? input.url : input;
-      if (self.enabled && self.shouldAttach(url)) {
-        try {
-          const token = await self.client.getToken();
-          if (!token) return origFetch.call(window, input, init);
-          const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
-          for (const [name, value] of self.headerValues(token)) headers.set(name, value);
-          init = { ...init, headers };
-        } catch (e) {
-          console.error('Aegis fetch intercept error', e);
-        }
+      if (!self.enabled || !self.shouldAttach(url)) return origFetch.call(window, input, init);
+      // A Request body can be read once; keep a copy in case the request is retried after a challenge
+      const retryInput = input instanceof Request ? input.clone() : input;
+      const response = await origFetch.call(window, input, await withToken(input, init));
+      if (response.status !== 403 || response.headers.get('X-Aegis-Action') !== 'challenge'
+        || !self.client.handleChallenge || !isReplayable(init?.body)) {
+        return response;
       }
-      return origFetch.call(window, input, init);
+      if (!(await self.client.handleChallenge())) return response;
+      return origFetch.call(window, retryInput, await withToken(retryInput, init));
     };
   }
 
@@ -109,4 +121,10 @@ export class RequestInterceptor {
         .finally(() => origSend.call(this, body));
     };
   }
+}
+
+/** Bodies that can be sent a second time (streams cannot). */
+function isReplayable(body: BodyInit | null | undefined): boolean {
+  return body === undefined || body === null || typeof body === 'string' || body instanceof URLSearchParams
+    || body instanceof Blob || body instanceof FormData || body instanceof ArrayBuffer || ArrayBuffer.isView(body);
 }

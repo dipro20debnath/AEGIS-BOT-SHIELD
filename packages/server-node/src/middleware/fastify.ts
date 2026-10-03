@@ -12,6 +12,9 @@ const plugin: FastifyPluginAsync<AegisNodeOptions> = async (fastify: FastifyInst
   const aegis = new AegisNode(options);
   fastify.decorateRequest('aegis', null);
   fastify.addHook('onClose', async () => aegis.shutdown());
+  fastify.addHook('onResponse', async (request: FastifyRequest, reply: FastifyReply) => {
+    aegis.recordResponse(request.aegis ?? undefined, reply.statusCode);
+  });
 
   fastify.post(aegis.options.telemetryPath, { bodyLimit: aegis.options.maxTelemetryBytes }, async (request, reply) => {
     const r = await aegis.handleTelemetry({
@@ -21,10 +24,20 @@ const plugin: FastifyPluginAsync<AegisNodeOptions> = async (fastify: FastifyInst
     return reply.code(r.status).headers(r.headers).send(r.body);
   });
 
+  const challenge = async (request: FastifyRequest, reply: FastifyReply) => {
+    const r = await aegis.handleChallenge({
+      method: request.method, path: aegis.options.challengePath, ip: request.ip, headers: request.headers,
+      cookies: parseCookies(request.headers.cookie), body: request.body,
+    });
+    return reply.code(r.status).headers(r.headers).send(r.body);
+  };
+  fastify.get(aegis.options.challengePath, challenge);
+  fastify.post(aegis.options.challengePath, { bodyLimit: 4096 }, challenge);
+
   // preHandler runs after body parsing, so honeypot checks can see form fields
   fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
     const path = request.url.split('?')[0];
-    if (aegis.isTelemetryRequest(request.method, path) || !aegis.shouldProtect(path)) return;
+    if (aegis.isAegisEndpoint(request.method, path) || !aegis.shouldProtect(path)) return;
     try {
       const { decision, headers } = await aegis.evaluate({
         method: request.method, path, ip: request.ip, headers: request.headers,

@@ -18,6 +18,9 @@ import { TLSFingerprinter } from '../modules/fingerprint/TLSFingerprinter.js';
 import { HTTP2Fingerprinter } from '../modules/fingerprint/HTTP2Fingerprinter.js';
 import { HoneypotDetector } from '../modules/honeypot/HoneypotDetector.js';
 import { InputValidator } from '../security/InputValidator.js';
+import { TorExitNodeChecker } from '../modules/ip-intelligence/TorExitNodeChecker.js';
+import { ThreatFeedSync, FeedResult } from '../modules/threat-intel/ThreatFeedSync.js';
+import { BotBehaviorAnalyzer } from '../modules/session/BotBehaviorAnalyzer.js';
 import { ThreatDatabase } from '../modules/threat-intel/ThreatDatabase.js';
 import { SessionManager } from '../modules/session/SessionManager.js';
 import { Logger } from '../utils/logger.js';
@@ -42,6 +45,11 @@ export class DetectionEngine {
   private http2Fingerprinter?: HTTP2Fingerprinter;
   private honeypot?: HoneypotDetector;
   private inputValidator?: InputValidator;
+  private torChecker?: TorExitNodeChecker;
+  private feedSync?: ThreatFeedSync;
+  private botBehavior?: BotBehaviorAnalyzer;
+  /** Resolves when the first download of every enabled live feed has finished (or failed). */
+  public feedsReady: Promise<void> = Promise.resolve();
   private threatDb?: ThreatDatabase;
   private sessions?: SessionManager;
 
@@ -68,8 +76,13 @@ export class DetectionEngine {
         }));
       }
     }
+    const feeds = ipIntelligence.liveFeeds;
+    if (modules.ipIntelligence && ipIntelligence.enabled && feeds?.tor) {
+      this.torChecker = new TorExitNodeChecker({ cacheDir: feeds.cacheDir });
+    }
     if (modules.ipIntelligence && ipIntelligence.enabled) {
       this.ipAnalyzer = new IPAnalyzer({
+        torChecker: this.torChecker,
         blocklist: ipIntelligence.blocklist,
         allowlist: ipIntelligence.allowlist,
         externalGeoLookup: ipIntelligence.externalGeoLookup,
@@ -81,6 +94,14 @@ export class DetectionEngine {
     if (modules.honeypot) this.honeypot = new HoneypotDetector();
     if (modules.inputValidation) this.inputValidator = new InputValidator();
     if (modules.threatIntel) this.threatDb = new ThreatDatabase();
+    if (this.threatDb && feeds?.threatFeeds) {
+      this.feedSync = new ThreatFeedSync(this.threatDb, {
+        feeds: Array.isArray(feeds.threatFeeds) ? feeds.threatFeeds : undefined,
+        abuseIpDbKey: ipIntelligence.abuseIpDbKey,
+        cacheDir: feeds.cacheDir,
+      });
+    }
+    if (modules.sessionBehavior && modules.sessionTracking) this.botBehavior = new BotBehaviorAnalyzer();
     if (modules.sessionTracking && this.config.secretKey) {
       this.sessions = new SessionManager({ secretKey: this.config.secretKey });
     }
@@ -90,6 +111,21 @@ export class DetectionEngine {
     if (this.isRunning) return;
     this.logger.info('Initializing AEGIS Detection Engine');
     this.isRunning = true;
+    // Downloads run in the background: the engine serves requests with cached/empty lists meanwhile
+    this.feedsReady = Promise.all([this.torChecker?.start(), this.feedSync?.start()]).then(() => undefined);
+  }
+
+  /**
+   * Report the response status for a request analysed earlier (pass the result's
+   * sessionToken). Enables the 4xx-probing check; optional.
+   */
+  public recordResponse(sessionToken: string | undefined, status: number): void {
+    if (sessionToken) this.botBehavior?.recordResponse(sessionToken.split('.')[0], status);
+  }
+
+  /** Download state of the Tor list and threat feeds (for health endpoints). */
+  public feedStatus(): { tor?: ReturnType<TorExitNodeChecker['status']>; threatFeeds?: FeedResult[] } {
+    return { tor: this.torChecker?.status(), threatFeeds: this.feedSync?.status() };
   }
 
   /** Stops module timers and releases state. */
@@ -99,6 +135,8 @@ export class DetectionEngine {
     this.windowLimiter?.destroy();
     this.endpointLimiters.forEach(l => l.destroy());
     this.tlsFingerprinter?.destroy();
+    this.torChecker?.stop();
+    this.feedSync?.stop();
     this.threatDb?.destroy();
     this.sessions?.destroy();
     this.events.clear();
@@ -191,6 +229,11 @@ export class DetectionEngine {
         signals.push(...result.signals);
         sessionToken = result.token;
         sessionId = result.session.id;
+        if (this.botBehavior) {
+          signals.push(...this.botBehavior.observe(sessionId, {
+            path: request.path, method: request.method, headers: request.headers, timestamp: request.timestamp,
+          }));
+        }
       }
 
       if (this.config.modules.behavioral && this.config.behavioral.enabled && request.behavioralData) {
@@ -380,6 +423,8 @@ export function classifyThreats(signals: DetectionSignal[], path: string): Threa
   if (has('honeypot.trap_endpoint')) threats.add(ThreatCategory.OAT_011_SCRAPING);
   if (has('threat.user-agent') || has('threat.pattern')) threats.add(ThreatCategory.OAT_011_SCRAPING);
   if (has('input.')) threats.add(ThreatCategory.OAT_014_VULNERABILITY_SCANNING);
+  if (has('session.error_probing')) threats.add(ThreatCategory.OAT_014_VULNERABILITY_SCANNING);
+  if (has('session.sequential_ids') || has('session.crawl_breadth')) threats.add(ThreatCategory.OAT_011_SCRAPING);
   if (has('behavior.headless_browser') && isAuthPath) threats.add(ThreatCategory.OAT_008_CREDENTIAL_STUFFING);
   return [...threats];
 }
