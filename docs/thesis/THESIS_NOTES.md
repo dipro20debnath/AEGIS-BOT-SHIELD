@@ -20,6 +20,7 @@
 | Real human data (30–50 participants) | Nov 11–25, after IRB approval (see §0.1) |
 | Real bot traffic (5 tools) | Oct 22 – Nov 10 (no IRB needed, see §0.1) |
 | Phase D (Redis, live dashboard, GraphQL, edge worker, load test) | Done — §2.11, `docs/thesis/results/phase_d/` |
+| Phase E (OpenAPI contract, whitepaper, reference docs, release readiness) | Done — §2.12, `docs/`, `contracts/openapi.json` |
 | Results on real data | Not started |
 | Thesis writing | Not started (Dec 1–15) |
 
@@ -630,6 +631,90 @@ same key layout in both languages):
      policy).
   5. **FastAPI + AEGIS in-process had a high p99** (95–176 ms vs a p95 of
      33 ms). Not investigated yet (likely GC or eviction pauses); Phase F.
+
+### 2.12 Phase E: documentation, API contract, release readiness (2026-10-03)
+
+**What was wrong before:** the files under `docs/` predated the code and
+described a different product:
+- a cloud API with API keys and a CDN;
+- an Isolation Forest, LightGBM and ONNX that do not exist;
+- "covers all 21 OWASP automated threats";
+- "TLS 1.3 in transit, AES-256 at rest" (AEGIS terminates no TLS and stores
+  nothing encrypted at rest).
+
+All were rewritten from the code. Statements that cannot be checked yet
+(detection on real traffic) are marked as such.
+
+**E1 One API contract for two servers** (`contracts/openapi.json`, OpenAPI 3.1):
+- **Contract tests** send real requests to both servers and validate every
+  documented status (200/400/403/413/429/503, denial 403, status API) against
+  the schemas:
+  - Node with Ajv (JSON Schema 2020-12);
+  - Python with `jsonschema`;
+  - the SDK's own telemetry payload is checked against the request schema;
+  - negative tests prove the checker rejects bad bodies, e.g. an unmasked IP.
+- **The document itself** is validated with `openapi-spec-validator`.
+- **Serving:** the Node server serves it with Swagger UI (pinned version,
+  SRI hashes; rendered in Chromium with no console errors).
+  `add_aegis_openapi()` merges the middleware endpoints into FastAPI's `/docs`;
+  FastAPI cannot see them because the middleware answers before the router.
+
+**E2 Security whitepaper:**
+- **Content:** threat model by attacker tier, with the test that backs each
+  claim; token properties and known weaknesses; failure behaviour; deployment
+  checklist; data inventory.
+- **OWASP OAT mapping:** **6 of 21 labelled** by the engine, 11 only through
+  generic bot detection, 2 partial, 2 not covered. A test fails if the table
+  and `classifyThreats()` disagree.
+- **Finding while writing the threat model:** tokens were bound to the user
+  agent only. The `sid` claim was never compared with the request's session,
+  so a token harvested in one browser could be replayed for 5 minutes from any
+  client sending the same User-Agent string.
+  - **Fix:** a token whose `sid` differs from the request's `aegis_sid`
+    session is ignored and scored as risk (+60, `token_session_mismatch`), in
+    the Node server, the Python server and the edge worker.
+  - Tests, real-browser e2e and the edge tests updated; a browser keeps its
+    cookie, so legitimate flows are unaffected.
+  - **New constraint:** an API on another site must receive the cookie.
+    Same-site subdomains work with `credentials: 'include'`; fully cross-site
+    setups do not (the cookie is `SameSite=Lax`). Documented.
+- **Known, not fixed:**
+  - tokens are reusable within their TTL by the same session;
+  - one secret keys both HMAC and AES (no KDF separation). Changing the token
+    format is a `v2` decision because three implementations must change
+    together.
+
+**E3 Reference documentation** (getting started, configuration, integration,
+API reference, architecture, ML guide):
+- **Reserved options:** the engine's config type had options that nothing reads:
+  - `redisUrl`, `behavioral.weights` / `minSignals`;
+  - most of `challenges.*`, `logging.*`, `rateLimiting.adaptive`;
+  - `ipIntelligence.blockVPN` / `blockTor` / `blockDatacenter` /
+    `detectResidentialProxy`.
+
+  They are documented as reserved and marked in the types, instead of being
+  presented as working.
+- **Tests that keep the docs true:**
+  - every option of `AegisNodeOptions`, `AegisClientConfig`, the edge `Env`,
+    `LiveFeedOptions` and Python's `AegisConfig` must appear in
+    `configuration.md`;
+  - every relative link and `#anchor` in the README and `docs/` must resolve
+    (GitHub slug rules; a negative test confirmed it catches a broken anchor).
+  - The first strict run found one undocumented option (`authorize`).
+
+**E4 Release readiness (nothing published):**
+- npm and PyPI metadata, per-package READMEs and licences, cross-platform
+  `clean` scripts, and `prepublishOnly` builds and tests.
+- `npm run release:check` (also a CI job) checks:
+  - tarball contents (README, LICENSE, entry points; no tests or sources);
+  - that all version strings agree;
+  - `python -m build` + `twine check --strict` for both Python packages
+    (all four distributions pass).
+- An installed wheel loads the packaged OpenAPI document.
+- **Names (2026-10-03):** `aegis-server-python` and `aegis-ml-engine` are free
+  on PyPI. The `@aegis/*` npm names are unused, but the `@aegis` scope must be
+  an npm organisation the student owns, otherwise rename the scope
+  (docs/RELEASING.md).
 
 ## 3. Contributions — what can honestly be claimed
 

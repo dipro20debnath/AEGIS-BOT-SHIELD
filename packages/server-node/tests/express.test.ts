@@ -36,13 +36,26 @@ describe('aegisExpress', () => {
 
   it('issues a token for human telemetry that unlocks the protected path', async () => {
     const { app } = make();
-    const t = await request(app).post('/aegis/telemetry').set(BROWSER_HEADERS).send(telemetry());
+    const browser = request.agent(app); // keeps the aegis_sid cookie, like a browser
+    const t = await browser.post('/aegis/telemetry').set(BROWSER_HEADERS).send(telemetry());
     expect(t.status).toBe(200);
     expect(t.body.verdict).toBe('allow');
     expect(t.body.expiresIn).toBe(300);
-    const login = await request(app).post('/api/login').set({ ...BROWSER_HEADERS, 'x-aegis-token': t.body.token }).send({});
+    const login = await browser.post('/api/login').set({ ...BROWSER_HEADERS, 'x-aegis-token': t.body.token }).send({});
     expect(login.status).toBe(200);
     expect(login.body.success).toBe(true);
+  });
+
+  it('rejects a token used outside the session it was issued to', async () => {
+    const { app } = make();
+    const t = await request.agent(app).post('/aegis/telemetry').set(BROWSER_HEADERS).send(telemetry());
+    // Same token and user agent, but another client (no cookie or a different session)
+    const stolen = await request(app).post('/api/login').set({ ...BROWSER_HEADERS, 'x-aegis-token': t.body.token }).send({});
+    expect(stolen.status).toBe(403);
+    const other = request.agent(app);
+    await other.get('/products').set(BROWSER_HEADERS);
+    const res = await other.post('/api/login').set({ ...BROWSER_HEADERS, 'x-aegis-token': t.body.token }).send({});
+    expect(res.status).toBe(403);
   });
 
   it('blocks headless telemetry and requests carrying its token', async () => {

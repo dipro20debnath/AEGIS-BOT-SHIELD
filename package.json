@@ -11,7 +11,9 @@
     "test": "npm test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "clean": "npm run clean --workspaces --if-present",
-    "test:e2e": "node --test e2e/*.test.mjs"
+    "test:e2e": "node --test e2e/*.test.mjs",
+    "release:check": "node scripts/release-check.mjs",
+    "sync:openapi": "node -e \"for (const d of ['packages/server-node/src', 'packages/server-python/aegis_shield']) require('fs').copyFileSync('contracts/openapi.json', d + '/openapi.json')\""
   },
   "author": "dipro20debnath",
   "license": "MIT",

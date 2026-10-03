@@ -5,7 +5,9 @@ from conftest import BROWSER_HEADERS, CHROME_UA, SECRET, SITE_KEY, telemetry_bod
 
 
 def token_for(base, human=True, headers=BROWSER_HEADERS):
-    return base.handle_telemetry(telemetry_body(human), "198.51.100.10", headers, {}).body["token"]
+    """Token and session cookie from a telemetry submission (a browser sends both back)."""
+    r = base.handle_telemetry(telemetry_body(human), "198.51.100.10", headers, {})
+    return r.body["token"], {"aegis_sid": r.headers["Set-Cookie"].split(";")[0].split("=", 1)[1]}
 
 
 def test_browser_without_token_is_allowed_on_normal_pages(base):
@@ -20,25 +22,40 @@ def test_token_required_paths_challenge_without_token(base):
 
 
 def test_valid_human_token_passes_required_path(base):
-    headers = {**BROWSER_HEADERS, "X-Aegis-Token": token_for(base)}
-    result, _ = base.evaluate("POST", "/checkout/pay", "198.51.100.10", headers, {})
+    token, cookies = token_for(base)
+    headers = {**BROWSER_HEADERS, "X-Aegis-Token": token}
+    result, _ = base.evaluate("POST", "/checkout/pay", "198.51.100.10", headers, cookies)
     assert result.action == "allow"
     assert "telemetry_score" in result.reason
     assert result.payload["verdict"] == "allow"
 
 
 def test_bot_token_carries_its_score(base):
-    headers = {**BROWSER_HEADERS, "X-Aegis-Token": token_for(base, human=False)}
-    result, _ = base.evaluate("GET", "/products", "198.51.100.10", headers, {})
+    token, cookies = token_for(base, human=False)
+    headers = {**BROWSER_HEADERS, "X-Aegis-Token": token}
+    result, _ = base.evaluate("GET", "/products", "198.51.100.10", headers, cookies)
     assert result.action == "block"
 
 
 def test_token_bound_to_user_agent(base):
-    token = token_for(base)
+    token, cookies = token_for(base)
     headers = {**BROWSER_HEADERS, "user-agent": CHROME_UA.replace("120.0", "121.0"), "X-Aegis-Token": token}
-    result, _ = base.evaluate("POST", "/checkout", "198.51.100.10", headers, {})
+    result, _ = base.evaluate("POST", "/checkout", "198.51.100.10", headers, cookies)
     assert "token_user_agent_mismatch" in result.reason
     assert result.action == "challenge"
+
+
+def test_token_bound_to_session(base):
+    """A token copied out of one browser session into another client (same UA) is rejected."""
+    token, cookies = token_for(base)
+    headers = {**BROWSER_HEADERS, "X-Aegis-Token": token}
+    own, _ = base.evaluate("POST", "/checkout", "198.51.100.10", headers, cookies)
+    assert own.action == "allow"
+    stolen, _ = base.evaluate("POST", "/checkout", "203.0.113.5", headers, {})  # no or another session
+    assert "token_session_mismatch" in stolen.reason and stolen.action == "challenge"
+    other_session = base.sessions.get_or_create(None).id
+    stolen, _ = base.evaluate("POST", "/checkout", "203.0.113.5", headers, {"aegis_sid": other_session})
+    assert "token_session_mismatch" in stolen.reason
 
 
 def test_invalid_token_is_a_signal(base):

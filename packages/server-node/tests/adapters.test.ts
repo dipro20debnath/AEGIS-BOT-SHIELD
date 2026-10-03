@@ -13,10 +13,11 @@ describe('aegisGeneric (plain http)', () => {
 
   it('handles telemetry and protects paths', async () => {
     expect((await request(server).post('/buy').set(BROWSER_HEADERS)).status).toBe(403);
-    const t = await request(server).post('/aegis/telemetry').set(BROWSER_HEADERS)
+    const browser = request.agent(server);
+    const t = await browser.post('/aegis/telemetry').set(BROWSER_HEADERS)
       .set('content-type', 'application/json').send(JSON.stringify(telemetry()));
     expect(t.status).toBe(200);
-    const ok = await request(server).post('/buy').set({ ...BROWSER_HEADERS, 'x-aegis-token': t.body.token });
+    const ok = await browser.post('/buy').set({ ...BROWSER_HEADERS, 'x-aegis-token': t.body.token });
     expect(ok.text).toBe('ok');
   });
 });
@@ -31,7 +32,8 @@ describe('aegisFastify', () => {
     expect((await app.inject({ method: 'POST', url: '/buy', headers: BROWSER_HEADERS })).statusCode).toBe(403);
     const t = await app.inject({ method: 'POST', url: '/aegis/telemetry', headers: BROWSER_HEADERS, payload: telemetry() });
     expect(t.statusCode).toBe(200);
-    const ok = await app.inject({ method: 'POST', url: '/buy', headers: { ...BROWSER_HEADERS, 'x-aegis-token': t.json().token } });
+    const cookie = String(t.headers['set-cookie']).split(';')[0];
+    const ok = await app.inject({ method: 'POST', url: '/buy', headers: { ...BROWSER_HEADERS, cookie, 'x-aegis-token': t.json().token } });
     expect(ok.json()).toEqual({ bought: true });
     await app.close();
   });

@@ -1,95 +1,149 @@
-# AEGIS BOT SHIELD - Architecture Documentation
+# Architecture
 
-## System Overview
+How AEGIS BOT SHIELD is built and how a request is scored. Implementation
+decisions and their measured effects are recorded in
+[`docs/thesis/THESIS_NOTES.md`](thesis/THESIS_NOTES.md).
 
-AEGIS BOT SHIELD is a comprehensive, enterprise-grade bot defense framework designed to detect and mitigate automated threats across web, mobile, and API endpoints. 
-
-```text
-+-------------------+       +-------------------+       +-------------------+
-|                   |       |                   |       |                   |
-|   Client Device   |       |   Web Server /    |       |   AEGIS Engine    |
-|  (Browser/Mobile) |       |   API Gateway     |       |   (ML & Rules)    |
-|                   |       |                   |       |                   |
-+--------+----------+       +--------+----------+       +--------+----------+
-         |                           |                           |
-         | 1. Collect Telemetry      |                           |
-         |-------------------------->|                           |
-         |                           | 2. Forward Payload        |
-         |                           |-------------------------->|
-         |                           |                           | 3. Analyze Data
-         |                           |                           | (Rules + ML)
-         |                           |                           |
-         |                           | 4. Return Verdict         |
-         |                           |<--------------------------|
-         | 5. Allow / Block / CAPTCHA|                           |
-         |<--------------------------|                           |
-         |                           |                           |
-```
-
-## The 5-Layer Defense Model
-
-AEGIS utilizes a unique 5-layer defense architecture to provide maximum security with minimal false positives.
-
-### 1. Static Rule Engine (Layer 1)
-The first line of defense evaluates static HTTP headers, known bad IPs (via threat intelligence feeds), User-Agent signatures, and basic rate limiting. It operates in microseconds and filters out rudimentary volumetric attacks.
-
-### 2. Client Telemetry & Fingerprinting (Layer 2)
-The JavaScript SDK collects hardware, software, and browser-specific metrics (canvas, WebGL, audio context, font enumeration, screen resolution). This generates a robust device fingerprint capable of identifying headless browsers (Puppeteer, Selenium, Playwright).
-
-### 3. Behavioral Analysis (Layer 3)
-Tracks user interaction patterns such as mouse movements, keystroke dynamics, touch events, and scroll behavior. Bots often exhibit rigid, perfectly linear, or unnaturally fast interactions that deviate from human norms.
-
-### 4. Machine Learning Engine (Layer 4)
-A Random Forest / Gradient Boosting classifier trained on millions of labeled bot/human interactions. It evaluates a 50-dimensional feature vector in real-time, catching sophisticated hybrid bots that bypass the first three layers.
-
-### 5. Cryptographic Proof-of-Work (Layer 5)
-In high-risk scenarios (or when confidence scores are borderline), AEGIS issues a silent client-side computational challenge (Proof-of-Work). This imposes an economic cost on botnet operators while remaining invisible to legitimate users.
-
-## Data Flow (Client → Server → ML → Verdict)
-
-1. **Initialization:** The AEGIS JS SDK is injected into the client's HTML.
-2. **Telemetry Collection:** Upon user interaction (e.g., submitting a form), the SDK encrypts behavioral and fingerprint data into a `aegis-token`.
-3. **Transmission:** The token is sent to the backend server via HTTP headers or body payload.
-4. **Middleware Interception:** The AEGIS server middleware (Express, Flask, FastAPI) intercepts the request and extracts the token.
-5. **Decryption & Validation:** The token is decrypted (AES-256-GCM) and its HMAC signature verified.
-6. **Engine Analysis:** 
-    - The rule engine checks for static violations.
-    - The ML engine evaluates the feature vector and outputs a probability score (0.0 = Human, 1.0 = Bot).
-7. **Verdict Generation:** Based on configured thresholds, the engine returns a verdict: `ALLOW`, `BLOCK`, `CHALLENGE`, or `MONITOR`.
-8. **Enforcement:** The middleware enforces the verdict (e.g., returning a 403 Forbidden).
-
-## Package Structure
-
-The repository is organized into modular packages:
+## Components
 
 ```
-aegis-bot-shield/
-├── packages/
-│   ├── aegis-client/      # Client-side JavaScript SDK
-│   ├── aegis-core/        # Core detection logic, rules, and scoring
-│   ├── aegis-ml/          # Machine learning model training and inference
-│   ├── aegis-node/        # Express/Fastify/Node.js middleware
-│   ├── aegis-python/      # Django/Flask/FastAPI middleware
-│   └── aegis-dashboard/   # Real-time monitoring UI
-├── docs/                  # Project documentation
-├── examples/              # Integration examples
-└── tests/                 # Unit, integration, and E2E tests
+┌──────────────────────────── browser ────────────────────────────┐
+│ @aegis/js-sdk  collectors (mouse, keyboard, scroll, touch)      │
+│                headless + anti-detect checks, device signals   │
+│                proof-of-work solver (scrypt in WebAssembly)    │
+│                token handling (fetch/XHR interception)         │
+└───────────────┬──────────────────────────────────▲─────────────┘
+                │ telemetry, PoW, X-Aegis-Token    │ token, 403 challenge/block
+┌───────────────▼──── edge (optional) ─────────────┴─────────────┐
+│ @aegis/edge-cloudflare  token check, rate limit per IP          │
+└───────────────┬────────────────────────────────────────────────┘
+┌───────────────▼──────────────── origin ─────────────────────────┐
+│ Python: aegis_shield (FastAPI/Flask/Django)   Node: @aegis/server-node (Express/Fastify/http)
+│   request analyzer, input checks, sessions      AegisNode + @aegis/core DetectionEngine
+│   telemetry service, PoW, tokens                status API: REST, GraphQL, WebSocket, OpenAPI
+│   ML model in-process (optional)                ML via HTTP (optional)
+└──────┬───────────────────────────┬──────────────────────────────┘
+       │ features                  │ nonces, rate windows, sessions
+┌──────▼───────────┐       ┌───────▼──────┐        ┌───────────────────────┐
+│ aegis_ml service │       │ Redis        │        │ dashboard (React/Vite) │
+│ POST /predict    │       │ (optional)   │        │ ← REST + WebSocket     │
+└──────────────────┘       └──────────────┘        └───────────────────────┘
 ```
 
-## Core Modules
+| Package | Language | Role |
+|---|---|---|
+| `packages/js-sdk` | TypeScript | Browser SDK, built to `dist/aegis.min.js` (IIFE, global `Aegis`) |
+| `packages/server-python` | Python | `aegis_shield`: reference server middleware |
+| `packages/core` | TypeScript | `@aegis/core`: rule engine, crypto, PoW, input checks, store, QUIC parser |
+| `packages/server-node` | TypeScript | `@aegis/server-node`: Node middleware and status API |
+| `packages/edge-cloudflare` | TypeScript | Cloudflare Worker |
+| `packages/ml-engine` | Python | `aegis_ml`: features, models, training, evaluation, inference service |
+| `packages/dashboard` | TypeScript/React | Operator dashboard |
+| `contracts/` | JSON | `features.json` (50 ML features), `openapi.json` (HTTP API) — shared by all packages and enforced by tests |
 
-### `aegis-client`
-Handles execution environment checks (webdriver, CDP presence), event listener attachment, payload encryption, and PoW execution. Designed to be lightweight (< 20KB minified/gzipped).
+The two servers implement the same protocol (token format, endpoints,
+challenge, decisions) and are tested against each other (tokens issued by
+one verify in the other and in the edge worker).
 
-### `aegis-core`
-The central brain of the system. Maintains the state of active sessions, caches threat intelligence data, orchestrates the evaluation pipeline, and manages the rule configuration.
+## Request flow
 
-### `aegis-ml`
-Built with Python (scikit-learn/TensorFlow). Responsible for feature extraction, model training, hyperparameter tuning, and exporting models for inference (e.g., ONNX format for cross-language support).
+```
+browser                     server middleware                         app
+  │ GET /page                    │                                      │
+  │─────────────────────────────▶│ request signals → score → allow ────▶│
+  │◀──────────────────────────────────────────────────────────────── page + SDK
+  │ POST /aegis/telemetry        │
+  │─────────────────────────────▶│ features + request signals (+ ML) → score
+  │◀─────────────────────────────│ {token, verdict, score} + Set-Cookie aegis_sid
+  │ POST /api/login              │
+  │   X-Aegis-Token, cookie      │ verify token (signature, expiry, UA, session)
+  │─────────────────────────────▶│ fuse token score + request signals → decide
+  │                              ├── allow ───────────────────────────▶│
+  │◀── 403 challenge ────────────┤
+  │ GET/POST /aegis/challenge    │ scrypt proof of work → token (pow=1)
+  │ retry with new token ───────▶│ challenge → allow (never block → allow)
+```
 
-## Security Considerations
+## Signals
 
-- **Payload Encryption:** All client-to-server telemetry is encrypted using AES-256-GCM to prevent eavesdropping and reverse-engineering of the fingerprinting logic.
-- **Integrity Verification:** Payloads are signed with HMAC-SHA256. Any tampering invalidates the request immediately.
-- **Replay Protection:** Every payload includes a cryptographic nonce and a strict timestamp. Replayed tokens are rejected.
-- **Obfuscation:** The JS SDK undergoes aggressive minification, string obfuscation, and control flow flattening to deter static analysis by attackers.
+| Category | Examples | Where computed |
+|---|---|---|
+| network | datacenter/VPN/Tor IP, rate limits, residential-proxy heuristics | server (core `IPAnalyzer`, rate limiters; Python `ip_intel`, feeds) |
+| protocol | missing client hints, generic `Accept`, header order, TLS/HTTP2 fingerprints (Node, when available), QUIC (offline) | server |
+| behavioral | straight mouse paths, no tremor, uniform typing, programmatic scroll, session patterns (timer paging, ID enumeration, 4xx probing), honeypots | SDK statistics + server |
+| device | headless checks, anti-detect inconsistencies, WebGL/canvas | SDK |
+| reputation | threat lists (FireHOL, Spamhaus DROP, AbuseIPDB, Tor), known tool user agents | server |
+| payload | XSS/SQLi/CRLF/path traversal/prototype pollution patterns | server |
+| ML | probability from the ensemble on the 50-feature vector | ML model |
+
+## Scoring
+
+**Node (`@aegis/core` + `AegisNode`)**
+1. Within a category: weighted mean of `value × confidence` over its signals.
+2. Across categories: **noisy-OR**, `score = 100 · (1 − Π(1 − s_c/100))`, plus
+   boosts for decisive signals (e.g. headless).
+3. `AegisNode` fuses that engine score with the token's score, the anti-detect
+   score and the ML score, again by noisy-OR.
+
+**Python (`aegis_shield`)**
+1. Each request signal has a value 0–100; all are fused by noisy-OR.
+2. Telemetry: rule score and ML score fused by noisy-OR. The ML probability is
+   rescaled so the model's own decision threshold maps onto the challenge
+   threshold.
+
+**Decision** (both): `score ≥ block_threshold` (80) → block,
+`≥ challenge_threshold` (50) → challenge, else allow; `monitor` mode never
+denies. Then:
+- a solved proof of work turns *challenge* into *allow*, never *block*;
+- token-required paths need a token backed by telemetry;
+- tokens bound to another user agent or session count as risk, not as evidence.
+
+Noisy-OR treats layers as independent evidence: adding a layer can only raise
+the score. Correlated layers are over-counted; thresholds are hand-set and
+must be calibrated on real traffic (THESIS_NOTES §2.1, §2.4).
+
+## Tokens and sessions
+
+- **Token:** `AEGIS.v1.<AES-256-GCM sealed claims>.<HMAC-SHA256>`. Claims: `sid`,
+  `score`, `verdict`, `uah` (user-agent hash), `exp`, `iat`, `nonce`, plus `pow`/`tel`
+  after a challenge. Default lifetime 300 s.
+- **Session:** an HttpOnly `aegis_sid` cookie. The record holds request times,
+  paths, risk history and the latest telemetry score. Python uses a random id;
+  Node uses an HMAC-signed id. Records live in memory or Redis for 30 min of
+  inactivity.
+
+## State
+
+| State | In-process | With Redis |
+|---|---|---|
+| Spent challenge ids, signature nonces, single-use tokens | per process | shared, atomic `SET NX` |
+| Rate-limit windows | per process (Node also a token bucket) | shared sliding window (Lua, Redis clock) |
+| Sessions | per process | shared JSON values, last-writer-wins |
+| Stats, events, live feed | per process | per process |
+
+## ML
+
+The 50-feature contract (`contracts/features.json`) covers 5 SDK categories
+(mouse, keyboard, scroll, touch, fingerprint) and 2 server-side categories
+(session, network). The model is a stacked ensemble (XGBoost, RandomForest
+and logistic regression, combined by a logistic-regression meta-model) with a
+decision threshold tuned for a false-positive budget, served in-process
+(Python) or over HTTP. See
+[ML_MODEL_GUIDE.md](ML_MODEL_GUIDE.md).
+
+## Operator surfaces (Node)
+
+- **REST:** `/aegis/health`, `stats`, `events`, `config`, `verify`.
+- **GraphQL:** `/aegis/graphql`, read-only.
+- **WebSocket:** `/aegis/live`, batched events.
+- **OpenAPI and Swagger UI:** `/aegis/openapi.json`, `/aegis/docs`.
+- **Dashboard:** uses the WebSocket feed and falls back to REST polling.
+
+All of these describe your traffic and must sit behind authentication.
+
+## Edge
+
+The Cloudflare Worker verifies tokens with WebCrypto, using the same format
+and secret as the servers. It also rate-limits per IP and forwards to the
+origin with `X-Aegis-Edge`. ML scoring, telemetry and challenges stay at the
+origin.

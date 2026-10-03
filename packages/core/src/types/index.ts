@@ -4,7 +4,7 @@ export interface AegisConfig {
   siteKey: string;
   /** Secret key for token signing */
   secretKey: string;
-  /** Redis URL for distributed state */
+  /** @deprecated Not read. Pass `store: await createRedisStore(url)` to AegisNode instead. */
   redisUrl?: string;
   /** Protection mode */
   mode: 'monitor' | 'enforce' | 'strict';
@@ -18,11 +18,11 @@ export interface AegisConfig {
   rateLimiting: RateLimitConfig;
   /** IP intelligence configuration */
   ipIntelligence: IPIntelConfig;
-  /** Behavioral analysis configuration */
+  /** Behavioral analysis configuration (only `enabled` is read) */
   behavioral: BehavioralConfig;
-  /** Challenge configuration */
+  /** Challenge configuration (only `defaultType` is read; the PoW is configured on AegisNode `pow`) */
   challenges: ChallengeConfig;
-  /** Logging configuration */
+  /** Reserved: not read by the engine yet (see docs/configuration.md). */
   logging: LogConfig;
   /** Modules to enable/disable */
   modules: ModuleConfig;
@@ -40,19 +40,19 @@ export interface RateLimitConfig {
   perIpRefillRate: number;
   /** Per-endpoint limits */
   endpointLimits: Record<string, { maxRequests: number; windowMs: number }>;
-  /** Adaptive rate limiting */
+  /** Reserved: not read by the engine yet (see docs/configuration.md). */
   adaptive: { enabled: boolean; sensitivityFactor: number };
 }
 
 export interface IPIntelConfig {
   enabled: boolean;
-  /** Block known VPN providers */
+  /** Block known VPN providers. Reserved: not read by the engine yet (see docs/configuration.md). The matching signals are always scored. */
   blockVPN: boolean;
-  /** Block Tor exit nodes */
+  /** Block Tor exit nodes. Reserved: not read by the engine yet (see docs/configuration.md). The matching signals are always scored. */
   blockTor: boolean;
-  /** Block datacenter IPs */
+  /** Block datacenter IPs. Reserved: not read by the engine yet (see docs/configuration.md). The matching signals are always scored. */
   blockDatacenter: boolean;
-  /** Detect residential proxies */
+  /** Detect residential proxies. Reserved: not read by the engine yet (see docs/configuration.md). The matching signals are always scored. */
   detectResidentialProxy: boolean;
   /** Custom blocklist */
   blocklist: string[];
@@ -77,9 +77,9 @@ export interface IPIntelConfig {
 
 export interface BehavioralConfig {
   enabled: boolean;
-  /** Minimum signals before scoring */
+  /** Reserved: not read by the engine yet (see docs/configuration.md). */
   minSignals: number;
-  /** Signal weights for scoring */
+  /** Reserved: not read by the engine yet (see docs/configuration.md). */
   weights: {
     mouse: number;
     keyboard: number;
