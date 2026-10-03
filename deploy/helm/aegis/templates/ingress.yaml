@@ -1,0 +1,35 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "aegis.fullname" . }}
+  labels:
+    {{- include "aegis.labels" (dict "root" . "component" "ingress") | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    {{- $port := get (dict "api-python" 8000 "api-node" 3000 "dashboard" 8080) .service }}
+    {{- if not $port }}{{ fail (printf "ingress.hosts[].service must be api-python, api-node or dashboard, not %q" .service) }}{{ end }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          - path: {{ .path | default "/" }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "aegis.name" (dict "root" $ "component" .service) }}
+                port:
+                  number: {{ $port }}
+    {{- end }}
+{{- end }}

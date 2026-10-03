@@ -1,0 +1,78 @@
+{{- if .Values.apiPython.enabled }}
+{{- $name := include "aegis.name" (dict "root" . "component" "api-python") }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "aegis.labels" (dict "root" . "component" "api-python") | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.apiPython.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "aegis.selectorLabels" (dict "root" . "component" "api-python") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "aegis.selectorLabels" (dict "root" . "component" "api-python") | nindent 8 }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- include "aegis.prometheusAnnotations" (dict "root" . "port" 8000) | nindent 8 }}
+    spec:
+      {{- include "aegis.podSpecCommon" . | nindent 6 }}
+      {{- include "aegis.podSecurity" (dict "root" . "uid" 10001) | nindent 6 }}
+      containers:
+        - name: api-python
+          image: {{ include "aegis.image" (dict "root" . "component" "api-python") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            {{- include "aegis.commonEnv" . | nindent 12 }}
+            {{- with include "aegis.redisUrl" (dict "root" . "db" .Values.apiPython.redisDb) }}
+            - name: AEGIS_REDIS_URL
+              value: {{ . | quote }}
+            {{- end }}
+            - name: AEGIS_METRICS_PATH
+              value: /aegis/metrics
+            - name: AEGIS_RATE_LIMIT
+              value: {{ .Values.apiPython.rateLimit | quote }}
+          ports:
+            - { name: http, containerPort: 8000 }
+          # The model loads at startup
+          startupProbe:
+            httpGet: { path: /aegis/health, port: http }
+            periodSeconds: 2
+            failureThreshold: 60
+          # Not ready (503) while the shared store is unreachable; alive regardless
+          readinessProbe:
+            httpGet: { path: /aegis/ready, port: http }
+            periodSeconds: 5
+            failureThreshold: 2
+          livenessProbe:
+            httpGet: { path: /aegis/health, port: http }
+            periodSeconds: 15
+            failureThreshold: 4
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.apiPython.resources | nindent 12 }}
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "aegis.labels" (dict "root" . "component" "api-python") | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "aegis.selectorLabels" (dict "root" . "component" "api-python") | nindent 4 }}
+  ports:
+    - { name: http, port: 8000, targetPort: http }
+{{- end }}

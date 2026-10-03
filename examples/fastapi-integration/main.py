@@ -12,7 +12,9 @@ and adds the returned token to the login request. /api/login requires a
 valid token, so a plain `curl -X POST /api/login` is challenged.
 Set AEGIS_ML_MODEL_PATH to a trained model to add ML scoring.
 """
+import json
 import os
+import threading
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -28,10 +30,21 @@ config = get_config()
 config["site_key"] = config["site_key"] or "demo-site"
 config["secret_key"] = config["secret_key"] or os.urandom(16).hex()
 
+# AEGIS_RECORD_FILE=decisions.jsonl: append every scored telemetry record (features,
+# signals, score) for analysis, e.g. the bot tests in bots/. No IPs or user agents.
+_record_lock = threading.Lock()
+
+
+def _record(record):
+    with _record_lock, open(os.environ["AEGIS_RECORD_FILE"], "a", encoding="utf-8") as f:
+        f.write(json.dumps(record) + "\n")
+
+
 app = FastAPI(title="AEGIS BOT SHIELD - FastAPI Example")
 app.add_middleware(
     AegisFastAPIMiddleware,
     **config,
+    on_record=_record if os.getenv("AEGIS_RECORD_FILE") else None,
     require_token_paths=["/api/login"],
     excluded_paths=["/health", "/sdk", "/docs", "/openapi.json"],
 )

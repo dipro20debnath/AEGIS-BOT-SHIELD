@@ -15,7 +15,8 @@ import itertools
 import os
 import threading
 import time
-from typing import Dict, List, Optional, Protocol, Tuple
+from collections import OrderedDict
+from typing import Any, Callable, List, Optional, Protocol, Tuple
 
 #: Hits kept per window key; beyond this the count saturates instead of growing
 MAX_HITS_PER_KEY = 10_000
@@ -36,30 +37,39 @@ class Store(Protocol):
 
 
 class MemoryStore:
-    """In-process store (thread-safe)."""
+    """In-process store (thread-safe).
 
-    def __init__(self) -> None:
-        self._once: Dict[str, float] = {}
-        self._windows: Dict[str, List[float]] = {}
-        self._values: Dict[str, Tuple[str, float]] = {}
+    Each kind of key (single-use claims, rate windows, values) is kept least
+    recently used first and capped at `max_keys`: a client rotating source IPs
+    would otherwise grow the rate windows for an hour. Every write drops a few
+    expired keys from the front and, at the cap, the least recently used one,
+    all O(1) (a periodic full rebuild paused requests for up to 56 ms).
+    """
+
+    def __init__(self, max_keys: int = 100_000) -> None:
+        self.max_keys = max(1, max_keys)
+        self._once: "OrderedDict[str, float]" = OrderedDict()
+        self._windows: "OrderedDict[str, List[float]]" = OrderedDict()
+        self._values: "OrderedDict[str, Tuple[str, float]]" = OrderedDict()
         self._lock = threading.Lock()
-        self._ops = 0
 
     def claim_once(self, key: str, ttl_seconds: float) -> bool:
         now = time.time()
         with self._lock:
-            self._maybe_cleanup(now)
-            expires = self._once.get(key)
+            expires = self._once.pop(key, None)
             if expires is not None and expires > now:
+                self._once[key] = expires
                 return False
+            self._make_room(self._once, lambda v: v <= now)
             self._once[key] = now + ttl_seconds
             return True
 
     def hit(self, key: str, window_seconds: float) -> int:
         now = time.time()
         with self._lock:
-            self._maybe_cleanup(now)
-            hits = [t for t in self._windows.get(key, []) if t > now - window_seconds]
+            previous = self._windows.pop(key, None)
+            self._make_room(self._windows, lambda v: not v or v[-1] <= now - 3600)
+            hits = [t for t in previous or [] if t > now - window_seconds]
             hits.append(now)
             self._windows[key] = hits[-MAX_HITS_PER_KEY:]
             return len(self._windows[key])
@@ -75,20 +85,23 @@ class MemoryStore:
             return entry[0]
 
     def set(self, key: str, value: str, ttl_seconds: float) -> None:
+        now = time.time()
         with self._lock:
-            self._maybe_cleanup(time.time())
-            self._values[key] = (value, time.time() + ttl_seconds)
+            self._values.pop(key, None)
+            self._make_room(self._values, lambda v: v[1] <= now)
+            self._values[key] = (value, now + ttl_seconds)
 
     def close(self) -> None:
         pass
 
-    def _maybe_cleanup(self, now: float) -> None:
-        self._ops += 1
-        if self._ops % 10_000:
-            return
-        self._once = {k: v for k, v in self._once.items() if v > now}
-        self._values = {k: v for k, v in self._values.items() if v[1] > now}
-        self._windows = {k: v for k, v in self._windows.items() if v and v[-1] > now - 3600}
+    def _make_room(self, entries: "OrderedDict[str, Any]", expired: Callable[[Any], bool]) -> None:
+        """Before an insert: drop up to 8 expired entries from the front, then the oldest beyond the cap."""
+        for _ in range(8):
+            if not entries or not expired(next(iter(entries.values()))):
+                break
+            entries.popitem(last=False)
+        while len(entries) >= self.max_keys:
+            entries.popitem(last=False)
 
 
 # Sliding-window log in a sorted set, scored by the Redis server's clock (ms)

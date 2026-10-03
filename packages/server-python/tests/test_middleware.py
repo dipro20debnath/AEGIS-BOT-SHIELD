@@ -100,7 +100,7 @@ def test_rejects_short_secret():
 
 # --- framework adapters --------------------------------------------------------
 
-def test_fastapi_adapter():
+def test_fastapi_adapter(human_pace):
     pytest.importorskip("fastapi")
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
@@ -129,7 +129,7 @@ def test_fastapi_adapter():
     assert blocked.status_code == 403 and blocked.json() == {"aegis": "block"}
 
 
-def test_flask_adapter():
+def test_flask_adapter(human_pace):
     pytest.importorskip("flask")
     from flask import Flask
     from aegis_shield import AegisFlaskMiddleware
@@ -150,7 +150,7 @@ def test_flask_adapter():
     assert ok.status_code == 200 and ok.get_json() == {"paid": True}
 
 
-def test_django_adapter():
+def test_django_adapter(human_pace):
     pytest.importorskip("django")
     import django
     from django.conf import settings

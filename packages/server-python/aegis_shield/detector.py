@@ -102,6 +102,30 @@ class RequestAnalyzer:
         return None
 
 
+def claimed_interaction_seconds(features: Dict[str, Dict[str, float]]) -> float:
+    """Shortest time the reported behaviour can have taken: the typing span, or the
+    mouse pauses alone (count x mean pause). Same rule as the Node server."""
+    kb = features.get("keyboard", {})
+    mouse = features.get("mouse", {})
+    typing = float(kb.get("kb_total_duration", 0) or 0)
+    pauses = float(mouse.get("mouse_pause_count", 0) or 0) * float(mouse.get("mouse_avg_pause_duration", 0) or 0) / 1000
+    return max(typing, pauses)
+
+
+def timing_signals(features: Dict[str, Dict[str, float]], elapsed_seconds: float, session_seen_before: bool) -> List[Signal]:
+    """Telemetry claiming more interaction time than has passed since the session's first
+    request is impossible for a real browser (the SDK measures from page load).
+
+    Only applied when the session existed before this telemetry: if the page came from a
+    CDN or an unprotected path, the telemetry itself may be the first request."""
+    if not session_seen_before:
+        return []
+    claimed = claimed_interaction_seconds(features)
+    if claimed > elapsed_seconds * 1.1 + 2.0:
+        return [("telemetry.impossible_timing", 75)]
+    return []
+
+
 def behavior_signals(features: Dict[str, Dict[str, float]], headless_checks: Iterable[str] = ()) -> List[Signal]:
     """
     Rule-based checks on SDK features (contracts/features.json keys); the Python

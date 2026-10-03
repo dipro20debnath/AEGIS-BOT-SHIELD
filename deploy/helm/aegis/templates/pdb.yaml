@@ -1,0 +1,19 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+{{- range $component := list "api-python" "api-node" }}
+{{- $values := ternary $.Values.apiPython $.Values.apiNode (eq $component "api-python") }}
+{{- if and $values.enabled (or $.Values.autoscaling.enabled (gt (int $values.replicas) 1)) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "aegis.name" (dict "root" $ "component" $component) }}
+  labels:
+    {{- include "aegis.labels" (dict "root" $ "component" $component) | nindent 4 }}
+spec:
+  minAvailable: {{ $.Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "aegis.selectorLabels" (dict "root" $ "component" $component) | nindent 6 }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,27 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- range $component := list "redis" "ml" }}
+{{- if (index $.Values $component).enabled }}
+---
+# Only the API servers reach {{ $component }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "aegis.name" (dict "root" $ "component" $component) }}
+  labels:
+    {{- include "aegis.labels" (dict "root" $ "component" $component) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "aegis.selectorLabels" (dict "root" $ "component" $component) | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - { key: app.kubernetes.io/instance, operator: In, values: [{{ $.Release.Name | quote }}] }
+              - { key: app.kubernetes.io/component, operator: In, values: [api-python, api-node] }
+      ports:
+        - port: {{ ternary 6379 8001 (eq $component "redis") }}
+{{- end }}
+{{- end }}
+{{- end }}

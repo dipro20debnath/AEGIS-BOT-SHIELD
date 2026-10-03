@@ -119,6 +119,8 @@ export function attachLiveFeed(server: Server, aegis: AegisNode, options: LiveFe
       return reject(socket, 500, 'Internal Server Error');
     }
     wss.handleUpgrade(req, socket, head, ws => {
+      aegis.metrics.liveClients.set(wss.clients.size);
+      ws.on('close', () => aegis.metrics.liveClients.set(wss.clients.size));
       alive.set(ws, true);
       ws.on('pong', () => alive.set(ws, true));
       ws.on('message', () => { /* the feed is one-way; client messages are ignored */ });
