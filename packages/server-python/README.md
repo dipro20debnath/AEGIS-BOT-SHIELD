@@ -1,67 +1,69 @@
-# Aegis Bot Shield - Python SDK
+# aegis-server-python (`aegis_shield`)
 
-Middleware for Django, Flask and FastAPI/Starlette.
+Reference server middleware of [AEGIS BOT SHIELD](https://github.com/dipro20debnath/AEGIS-BOT-SHIELD/blob/main/README.md) for
+FastAPI/Starlette, Flask and Django.
 
 ## How it works
 
-1. The browser SDK (`packages/js-sdk`, `aegis.min.js`) collects behavioural
-   telemetry and POSTs it to `/aegis/telemetry`. The middleware answers this
-   endpoint itself: it adds server-side session and network features, scores
-   the 50-feature vector (rules, plus the ML model if configured), and returns
-   a signed token (`AEGIS.v1...`, AES-256-GCM + HMAC-SHA256, same format as the
-   Node core) carrying the score and bound to the user agent.
+1. The browser SDK (`aegis.min.js`) collects behavioural statistics and posts
+   them to `/aegis/telemetry`. The middleware answers this endpoint itself: it
+   adds session and network features, scores the 50-feature vector (rules,
+   plus the ML model if configured) and returns a token (`AEGIS.v1…`,
+   AES-256-GCM + HMAC-SHA256, same format as the Node server) bound to the
+   user agent and the `aegis_sid` session.
 2. The SDK adds the token as `X-Aegis-Token` to the site's own requests.
-3. On every protected request the middleware verifies the token and combines
-   its score with request-level signals (user agent, headers) using noisy-OR,
-   then allows, challenges (403 `{"aegis": "challenge"}`) or blocks.
+3. On every protected request the middleware fuses the token's score with
+   request-level signals (headers, IP, input patterns, session patterns,
+   rate limits) by noisy-OR, then allows, challenges (`403 {"aegis": "challenge"}`)
+   or blocks. A challenge is answered by a memory-hard proof of work.
 
-Paths in `require_token_paths` (e.g. login, checkout) are challenged when
-there is no valid token; elsewhere a missing token is not penalised, so first
-page loads, API clients and search engines are not blocked by default.
+Paths in `require_token_paths` (login, checkout, …) need a token backed by
+telemetry; elsewhere a missing token is not penalised.
 
 ## Usage (FastAPI)
 
+```bash
+pip install "aegis-server-python[fastapi]"          # [flask], [django]; [redis] for several workers
+```
+
 ```python
+import os
 from fastapi import FastAPI
-from aegis_shield import AegisFastAPIMiddleware
+from aegis_shield import AegisFastAPIMiddleware, add_aegis_openapi
 
 app = FastAPI()
 app.add_middleware(
     AegisFastAPIMiddleware,
-    site_key="your_site_key",
-    secret_key="at-least-16-characters-secret",
+    site_key="my-site",
+    secret_key=os.environ["AEGIS_SECRET_KEY"],   # >= 16 characters
+    mode="monitor",                              # "enforce" after reviewing decisions
     require_token_paths=["/api/login", "/api/checkout"],
-    ml_model_path="models/bot_classifier.pkl",  # optional
+    redis_url=os.environ.get("AEGIS_REDIS_URL"), # shared state for several workers
 )
+add_aegis_openapi(app)                           # /docs lists the AEGIS endpoints
 ```
 
 ```html
-<script src="/sdk/aegis.min.js" data-site-key="your_site_key"></script>
+<script src="/static/aegis.min.js" data-site-key="my-site"></script>
 ```
 
 Flask: `AegisFlaskMiddleware(app, site_key=..., secret_key=...)`.
 Django: add `"aegis_shield.AegisDjangoMiddleware"` to `MIDDLEWARE` and set
-`AEGIS = {"site_key": ..., "secret_key": ...}` in settings.
+`AEGIS = {"site_key": ..., "secret_key": ...}`.
 
-Full examples: `examples/fastapi-integration`, `examples/python-flask`.
+## Documentation
 
-## Options
-
-| Option | Default | Meaning |
-|--------|---------|---------|
-| `mode` | `enforce` | `monitor` never blocks (verdict `monitor`) |
-| `require_token_paths` | `[]` | Path prefixes that need a valid token |
-| `protected_paths` / `excluded_paths` | all / `/health`, `/favicon.ico` | Which paths are analysed |
-| `block_threshold` / `challenge_threshold` | 80 / 50 | Risk score cut-offs (0-100) |
-| `token_ttl` | 300 | Token lifetime (s) |
-| `ml_model_path` / `ml_url` | none | Local model pickle or ML service URL |
-| `trusted_proxies` | `[]` | Proxies whose `X-Forwarded-For` is trusted |
-| `verify_search_engines` | `False` | Confirm Googlebot/Bingbot via reverse DNS (blocking lookups) |
-| `on_record` | none | Callback receiving each scored telemetry record (no IP or UA) |
+- [Getting started](https://github.com/dipro20debnath/AEGIS-BOT-SHIELD/blob/main/docs/getting-started.md)
+- [All options](https://github.com/dipro20debnath/AEGIS-BOT-SHIELD/blob/main/docs/configuration.md#python-server-aegis_shield) and environment variables
+- [Integration guide](https://github.com/dipro20debnath/AEGIS-BOT-SHIELD/blob/main/docs/INTEGRATION_GUIDE.md) (proxies, CORS, Redis, edge, rollout)
+- [HTTP API (OpenAPI)](https://github.com/dipro20debnath/AEGIS-BOT-SHIELD/blob/main/contracts/openapi.json)
+- [Security model and limits](https://github.com/dipro20debnath/AEGIS-BOT-SHIELD/blob/main/docs/security-whitepaper.md)
 
 ## Tests
 
 ```bash
 pip install -e "packages/server-python[test]"
-pytest packages/server-python/tests
+pytest packages/server-python/tests        # AEGIS_TEST_REDIS_URL=redis://... adds the live-Redis cases
 ```
+
+Python ≥ 3.9 (tested on 3.10–3.12). MIT licence.
