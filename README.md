@@ -30,6 +30,7 @@ decides per request: **allow, monitor, challenge or block**.
 - [How it works](#how-it-works)
 - [Repository layout](#repository-layout)
 - [Quick start: demo in 5 minutes](#quick-start-demo-in-5-minutes)
+- [Run everything with Docker](#run-everything-with-docker)
 - [Add it to your own site](#add-it-to-your-own-site)
 - [Configuration](#configuration)
 - [Endpoints](#endpoints)
@@ -176,6 +177,35 @@ uvicorn main:app --app-dir examples/fastapi-integration --port 8000
   API for the dashboard.
 
 ---
+
+## Run everything with Docker
+
+Requirements: Docker with Compose v2. No Node or Python installation is needed.
+
+```bash
+cp .env.example .env
+# put a random secret into .env, e.g. AEGIS_SECRET_KEY=$(python -c "import secrets; print(secrets.token_hex(16))")
+docker compose up --build
+```
+
+| URL | Service | What to try |
+|---|---|---|
+| http://localhost:8000 | `api-python`: FastAPI demo, reference server, ML model in-process | log in with `demo` / `demo` |
+| http://localhost:3000 | `api-node`: Express demo, Node server, ML via the `ml` service | log in with `admin` / `password` |
+| http://localhost:8080 | `dashboard`: live stats of the Express server | refresh after a few logins |
+
+How the stack is set up:
+- **`ml`** (inference service) is internal only. Its `/train` endpoint has no
+  authentication, so it is not published to the host.
+- **The bundled model is trained on synthetic data** while the image is built.
+  It demonstrates the pipeline; it is not a production model.
+- **Build a single image:** `docker build --target api-python -t aegis/api-python .`
+  The other targets are `api-node`, `ml` and `dashboard`.
+- **Behind a TLS-intercepting proxy** (corporate network), pass the proxy's CA
+  for the downloads during the build:
+  `docker build --secret id=extra_ca,src=proxy-ca.pem ...`
+- **State is in memory,** so run one replica per service until the Redis
+  backend (roadmap) is added.
 
 ## Add it to your own site
 
