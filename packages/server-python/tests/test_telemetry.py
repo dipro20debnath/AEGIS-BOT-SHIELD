@@ -50,7 +50,7 @@ def test_feature_vector_has_all_50_features(base):
     (json.dumps({"v": 1}).encode(), 400),
     (telemetry_body(site_key="wrong-site"), 403),
     (b"x" * (64 * 1024 + 1), 413),
-])
+], ids=["not-json", "missing-fields", "wrong-site-key", "too-large"])  # short ids: pytest puts the id in an env var (32,767-char limit on Windows)
 def test_rejects_bad_telemetry(base, body, status):
     assert base.handle_telemetry(body, "1.2.3.4", BROWSER_HEADERS, {}).status == status
 
