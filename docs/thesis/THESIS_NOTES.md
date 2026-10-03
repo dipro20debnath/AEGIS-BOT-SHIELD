@@ -36,8 +36,8 @@
 | Data-collection website | Phase G | — | — |
 
 Phase B progress (2026-10-03): B1 security layer, B2 live feeds + session
-patterns, B3 anti-detect + WebGPU + memory-hard challenge done. Core 110 tests,
-SDK 45, Node 23, Python 77, ML 31, e2e 5.
+patterns, B3 anti-detect + WebGPU + memory-hard challenge, B4 QUIC fingerprint
+parser done. Core 123 tests, SDK 45, Node 23, Python 77, ML 31, e2e 5.
 
 Before Phase A (2026-10-02 audit): only the ML engine worked; core/SDK/Node did
 not compile, no layer called another, the SDK sent no behavioural data, and the
@@ -298,6 +298,62 @@ fingerprinting papers appeared from 2023 on.
   credential-stuffing attempts at 16 x 13.7 ms is about 61 CPU-hours. That is an
   economic deterrent for mass automation, not a defence against a single
   targeted bot.
+
+### 2.8 QUIC (HTTP/3) client fingerprinting (2026-10-03, Phase B4)
+`packages/core/src/modules/fingerprint/quic.ts`, `QUICFingerprinter.ts`, `pcap.ts`.
+- **Why it is possible:** a client's QUIC Initial packets are encrypted with keys
+  derived only from the Destination Connection ID in the clear (RFC 9001 §5.2).
+  Any on-path observer can decrypt them. The parser does this:
+  1. HKDF key derivation (QUIC v1 and v2);
+  2. header-protection removal;
+  3. AES-128-GCM decryption;
+  4. CRYPTO-frame reassembly by offset;
+  5. TLS ClientHello parsing.
+- **Outputs:**
+  - JA4 with protocol `q` (FoxIO JA4 spec);
+  - a QUIC transport-parameter fingerprint (sorted ids plus integer values;
+    GREASE ids removed);
+  - SNI, ALPN, key-share groups;
+  - a stack guess: chromium, library or unknown.
+- **Verified against the standards:** the derived keys equal **RFC 9001 Appendix
+  A.1**, and the header-protection mask equals A.2. The QUIC v2 keys equal **RFC 9369 A.1**.
+- **Real captures (fixtures):**
+  - **Chromium 141:** 6 UDP datagrams from headless Chromium. The 1.7 KB
+    ClientHello (X25519MLKEM768 post-quantum key share, `0x11ec`) is spread over
+    5 Initial packets and **35 CRYPTO frames in shuffled order**. This is Chrome's
+    deliberate "chaos protection" against ossified middleboxes, so offset-based
+    reassembly is required. Chromium traits seen:
+    - `google_version` transport parameter `0x4752`;
+    - a GREASE transport parameter with a 62-bit id;
+    - the ALPS extension `0x44cd`.
+  - **aioquic 1.3.0 (Python):** the ClientHello fits in 1 packet;
+    JA4 `q13d0307h3_55b375c5d22e_1cecd519fee8`; transport parameters
+    sorted ascending; no GREASE.
+  - **How they differ:** the two share the TLS 1.3 cipher hash. They differ in
+    the extensions/signature-algorithms hash, the transport-parameter set and
+    values, and the presence of GREASE. That is enough to tell a Python HTTP/3
+    bot that claims a Chrome user agent apart from Chrome: rule signal
+    `quic.ua_mismatch` (75) plus `quic.library_client` (70).
+- **Bug found:** Chrome's GREASE transport-parameter ids are 62-bit numbers.
+  JavaScript numbers lose precision above 2^53, so the RFC 9000 GREASE test
+  (31·N + 27) failed. It now uses BigInt.
+- **Deployment limit (must be stated):**
+  - Node never sees QUIC packets. HTTP/3 is terminated by the reverse proxy or
+    CDN (nginx, Caddy, Cloudflare), and none of them exposes the transport
+    parameters.
+  - So this is a **passive sensor**: offline from a packet capture
+    (`tcpdump -w quic.pcap udp port 443` →
+    `node packages/core/scripts/quic-fingerprint.mjs quic.pcap`), or live from a
+    UDP tap or port mirror feeding `QuicInitialAssembler`.
+  - Joining a fingerprint to an HTTP request needs the client IP and port from
+    the proxy. Behind a CDN, the CDN's own QUIC client is what you see.
+- **Gaps:**
+  - Only 2 client stacks captured (Chromium and aioquic). In November, also
+    capture Firefox (neqo), Safari, curl (ngtcp2/quiche) and quic-go before
+    claiming generality.
+  - The Chromium capture targeted an IP literal, so it has no SNI (JA4 `i`
+    instead of `d`). Hostname resolution was not available in the sandbox.
+  - pcapng and IPv6 extension headers are not parsed.
 
 ## 3. Contributions — what can honestly be claimed
 
