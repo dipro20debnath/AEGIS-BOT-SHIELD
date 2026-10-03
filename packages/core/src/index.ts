@@ -55,3 +55,14 @@ export { BotBehaviorAnalyzer, classifyRequest, longestSequentialRun } from './mo
 export type { BotBehaviorOptions, RequestKind } from './modules/session/BotBehaviorAnalyzer.js';
 export { MemoryHardChallenger, POW_PREFIX } from './security/MemoryHardChallenge.js';
 export type { PowChallenge, PowVerifyResult, MemoryHardOptions } from './security/MemoryHardChallenge.js';
+
+// QUIC (HTTP/3) fingerprinting
+export { QUICFingerprinter, QuicInitialAssembler, fingerprintQuicDatagrams, KNOWN_QUIC_CLIENTS } from './modules/fingerprint/QUICFingerprinter.js';
+export type { QuicFingerprint, QuicStack } from './modules/fingerprint/QUICFingerprinter.js';
+export {
+  clientInitialKeys, decryptInitialPackets, cryptoFrames, reassembleClientHello, parseClientHello, ja4,
+  transportParameterFingerprint, QUIC_V1, QUIC_V2,
+} from './modules/fingerprint/quic.js';
+export type { ClientHello, TransportParameter, InitialPacket } from './modules/fingerprint/quic.js';
+export { readPcapUdp, writePcapUdp } from './modules/fingerprint/pcap.js';
+export type { UdpDatagram } from './modules/fingerprint/pcap.js';
