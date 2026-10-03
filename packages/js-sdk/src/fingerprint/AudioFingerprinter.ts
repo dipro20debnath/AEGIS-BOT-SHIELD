@@ -26,7 +26,7 @@ export class AudioFingerprinter {
             const buffer = await ctx.startRendering();
             const samples = buffer.getChannelData(0).slice(4500, 5000);
             return await this.sha256(Array.from(samples, v => v.toFixed(6)).join(','));
-        } catch (e) {
+        } catch {
             return 'error';
         }
     }

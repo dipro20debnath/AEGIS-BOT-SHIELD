@@ -1,6 +1,14 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --color-aegis-dark: #0a0a0f;
+  --color-aegis-panel: #15151e;
+  --color-aegis-blue: #1d4ed8;
+  --color-aegis-green: #00ff88;
+  --color-aegis-red: #ff3366;
+  --color-aegis-text: #f4f4f5;
+  --color-aegis-muted: #a1a1aa;
+}
 
 body {
   margin: 0;

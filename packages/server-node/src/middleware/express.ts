@@ -57,7 +57,7 @@ export function aegisExpress(options: AegisExpressOptions, shared?: AegisNode) {
         return;
       }
       next();
-    } catch (error) {
+    } catch {
       // Fail open: a detection error must never take the site down
       next();
     }

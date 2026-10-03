@@ -128,7 +128,7 @@ export class Logger {
 
     // Call custom handlers
     for (const handler of Logger.handlers) {
-      try { handler(entry); } catch (_) { /* ignore handler errors */ }
+      try { handler(entry); } catch { /* ignore handler errors */ }
     }
 
     if (Logger.structured) {
