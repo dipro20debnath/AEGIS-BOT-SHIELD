@@ -44,7 +44,6 @@ def test_leave_one_type_out_holds_out_each_bot_type(small_data):
 
 
 def test_shap_explanations_are_exact_and_name_features(small_data):
-    pytest.importorskip('shap')
     from aegis_ml.evaluation.explain import ShapExplainer
     X, y, _ = small_data
     clf = BotClassifier()
@@ -55,11 +54,16 @@ def test_shap_explanations_are_exact_and_name_features(small_data):
     assert np.allclose(sv.sum(1) + e.expected_value, margin, atol=1e-3)  # additivity
     top = e.explain(X[0], top_k=3)
     assert len(top) == 3 and abs(top[0]['shap']) >= abs(top[1]['shap']) >= abs(top[2]['shap'])
+    try:  # cross-check against the independent `shap` package when it is installed
+        import shap
+        ref = shap.TreeExplainer(clf.models['xgboost']).shap_values(clf.scaler.transform(X[:20]))
+        assert np.allclose(np.asarray(ref), sv, atol=1e-3)
+    except (ImportError, ValueError):
+        pass  # old shap releases cannot read the XGBoost 3 model format
     assert set(e.group_importance(X)) == {'mouse', 'keyboard', 'scroll', 'touch', 'session', 'network', 'fingerprint'}
 
 
 def test_inference_engine_explain(tmp_path, small_data):
-    pytest.importorskip('shap')
     from aegis_ml.inference.inference import InferenceEngine
     from aegis_ml.training.synthetic_generator import SyntheticDataGenerator
     X, y, _ = small_data

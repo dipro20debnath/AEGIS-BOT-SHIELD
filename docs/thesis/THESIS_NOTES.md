@@ -431,7 +431,8 @@ Report, figures and JSON: `docs/thesis/results/phase_c/`. **All data is syntheti
   behavioural features alone. This is the quantitative argument for the
   non-behavioural layers (session patterns, IP reputation, proof of work): RQ3.
 
-**C2 SHAP** (TreeSHAP on the XGBoost component; exact, additivity error 5e-6;
+**C2 SHAP** (TreeSHAP on the XGBoost component, computed with XGBoost's
+built-in `pred_contribs`, which matches the `shap` package; exact, additivity error 5e-6;
 1.8 ms per explanation):
 - **Network features dominate** (`ip_reputation` mean |SHAP| 2.78), then
   `headless_confidence` 1.60, then `session_reputation` 0.83.

@@ -83,7 +83,7 @@ class InferenceEngine:
 
     def explain(self, request_data: Dict[str, Any], top_k: int = 5) -> Optional[List[Dict[str, float]]]:
         """Top features behind the score of one request (SHAP values of the XGBoost
-        component, see aegis_ml.evaluation.explain). None without a model or shap."""
+        component, see aegis_ml.evaluation.explain). None without a model or its XGBoost component."""
         if not self.is_loaded:
             return None
         if self._explainer is None:
