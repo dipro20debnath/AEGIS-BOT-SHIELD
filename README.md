@@ -43,6 +43,7 @@ decides per request: **allow, monitor, challenge or block**.
 - [Testing](#testing)
 - [Privacy](#privacy)
 - [Limitations](#limitations)
+- [Documentation](#documentation)
 - [Roadmap and thesis documents](#roadmap-and-thesis-documents)
 
 ---
@@ -100,6 +101,8 @@ never blocks, so you can see what it would do before you enforce it.
   A bare `curl` is challenged.
 - **Proof of work** answers a "challenge". It never lifts a "block", and on its
   own it does not replace behavioural telemetry on token-required paths.
+- **Tokens are bound** to the browser's user agent and its `aegis_sid` session
+  cookie, so a token copied into another client is ignored.
 
 ---
 
@@ -114,7 +117,7 @@ never blocks, so you can see what it would do before you enforce it.
 | `packages/edge-cloudflare` | Cloudflare Worker: token check and rate limiting at the edge, in front of either server. |
 | `packages/ml-engine` | `aegis_ml`: feature extractor, synthetic data generator, RandomForest + XGBoost ensemble, training and threshold tuning, HTTP inference service. |
 | `packages/dashboard` | React + Vite dashboard: live stats from the Node status API, ML results. |
-| `contracts/features.json` | The 50-feature contract shared by the SDK, servers and ML engine. Tests in TS and Python enforce it. |
+| `contracts/` | `features.json`: the 50-feature contract shared by the SDK, servers and ML engine. `openapi.json`: the HTTP API of both servers. Tests in TS and Python enforce both. |
 | `examples/` | Runnable demos: `fastapi-integration`, `python-flask`, `express-integration`, `html-basic`. |
 | `e2e/` | Playwright end-to-end tests: real Chromium → SDK → Python server → ML. |
 | `loadtest/` | Load generator and scenarios (throughput, p50/p95/p99, memory). |
@@ -421,6 +424,11 @@ The Node options mirror the Python ones in camelCase:
 
 ## Endpoints
 
+The full contract is [`contracts/openapi.json`](contracts/openapi.json)
+(OpenAPI 3.1, tested against both servers). The Node server serves it at
+`/aegis/openapi.json` with Swagger UI at `/aegis/docs`; in FastAPI,
+`add_aegis_openapi(app)` adds these endpoints to `/docs`.
+
 These are answered by the middleware itself:
 
 | Method and path | Purpose |
@@ -440,6 +448,7 @@ Node status API (`aegisRoutes`), meant for the dashboard. **Put it behind authen
 | `POST /aegis/verify` | Verify a token from another backend |
 | `GET, POST /aegis/graphql` | Read-only GraphQL over the same data ([details](#graphql)) |
 | `WS /aegis/live` | WebSocket live feed of decisions, when `attachLiveFeed` is used ([details](#websocket-live-feed)) |
+| `GET /aegis/openapi.json`, `GET /aegis/docs` | OpenAPI document and Swagger UI |
 
 ---
 
@@ -785,19 +794,32 @@ forms.
 
 ---
 
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [Getting started](docs/getting-started.md) | Demo in 5 minutes, first integration, monitor → enforce |
+| [Configuration](docs/configuration.md) | Every option of every component, with defaults (reserved options marked) |
+| [Integration guide](docs/INTEGRATION_GUIDE.md) | FastAPI, Flask, Django, Express, Fastify, http; proxies, CORS, Redis, edge, rollout |
+| [API reference](docs/API_REFERENCE.md) | HTTP API, SDK, Node, core, Python and ML library APIs |
+| [Architecture](docs/architecture.md) | Components, request flow, signals, scoring, state |
+| [ML model guide](docs/ML_MODEL_GUIDE.md) | Features, model, training, evaluation, serving |
+| [Security whitepaper](docs/security-whitepaper.md) | Threat model, OWASP OAT mapping, failure behaviour, deployment checklist |
+| [Releasing](docs/RELEASING.md), [Changelog](CHANGELOG.md) | npm/PyPI publishing (not published yet) |
+
+Tests keep these documents honest: the OAT table must match the engine, the
+option tables must list every option, and every relative link must resolve.
+
 ## Roadmap and thesis documents
 
 - **[docs/thesis/PROJECT_PLAN.md](docs/thesis/PROJECT_PLAN.md):** phase plan and
-  current status. Done: Phases A–D. Next: documentation (Phase E), then
-  production readiness and the data-collection website.
+  current status. Done: Phases A–E. Next: production readiness (Phase F: bot
+  scripts for self-testing, profiling, Prometheus, Kubernetes, v1.0.0), then the
+  data-collection website.
 - **[docs/thesis/THESIS_NOTES.md](docs/thesis/THESIS_NOTES.md):** every design
   decision, measurement, bug and limitation, with reasons.
 - **[docs/thesis/irb/](docs/thesis/irb/):** study protocol, consent forms
   (English and Bangla), data dictionary.
-
-The older files directly under `docs/` (API reference, integration guide,
-architecture) predate the current code and will be rewritten in the
-documentation phase. When they disagree with this README, trust the README.
 
 ## Contributing and license
 

@@ -103,6 +103,11 @@ export type EdgeDecision =
   | { action: 'rate_limited' }
   | { action: 'block' | 'challenge'; reason: string };
 
+function sessionId(request: Request): string | undefined {
+  const match = /(?:^|;\s*)aegis_sid=([^;]*)/.exec(request.headers.get('Cookie') ?? '');
+  return match ? decodeURIComponent(match[1]).split('.')[0] : undefined;
+}
+
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...headers } });
 
@@ -128,6 +133,8 @@ export function createEdgeHandler(limiterFallback?: IsolateRateLimiter) {
     if (token) {
       claims = await verifyAegisToken(token, config.secret, config.tokenTtl);
       if (claims && claims.uah !== await userAgentHash(request.headers.get('User-Agent') ?? '')) claims = null;
+      // Bound to the session it was issued to (aegis_sid cookie: "id" in Python, "id.signature" in Node)
+      if (claims && typeof claims.sid === 'string' && claims.sid !== 'anonymous' && claims.sid !== sessionId(request)) claims = null;
     }
     if (claims && (claims.verdict === 'block' || Number(claims.score ?? 0) >= config.blockThreshold)) {
       return { action: 'block', reason: 'token_verdict' };

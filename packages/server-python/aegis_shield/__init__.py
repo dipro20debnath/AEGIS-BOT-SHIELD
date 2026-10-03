@@ -16,6 +16,7 @@ from .ml import MLScorer, make_scorer
 from .security import InputValidator, SecurityHeadersMiddleware, security_headers
 from .antitamper import AntiTamper, sign_request, SIGNATURE_HEADER
 from .store import MemoryStore, RedisStore, Store, create_redis_store
+from .openapi import add_aegis_openapi, openapi_spec
 
 __all__ = [
     "AegisDjangoMiddleware",
@@ -41,6 +42,8 @@ __all__ = [
     "RedisStore",
     "Store",
     "create_redis_store",
+    "add_aegis_openapi",
+    "openapi_spec",
 ]
 
 __version__ = "1.0.0"

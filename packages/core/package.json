@@ -1,14 +1,15 @@
 {
   "name": "@aegis/core",
   "version": "1.0.0",
-  "description": "Core detection engine for AEGIS BOT SHIELD",
+  "description": "Detection engine of AEGIS BOT SHIELD: rule-based signals, risk fusion, tokens, proof of work, shared state",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "test": "jest",
     "lint": "eslint src --ext .ts",
-    "clean": "rm -rf dist"
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "prepublishOnly": "npm run clean && npm run build && npm test"
   },
   "author": "dipro20debnath",
   "license": "MIT",
@@ -21,5 +22,32 @@
     "jest": "^30.5.2",
     "ts-jest": "^29.4.14",
     "typescript": "^5.0.0"
+  },
+  "keywords": [
+    "bot-detection",
+    "security",
+    "rate-limiting",
+    "fingerprinting",
+    "owasp"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dipro20debnath/AEGIS-BOT-SHIELD.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/dipro20debnath/AEGIS-BOT-SHIELD#readme",
+  "bugs": {
+    "url": "https://github.com/dipro20debnath/AEGIS-BOT-SHIELD/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }

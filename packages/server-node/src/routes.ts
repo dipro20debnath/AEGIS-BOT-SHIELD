@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { verifyToken } from '@aegis/core';
 import { AegisNode } from './AegisNode.js';
 import { aegisGraphQL } from './graphql.js';
+import { serveOpenapi, serveSwaggerUi } from './openapi.js';
 
 /**
  * Read-only status API for the dashboard: REST endpoints and the same data
@@ -39,6 +40,10 @@ export function aegisRoutes(aegis: AegisNode) {
   });
 
   router.all('/aegis/graphql', aegisGraphQL(aegis));
+
+  // OpenAPI document of every AEGIS endpoint (contracts/openapi.json) and Swagger UI
+  router.get('/aegis/openapi.json', serveOpenapi);
+  router.get('/aegis/docs', serveSwaggerUi);
 
   return router;
 }
