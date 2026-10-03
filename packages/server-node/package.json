@@ -1,14 +1,15 @@
 {
   "name": "@aegis/server-node",
   "version": "1.0.0",
-  "description": "Server-side Node.js SDK for Aegis Bot Shield",
+  "description": "AEGIS BOT SHIELD middleware for Express, Fastify and Node http, with status API, GraphQL and live feed",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "clean": "rm -rf dist",
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
     "test": "jest",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src --ext .ts",
+    "prepublishOnly": "npm run clean && npm run build && npm test"
   },
   "dependencies": {
     "@aegis/core": "^1.0.0",
@@ -22,6 +23,7 @@
     "@types/node": "^20.0.0",
     "@types/supertest": "^6.0.3",
     "@types/ws": "^8.18.2",
+    "ajv": "^8.20.0",
     "fastify": "^5.12.5",
     "fastify-plugin": "^6.0.0",
     "jest": "^30.5.2",
@@ -42,5 +44,32 @@
     }
   },
   "author": "dipro20debnath",
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "bot-detection",
+    "express",
+    "fastify",
+    "middleware",
+    "security"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dipro20debnath/AEGIS-BOT-SHIELD.git",
+    "directory": "packages/server-node"
+  },
+  "homepage": "https://github.com/dipro20debnath/AEGIS-BOT-SHIELD#readme",
+  "bugs": {
+    "url": "https://github.com/dipro20debnath/AEGIS-BOT-SHIELD/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }

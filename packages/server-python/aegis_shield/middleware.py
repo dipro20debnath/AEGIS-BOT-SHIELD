@@ -205,6 +205,10 @@ class AegisMiddlewareBase:
                 if claims and claims.get("uah") != user_agent_hash(h.get("user-agent", "")):
                     claims = None
                     signals.append(("token_user_agent_mismatch", 60))
+                elif claims and claims.get("sid") not in (None, "anonymous", session.id):
+                    # Issued to another session: a token copied out of one browser into another client
+                    claims = None
+                    signals.append(("token_session_mismatch", 60))
                 elif claims and claims.get("pow"):
                     signals.append(("pow_solved", float(claims.get("score", 0))))
                 elif claims:

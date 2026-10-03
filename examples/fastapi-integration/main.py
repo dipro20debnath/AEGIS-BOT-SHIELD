@@ -20,7 +20,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from aegis_shield import AegisFastAPIMiddleware, get_config
+from aegis_shield import AegisFastAPIMiddleware, add_aegis_openapi, get_config
 
 SDK_DIST = Path(__file__).resolve().parents[2] / "packages" / "js-sdk" / "dist"
 
@@ -35,6 +35,8 @@ app.add_middleware(
     require_token_paths=["/api/login"],
     excluded_paths=["/health", "/sdk", "/docs", "/openapi.json"],
 )
+# /docs also lists the endpoints the middleware answers (/aegis/telemetry, /aegis/challenge)
+add_aegis_openapi(app)
 if SDK_DIST.exists():
     app.mount("/sdk", StaticFiles(directory=SDK_DIST), name="sdk")
 

@@ -30,7 +30,7 @@ function stubOrigin() {
 }
 
 const req = (p: string, headers: Record<string, string> = {}, init: RequestInit = {}) =>
-  new Request(`https://site.test${p}`, { headers: { 'User-Agent': UA, 'CF-Connecting-IP': '198.51.100.20', ...headers }, ...init });
+  new Request(`https://site.test${p}`, { headers: { 'User-Agent': UA, 'CF-Connecting-IP': '198.51.100.20', Cookie: 'aegis_sid=s.sig', ...headers }, ...init });
 
 describe('token verification (WebCrypto)', () => {
   it('accepts tokens from @aegis/core and rejects tampered or foreign ones', async () => {
@@ -101,6 +101,16 @@ describe('edge handler', () => {
     const res = await handler.fetch(req('/api/login', { 'X-Aegis-Token': stolen }, { method: 'POST', body: '{}' }), env());
     expect(res.status).toBe(403);
     expect((await res.json()).reason).toBe('invalid_token');
+  });
+
+  it('rejects a token presented outside its session', async () => {
+    const handler = createEdgeHandler();
+    const token = generateToken({ sid: 's', score: 5, verdict: 'allow', uah, exp: exp() }, SECRET);
+    const post = (cookie: string) => handler.fetch(req('/api/login', { 'X-Aegis-Token': token, Cookie: cookie }, { method: 'POST', body: '{}' }), env());
+    expect((await post('aegis_sid=s.sig')).status).toBe(200);
+    expect((await post('aegis_sid=s')).status).toBe(200); // Python cookie format
+    expect((await post('aegis_sid=other.sig')).status).toBe(403);
+    expect((await post('')).status).toBe(403);
   });
 
   it('does not accept proof of work alone on token-required paths (same rule as the origin)', async () => {

@@ -1,0 +1,1090 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AEGIS BOT SHIELD API",
+    "version": "1.0.0",
+    "summary": "Endpoints of the AEGIS server middleware (Node and Python) and the Node status API.",
+    "description": "One contract for both server implementations:\n\n- **Middleware endpoints** (`/aegis/telemetry`, `/aegis/challenge`) are answered by the AEGIS middleware itself in `@aegis/server-node` and `aegis_shield` (same request and response shapes).\n- **Protected requests**: any other path the middleware analyses. Denied requests get the `Denial` body; allowed requests reach your application unchanged.\n- **Status API** (`/aegis/health`, `/aegis/stats`, `/aegis/events`, `/aegis/config`, `/aegis/verify`, `/aegis/graphql`) is mounted by `aegisRoutes` in the Node server only. It describes your traffic: put it behind authentication.\n\nThe ML inference service (`packages/ml-engine`, `POST /predict`) is a separate FastAPI app with its own generated spec at its `/docs`.\n\nContract tests validate real responses of both servers against this file (`packages/server-node/tests/openapi.test.ts`, `packages/server-python/tests/test_openapi.py`).",
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "FastAPI demo (examples/fastapi-integration)"
+    },
+    {
+      "url": "http://localhost:3000",
+      "description": "Express demo (examples/express-integration)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "middleware",
+      "description": "Answered by the AEGIS middleware in both servers"
+    },
+    {
+      "name": "status",
+      "description": "Node status API (aegisRoutes); protect it"
+    }
+  ],
+  "paths": {
+    "/aegis/telemetry": {
+      "post": {
+        "tags": [
+          "middleware"
+        ],
+        "operationId": "submitTelemetry",
+        "summary": "Score browser telemetry and issue a token",
+        "description": "Sent by the browser SDK. The server adds session and network features, scores the request (rules plus the ML model when configured) and returns a token for `X-Aegis-Token`. Sets the `aegis_sid` session cookie when needed.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelemetryPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Scored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "headers": {
+              "Set-Cookie": {
+                "description": "`aegis_sid` session cookie (HttpOnly, SameSite=Lax), when the session is new",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed telemetry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Unknown site key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body larger than the limit (64 KB default)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Python server with rate_limit set)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Scoring failed (the endpoint never takes the site down)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aegis/challenge": {
+      "get": {
+        "tags": [
+          "middleware"
+        ],
+        "operationId": "issueChallenge",
+        "summary": "Issue a memory-hard proof-of-work challenge",
+        "description": "Find a `nonce` such that scrypt(challenge + \":\" + nonce, seed, N=n, r, p=1, 32 bytes) has at least `bits` leading zero bits. The browser SDK solves it in WebAssembly.",
+        "responses": {
+          "200": {
+            "description": "Challenge",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PowChallenge"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "middleware"
+        ],
+        "operationId": "solveChallenge",
+        "summary": "Redeem a solved challenge for a token",
+        "description": "Each challenge can be redeemed once (across all instances when a shared store is configured). The token carries the session's telemetry score; proof of work answers a challenge but never lifts a block, and does not satisfy token-required paths without telemetry (`tel` claim).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PowSolution"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Solved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body is not JSON (Node)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengeFailure"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Shared store unreachable: refused rather than risk accepting a replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{protectedPath}": {
+      "parameters": [
+        {
+          "name": "protectedPath",
+          "in": "path",
+          "required": true,
+          "description": "Any path the middleware analyses (not excluded)",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "middleware"
+        ],
+        "operationId": "protectedRequest",
+        "summary": "Any protected request (every method)",
+        "description": "Not an endpoint of its own: shows what the middleware adds to your routes. Send the token from `/aegis/telemetry` or `/aegis/challenge` in `X-Aegis-Token`. Allowed requests reach your handler; in `monitor` mode nothing is denied.",
+        "parameters": [
+          {
+            "name": "X-Aegis-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^AEGIS\\.v1\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "Allowed: your application's response"
+          },
+          "403": {
+            "description": "Denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Denial"
+                }
+              }
+            },
+            "headers": {
+              "X-Aegis-Action": {
+                "description": "`block` or `challenge`",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "block",
+                    "challenge"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aegis/health": {
+      "get": {
+        "tags": [
+          "status"
+        ],
+        "operationId": "health",
+        "summary": "Liveness",
+        "responses": {
+          "200": {
+            "description": "Up",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aegis/stats": {
+      "get": {
+        "tags": [
+          "status"
+        ],
+        "operationId": "stats",
+        "summary": "Counters since the process started",
+        "responses": {
+          "200": {
+            "description": "Counters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsSummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aegis/events": {
+      "get": {
+        "tags": [
+          "status"
+        ],
+        "operationId": "events",
+        "summary": "Recent decisions, most recent first",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Events (the server keeps the last 500)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StatsEvent"
+                  },
+                  "maxItems": 500
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aegis/config": {
+      "get": {
+        "tags": [
+          "status"
+        ],
+        "operationId": "config",
+        "summary": "Active configuration (no secrets)",
+        "responses": {
+          "200": {
+            "description": "Configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerConfig"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aegis/verify": {
+      "post": {
+        "tags": [
+          "status"
+        ],
+        "operationId": "verifyToken",
+        "summary": "Verify a token server-to-server",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "valid",
+                    "score",
+                    "verdict"
+                  ],
+                  "properties": {
+                    "valid": {
+                      "const": true
+                    },
+                    "score": {
+                      "type": "number"
+                    },
+                    "verdict": {
+                      "$ref": "#/components/schemas/Verdict"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid, expired or missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "valid"
+                  ],
+                  "properties": {
+                    "valid": {
+                      "const": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aegis/graphql": {
+      "get": {
+        "tags": [
+          "status"
+        ],
+        "operationId": "graphqlGet",
+        "summary": "Read-only GraphQL (query string)",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 8192
+            }
+          },
+          {
+            "name": "variables",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "description": "JSON object"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphQLResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphQLResult"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Query too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphQLResult"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "status"
+        ],
+        "operationId": "graphqlPost",
+        "summary": "Read-only GraphQL",
+        "description": "Schema: `Query { health, stats, events(limit, verdict, pathPrefix, minScore, signal), threats(limit), config }`. No mutations. At most 10 root fields per operation (aliases count), documents up to 8 KB, limit ≤ 500.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GraphQLRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphQLResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphQLResult"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Query too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphQLResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aegis/openapi.json": {
+      "get": {
+        "tags": [
+          "status"
+        ],
+        "operationId": "openapi",
+        "summary": "This OpenAPI document",
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1 document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "openapi",
+                    "paths"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aegis/docs": {
+      "get": {
+        "tags": [
+          "status"
+        ],
+        "operationId": "docs",
+        "summary": "Swagger UI for this document",
+        "description": "Loads Swagger UI 5.33.1 from cdn.jsdelivr.net with subresource integrity hashes.",
+        "responses": {
+          "200": {
+            "description": "HTML page",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Verdict": {
+        "type": "string",
+        "enum": [
+          "allow",
+          "monitor",
+          "challenge",
+          "block"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "TokenResponse": {
+        "type": "object",
+        "required": [
+          "token",
+          "expiresIn",
+          "verdict"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^AEGIS\\.v1\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$",
+            "description": "AES-256-GCM encrypted, HMAC-SHA256 signed claims (sid, score, verdict, uah, exp, iat, nonce; pow/tel after a challenge). Opaque to clients."
+          },
+          "expiresIn": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Seconds"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/Verdict"
+          },
+          "score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Risk score (telemetry responses only)"
+          }
+        }
+      },
+      "TelemetryPayload": {
+        "type": "object",
+        "required": [
+          "v",
+          "siteKey",
+          "streamId",
+          "timestamp",
+          "features"
+        ],
+        "description": "Built by the browser SDK (packages/js-sdk/src/telemetry.ts). No key contents, text, URLs or raw user agent.",
+        "properties": {
+          "v": {
+            "type": "integer",
+            "const": 1
+          },
+          "siteKey": {
+            "type": "string"
+          },
+          "streamId": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "Random id of one page view's stream"
+          },
+          "timestamp": {
+            "type": "number"
+          },
+          "features": {
+            "type": "object",
+            "required": [
+              "mouse",
+              "keyboard",
+              "scroll",
+              "touch",
+              "fingerprint"
+            ],
+            "properties": {
+              "mouse": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "description": "Feature name -> value (contracts/features.json)"
+              },
+              "keyboard": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "description": "Feature name -> value (contracts/features.json)"
+              },
+              "scroll": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "description": "Feature name -> value (contracts/features.json)"
+              },
+              "touch": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "description": "Feature name -> value (contracts/features.json)"
+              },
+              "fingerprint": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "description": "Feature name -> value (contracts/features.json)"
+              }
+            }
+          },
+          "behavioral": {
+            "type": "object",
+            "description": "Compact summaries read by the rule engine (BehavioralPayload)"
+          },
+          "headlessChecks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32
+          },
+          "antiDetect": {
+            "type": "object",
+            "properties": {
+              "score": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "checks": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 16
+              }
+            }
+          }
+        }
+      },
+      "PowChallenge": {
+        "type": "object",
+        "required": [
+          "challenge",
+          "seed",
+          "n",
+          "r",
+          "bits",
+          "expiresAt"
+        ],
+        "properties": {
+          "challenge": {
+            "type": "string",
+            "pattern": "^AEGIS\\.pow1\\."
+          },
+          "seed": {
+            "type": "string"
+          },
+          "n": {
+            "type": "integer",
+            "description": "scrypt N (power of two); memory per attempt = 128·r·n bytes"
+          },
+          "r": {
+            "type": "integer"
+          },
+          "bits": {
+            "type": "integer",
+            "description": "Required leading zero bits; expected attempts 2^bits"
+          },
+          "expiresAt": {
+            "type": "integer",
+            "description": "Unix seconds"
+          }
+        }
+      },
+      "PowSolution": {
+        "type": "object",
+        "required": [
+          "challenge",
+          "nonce"
+        ],
+        "properties": {
+          "challenge": {
+            "type": "string"
+          },
+          "nonce": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483648
+          }
+        }
+      },
+      "ChallengeFailure": {
+        "type": "object",
+        "required": [
+          "error",
+          "reason"
+        ],
+        "properties": {
+          "error": {
+            "const": "challenge failed"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "malformed",
+              "bad_signature",
+              "expired",
+              "replay",
+              "insufficient_work"
+            ]
+          }
+        }
+      },
+      "Denial": {
+        "type": "object",
+        "required": [
+          "aegis"
+        ],
+        "properties": {
+          "aegis": {
+            "type": "string",
+            "enum": [
+              "block",
+              "challenge"
+            ]
+          },
+          "telemetry": {
+            "type": "string",
+            "description": "Telemetry endpoint (challenge only)"
+          },
+          "challenge": {
+            "type": "string",
+            "description": "Proof-of-work endpoint (challenge only)"
+          }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "required": [
+          "status",
+          "timestamp",
+          "version"
+        ],
+        "properties": {
+          "status": {
+            "const": "ok"
+          },
+          "timestamp": {
+            "type": "number"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "ReasonCount": {
+        "type": "object",
+        "required": [
+          "reason",
+          "count"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          }
+        }
+      },
+      "StatsSummary": {
+        "type": "object",
+        "required": [
+          "startedAt",
+          "uptimeSeconds",
+          "totalRequests",
+          "telemetrySubmissions",
+          "allowed",
+          "monitored",
+          "challenged",
+          "blocked",
+          "topReasons"
+        ],
+        "properties": {
+          "startedAt": {
+            "type": "number"
+          },
+          "uptimeSeconds": {
+            "type": "integer"
+          },
+          "totalRequests": {
+            "type": "integer"
+          },
+          "telemetrySubmissions": {
+            "type": "integer"
+          },
+          "allowed": {
+            "type": "integer"
+          },
+          "monitored": {
+            "type": "integer"
+          },
+          "challenged": {
+            "type": "integer"
+          },
+          "blocked": {
+            "type": "integer"
+          },
+          "topReasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReasonCount"
+            },
+            "maxItems": 10
+          }
+        }
+      },
+      "StatsEvent": {
+        "type": "object",
+        "required": [
+          "timestamp",
+          "path",
+          "verdict",
+          "score",
+          "reasons",
+          "ip",
+          "telemetry"
+        ],
+        "properties": {
+          "timestamp": {
+            "type": "number"
+          },
+          "path": {
+            "type": "string"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/Verdict"
+          },
+          "score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ip": {
+            "type": "string",
+            "description": "Truncated to /24 (IPv4) or /48 (IPv6)",
+            "pattern": "(/24|/48)$|^unknown$"
+          },
+          "telemetry": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ServerConfig": {
+        "type": "object",
+        "required": [
+          "siteKeyConfigured",
+          "mode",
+          "thresholds",
+          "requireTokenPaths",
+          "protectedPaths",
+          "excludedPaths",
+          "tokenTtl",
+          "mlEnabled",
+          "sharedStore"
+        ],
+        "properties": {
+          "siteKeyConfigured": {
+            "type": "boolean"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "monitor",
+              "enforce"
+            ]
+          },
+          "thresholds": {
+            "type": "object",
+            "required": [
+              "block",
+              "challenge"
+            ],
+            "properties": {
+              "block": {
+                "type": "number"
+              },
+              "challenge": {
+                "type": "number"
+              }
+            }
+          },
+          "requireTokenPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "protectedPaths": {
+            "oneOf": [
+              {
+                "const": "all"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "excludedPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tokenTtl": {
+            "type": "integer"
+          },
+          "mlEnabled": {
+            "type": "boolean"
+          },
+          "sharedStore": {
+            "type": "boolean"
+          }
+        }
+      },
+      "GraphQLRequest": {
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "properties": {
+          "query": {
+            "type": "string",
+            "maxLength": 8192
+          },
+          "variables": {
+            "type": "object"
+          },
+          "operationName": {
+            "type": "string"
+          }
+        }
+      },
+      "GraphQLResult": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "message"
+              ],
+              "properties": {
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

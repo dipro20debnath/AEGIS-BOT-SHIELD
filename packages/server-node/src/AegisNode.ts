@@ -459,6 +459,11 @@ export class AegisNode {
         claims = null;
         scores.push(60);
         reasons.push('token_user_agent_mismatch');
+      } else if (claims && typeof claims.sid === 'string' && claims.sid !== 'anonymous' && claims.sid !== sessionId) {
+        // Issued to another session: a token copied out of one browser into another client
+        claims = null;
+        scores.push(60);
+        reasons.push('token_session_mismatch');
       } else if (claims?.pow) {
         scores.push(Number(claims.score) || 0);
         reasons.push('pow_solved');
