@@ -35,8 +35,11 @@ decides per request: **allow, monitor, challenge or block**.
 - [Configuration](#configuration)
 - [Endpoints](#endpoints)
 - [Optional features](#optional-features)
+- [Several instances: shared state in Redis](#several-instances-shared-state-in-redis)
+- [Edge: Cloudflare Worker](#edge-cloudflare-worker)
 - [ML engine](#ml-engine)
 - [Dashboard](#dashboard)
+- [Performance (load test)](#performance-load-test)
 - [Testing](#testing)
 - [Privacy](#privacy)
 - [Limitations](#limitations)
@@ -107,12 +110,14 @@ never blocks, so you can see what it would do before you enforce it.
 | `packages/js-sdk` | Browser SDK: collectors, headless and anti-detect checks, WebGPU fingerprint, scrypt WASM solver, token handling. Builds `dist/aegis.min.js`. |
 | `packages/server-python` | `aegis_shield`: **reference server middleware** for FastAPI/Starlette, Flask and Django, with the ML model in-process. |
 | `packages/core` | `@aegis/core`: TypeScript detection engine (rate limiting, IP intelligence, header/TLS/HTTP2 fingerprints, honeypots, threat feeds, input validation, session patterns, PoW). |
-| `packages/server-node` | `@aegis/server-node`: Express, Fastify and plain `http` middleware on top of the core, plus a status API. |
+| `packages/server-node` | `@aegis/server-node`: Express, Fastify and plain `http` middleware on top of the core, plus a status API (REST, GraphQL, WebSocket live feed). |
+| `packages/edge-cloudflare` | Cloudflare Worker: token check and rate limiting at the edge, in front of either server. |
 | `packages/ml-engine` | `aegis_ml`: feature extractor, synthetic data generator, RandomForest + XGBoost ensemble, training and threshold tuning, HTTP inference service. |
 | `packages/dashboard` | React + Vite dashboard: live stats from the Node status API, ML results. |
 | `contracts/features.json` | The 50-feature contract shared by the SDK, servers and ML engine. Tests in TS and Python enforce it. |
 | `examples/` | Runnable demos: `fastapi-integration`, `python-flask`, `express-integration`, `html-basic`. |
 | `e2e/` | Playwright end-to-end tests: real Chromium → SDK → Python server → ML. |
+| `loadtest/` | Load generator and scenarios (throughput, p50/p95/p99, memory). |
 | `docs/thesis/` | Thesis notes, project plan, IRB drafts, experiment results. |
 
 ---
@@ -192,7 +197,7 @@ docker compose up --build
 |---|---|---|
 | http://localhost:8000 | `api-python`: FastAPI demo, reference server, ML model in-process | log in with `demo` / `demo` |
 | http://localhost:3000 | `api-node`: Express demo, Node server, ML via the `ml` service | log in with `admin` / `password` |
-| http://localhost:8080 | `dashboard`: live stats of the Express server | refresh after a few logins |
+| http://localhost:8080 | `dashboard`: live stats of the Express server (WebSocket) | log in a few times on :3000 and watch it update |
 
 How the stack is set up:
 - **`ml`** (inference service) is internal only. Its `/train` endpoint has no
@@ -204,8 +209,9 @@ How the stack is set up:
 - **Behind a TLS-intercepting proxy** (corporate network), pass the proxy's CA
   for the downloads during the build:
   `docker build --secret id=extra_ca,src=proxy-ca.pem ...`
-- **State is in memory,** so run one replica per service until the Redis
-  backend (roadmap) is added.
+- **`redis`** (internal only) holds the state the API servers share: replay
+  nonces, rate-limit windows and sessions. Each demo has its own database
+  (`/0` Node, `/1` Python). See [Several instances](#several-instances-shared-state-in-redis).
 
 ## Add it to your own site
 
@@ -378,6 +384,9 @@ If detection itself fails, the request is **allowed** by default
 | `live_feeds`, `feeds`, `feed_cache_dir`, `abuseipdb_key` | off | [Live IP lists](#live-ip-lists-tor-firehol-spamhaus-abuseipdb) |
 | `challenge_path`, `pow_n`, `pow_r`, `pow_bits` | `/aegis/challenge`, 4096, 8, 4 | [Proof of work](#memory-hard-proof-of-work) |
 | `fail_open` | `True` | Allow requests when analysis errors |
+| `redis_url` | `None` | Shared state in Redis for several processes ([details](#several-instances-shared-state-in-redis)) |
+| `rate_limit`, `rate_limit_window` | `0` (off), `60` | Requests per client IP per window before `rate_limit.exceeded` (score 100) |
+| `endpoint_limits` | `{}` | Stricter limits per path prefix, e.g. `{"/api/login": [5, 60]}` |
 
 ### Environment variables (Python)
 
@@ -391,6 +400,8 @@ Read by `get_config()`:
 | `AEGIS_FAIL_OPEN` | `true` / `false` |
 | `AEGIS_ML_MODEL_PATH`, `AEGIS_ML_URL` | ML model file or service URL |
 | `AEGIS_TRUSTED_PROXIES` | Comma-separated IPs/CIDRs |
+| `AEGIS_REDIS_URL` | Shared state in Redis, e.g. `redis://localhost:6379/0` |
+| `AEGIS_RATE_LIMIT` | Requests per client IP per minute (0 = off) |
 | `ABUSEIPDB_API_KEY` | Enables the AbuseIPDB feed when live feeds are on |
 
 ### Node (`AegisNode`) options
@@ -402,6 +413,7 @@ The Node options mirror the Python ones in camelCase:
 - `tokenTtl`, `mlUrl`, `mlTimeoutMs`;
 - `telemetryPath`, `challengePath`;
 - `pow: {n, r, bits}`;
+- `store` (shared state, e.g. `await createRedisStore(url)`), `sessionTtl`;
 - `engine` (an extra `DetectionEngine` config, e.g.
   `engine: { ipIntelligence: { liveFeeds: { tor: true, threatFeeds: true, cacheDir: '.aegis-cache' } } }`).
 
@@ -426,6 +438,8 @@ Node status API (`aegisRoutes`), meant for the dashboard. **Put it behind authen
 | `GET /aegis/events?limit=100` | Recent decisions (IPs truncated to /24 or /48) |
 | `GET /aegis/config` | Active configuration (no secrets) |
 | `POST /aegis/verify` | Verify a token from another backend |
+| `GET, POST /aegis/graphql` | Read-only GraphQL over the same data ([details](#graphql)) |
+| `WS /aegis/live` | WebSocket live feed of decisions, when `attachLiveFeed` is used ([details](#websocket-live-feed)) |
 
 ---
 
@@ -515,6 +529,73 @@ headers = {"X-Aegis-Signature": sign_request("POST", "/webhook", body_bytes, sec
 
 ---
 
+## Several instances: shared state in Redis
+
+One process keeps its state in memory, which is correct. With several
+processes or servers behind a load balancer, each would see only part of a
+client's traffic: a replayed challenge solution or signed request could be
+accepted once per instance, and a rate limit of N would really be N per
+instance. With Redis all instances share:
+
+| State | Redis operation |
+|---|---|
+| Spent proof-of-work challenges, request-signature nonces, single-use tokens | `SET key 1 PX ttl NX` (atomic claim) |
+| Rate-limit windows (per IP, per endpoint) | Sliding-window log in a sorted set, one Lua script, Redis server clock |
+| Sessions (request times, paths, risk history, telemetry score) | One JSON value per session with a TTL |
+
+```bash
+pip install "aegis-server-python[redis]"
+AEGIS_REDIS_URL=redis://localhost:6379/0 uvicorn main:app --workers 4 ...
+```
+
+```typescript
+import { AegisNode, createRedisStore } from '@aegis/server-node';
+const aegis = new AegisNode({ siteKey, secretKey, store: await createRedisStore(process.env.AEGIS_REDIS_URL!) });
+```
+
+Behaviour to know:
+- **Startup fails** if Redis cannot be reached, so a misconfigured deployment
+  does not silently run with per-process state.
+- **If Redis goes down later,** requests are still analysed (headers, token,
+  input checks): rate limits and session history are skipped until it is back,
+  and proof-of-work solutions get `503` instead of being accepted unchecked.
+  Verified by stopping Redis under a running server.
+- **Sessions are last-writer-wins** across instances; a lost update drops one
+  request time. Replay and rate limits use atomic operations.
+- **Counters behind the status API, GraphQL and the live feed stay per
+  process.**
+
+---
+
+## Edge: Cloudflare Worker
+
+`packages/edge-cloudflare` runs in front of either server and stops cheap
+abuse before it reaches your origin:
+- **rate limit per client IP** with the Workers Rate Limiting binding (per
+  Cloudflare location, approximate), or a per-isolate fallback;
+- **on token-required paths, a valid `X-Aegis-Token`** (verified with WebCrypto,
+  same secret and format as the servers, bound to the user agent); otherwise
+  `403` with the challenge endpoints;
+- **tokens with verdict `block` or score ≥ the block threshold** are refused.
+
+The ML model, telemetry scoring and the challenge stay at the origin, and the
+origin still checks every token itself. The worker adds `X-Aegis-Edge`
+(`verified; score=…`, `no_token`, …), which is informational: trust it only if
+your origin accepts traffic from Cloudflare alone.
+
+```bash
+cd packages/edge-cloudflare
+echo "AEGIS_SECRET_KEY=<same as the origin>" > .dev.vars
+npx wrangler dev                          # local workerd; forwards to AEGIS_ORIGIN (wrangler.toml)
+npx wrangler secret put AEGIS_SECRET_KEY  # then: npx wrangler deploy (your Cloudflare account)
+```
+
+Settings are `[vars]` in `wrangler.toml`: `AEGIS_REQUIRE_TOKEN_PATHS`,
+`AEGIS_EXCLUDED_PATHS`, `AEGIS_BLOCK_THRESHOLD`, `AEGIS_MODE` (`monitor`
+only annotates), `AEGIS_ORIGIN` (remove it for route mode on your zone).
+
+---
+
 ## ML engine
 
 ```bash
@@ -562,22 +643,89 @@ works; they are not real-world accuracy.
 ## Dashboard
 
 ```bash
-node examples/express-integration/server.js              # serves the status API on :3000
+node examples/express-integration/server.js              # status API + live feed on :3000
 AEGIS_API=http://localhost:3000 npm run dev -w packages/dashboard
 ```
 
-Open the URL Vite prints. It shows live counts, recent decisions, top reasons
-and the ML results from `docs/thesis/results/`.
+Open the URL Vite prints. It shows counts, recent decisions, top reasons and
+the ML results from `docs/thesis/results/`. Overview, Threats and Logs update
+over the WebSocket feed (marked **Live**); if the socket is down they poll
+the REST API every 5 s (**Polling**) and keep retrying.
+
+### WebSocket live feed
+
+```typescript
+const server = app.listen(3000);
+attachLiveFeed(server, aegis, { authorize: req => isAdmin(req), allowedOrigins: ['https://admin.example.com'] });
+```
+
+Messages: `hello` (counters + last 100 events) on connect, then `events`
+batches every 250 ms (at most 200 per batch; the rest are counted in
+`dropped`) and `summary` at most every 2 s. Slow clients skip batches instead
+of growing server memory.
+
+### GraphQL
+
+Read-only (no mutations), at `/aegis/graphql` when `aegisRoutes` is mounted:
+
+```bash
+curl -s localhost:3000/aegis/graphql -H 'content-type: application/json' \
+  -d '{"query":"{ stats { totalRequests blocked } threats(limit: 5) { reason count } events(verdict: block, limit: 3) { path score reasons ipPrefix } }"}'
+```
+
+Limits: 8 KB documents, 10 root fields per operation (aliases count),
+`limit` ≤ 500. Like the REST status API, put it behind authentication.
+
+---
+
+## Performance (load test)
+
+```bash
+npm run build && redis-server &
+node loadtest/run.mjs --out docs/thesis/results/phase_d    # ~12 min; --only node|python, --duration, --repeats
+```
+
+Measured on a 4-vCPU cloud VM (generator, Redis and server on the same
+machine), one Node process / one uvicorn worker, 32 connections, median of 3
+runs. Full table: [`docs/thesis/results/phase_d/load_test.md`](docs/thesis/results/phase_d/load_test.md).
+
+| Page request | req/s | p50 / p95 / p99 ms under load | p50 unloaded ms |
+|---|---|---|---|
+| Express, no AEGIS | 6123 | 4.7 / 8.3 / 10.8 | 0.20 |
+| Express + AEGIS | 2816 | 10.4 / 16.2 / 23.6 | 0.48 |
+| Express + AEGIS, Redis | 2716 | 11.1 / 16.3 / 19.9 | 0.75 |
+| FastAPI, no AEGIS | 1693 | 17.5 / 27.4 / 46.1 | 0.73 |
+| FastAPI + AEGIS | 1247 | 22.3 / 33.4 / 140.8 | 0.86 |
+| FastAPI + AEGIS, Redis | 724 | 42.0 / 58.2 / 80.0 | 1.38 |
+| FastAPI + AEGIS, Redis, 4 workers | 1878 | (see note) | – |
+
+- **AEGIS costs about 0.2 ms of server time per request** in both servers
+  (in-process state). With Redis: about 0.2 ms (Node) and 0.8 ms (Python: the
+  synchronous Redis client waits for 2–3 round trips per request).
+- **With Redis, Python scales out:** 4 uvicorn workers handle 2.6× the
+  single-worker rate (measured with 128 connections; uvicorn's multi-worker
+  mode adds ~44 ms per keep-alive request even without AEGIS, so only its
+  throughput is meaningful).
+- **Telemetry with ML:** 936 req/s (Node → ML service over HTTP) and 458 req/s
+  (Python, model in-process), unloaded p50 1.9 ms and 2.4 ms.
+
+---
+
+## Testing
 
 ---
 
 ## Testing
 
 ```bash
-npm run build && npm test && npm run lint                      # core, js-sdk, server-node
+npm run build && npm test && npm run lint                      # core, js-sdk, server-node, edge-cloudflare
 python -m pytest packages/ml-engine/tests packages/server-python/tests
 npx playwright install chromium && npm run test:e2e            # real browser end to end
 ```
+
+The shared-store tests also run against a real Redis when
+`AEGIS_TEST_REDIS_URL` is set (e.g. `redis://127.0.0.1:6379/15`; CI does this);
+without it they use the in-memory store and skip the Redis cases.
 
 On **Windows**:
 - add `--basetemp=.pytest_tmp` to pytest;
@@ -587,6 +735,7 @@ CI runs all of this on every pull request:
 - Node 22 and 24;
 - Python 3.10–3.12;
 - the e2e test;
+- the Redis cases, against a Redis service container;
 - `npm audit` and `pip-audit`.
 
 ---
@@ -599,7 +748,8 @@ What the SDK sends:
 - **The device fingerprint as a SHA-256 hash.**
 
 The server keeps:
-- **Sessions:** in memory, through an HttpOnly `aegis_sid` cookie.
+- **Sessions:** in memory (or Redis, with a 30-minute TTL), through an HttpOnly
+  `aegis_sid` cookie.
 - **Dashboard events:** truncated IPs (/24 or /48).
 
 If you add data logging (`on_record`), you are responsible for consent and
@@ -621,8 +771,14 @@ forms.
   that follows links.
 - **Proof of work** proves cost, not humanity. It makes mass automation
   expensive but does not stop a single bot.
-- **Single process:** state (sessions, nonces, rate limits) is in memory. Run
-  multiple instances only with sticky sessions until the Redis backend lands.
+- **Shared state needs Redis:** without it, run one instance (or sticky
+  sessions). The status counters, GraphQL and the live feed are per instance
+  even with Redis.
+- **Python with Redis** waits synchronously for each Redis round trip
+  (~0.8 ms of server time per request here); scale with more workers.
+- **Edge worker:** the Rate Limiting binding is per Cloudflare location and
+  approximate; the per-isolate fallback is weaker. Not yet deployed on a real
+  zone (tested with `wrangler dev`/workerd only).
 - **QUIC/HTTP3 fingerprinting** works on captured packets (pcap or a UDP tap), not
   inside the request path: HTTP/3 is terminated by your proxy/CDN, which does not
   pass the handshake on. Only Chromium and aioquic have been profiled so far.
@@ -632,9 +788,8 @@ forms.
 ## Roadmap and thesis documents
 
 - **[docs/thesis/PROJECT_PLAN.md](docs/thesis/PROJECT_PLAN.md):** phase plan and
-  current status. Done: Phases A–C. Next: Redis, WebSocket, GraphQL, edge
-  adapter, load tests (Phase D), then docs, production readiness and the
-  data-collection website.
+  current status. Done: Phases A–D. Next: documentation (Phase E), then
+  production readiness and the data-collection website.
 - **[docs/thesis/THESIS_NOTES.md](docs/thesis/THESIS_NOTES.md):** every design
   decision, measurement, bug and limitation, with reasons.
 - **[docs/thesis/irb/](docs/thesis/irb/):** study protocol, consent forms

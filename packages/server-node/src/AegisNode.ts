@@ -12,6 +12,7 @@
 import {
   DetectionEngine, AegisConfig, AegisRequest, BehavioralPayload, DetectionSignal,
   IPAnalyzer, SESSION_HEADER, generateToken, verifyToken, sha256, MemoryHardChallenger, MemoryHardOptions,
+  AegisStore, mergeConfig,
 } from '@aegis/core';
 import { AegisStats } from './stats.js';
 
@@ -43,6 +44,15 @@ export interface AegisNodeOptions {
   maxTelemetryBytes?: number;
   /** Extra DetectionEngine configuration */
   engine?: Partial<AegisConfig>;
+  /**
+   * Shared state for several server instances (e.g. RedisStore from
+   * createRedisStore). When set, challenge replay protection, rate limits and
+   * session records live in the store, so every instance sees them. Default:
+   * in-process state, correct for a single instance.
+   */
+  store?: AegisStore;
+  /** Inactivity after which a session record expires, seconds (default 1800) */
+  sessionTtl?: number;
 }
 
 export interface AegisDecision {
@@ -97,17 +107,64 @@ class TelemetryError extends Error {
   }
 }
 
-interface SessionStats { created: number; times: number[]; paths: Set<string>; risk: number[]; telemetryScore?: number }
+export interface SessionRecord { created: number; times: number[]; paths: string[]; risk: number[]; telemetryScore?: number }
+
+/**
+ * Session records (request times, paths, risk history, telemetry score).
+ * In-process by default; with a store each record is one JSON value with a
+ * TTL. Concurrent requests of one session on different instances are
+ * last-writer-wins: a lost update drops one request time, which the session
+ * features tolerate. Correctness-critical state (replay, rate limits) uses the
+ * store's atomic operations instead.
+ *
+ * When the store is unreachable, reads return nothing and writes are dropped:
+ * the request is analysed with a fresh session instead of skipping analysis.
+ */
+export class SessionRecords {
+  private local = new Map<string, SessionRecord>();
+
+  constructor(private store?: AegisStore, private ttlMs = 1_800_000) {}
+
+  async get(id: string): Promise<SessionRecord | undefined> {
+    if (!this.store) return this.local.get(id);
+    try {
+      const raw = await this.store.get(`sess:${id}`);
+      return raw ? JSON.parse(raw) as SessionRecord : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async getOrCreate(id: string, now = Date.now()): Promise<SessionRecord> {
+    const existing = await this.get(id);
+    if (existing) return existing;
+    const created: SessionRecord = { created: now, times: [], paths: [], risk: [] };
+    if (!this.store) {
+      if (this.local.size > 100_000) this.local.clear();
+      this.local.set(id, created);
+    }
+    return created;
+  }
+
+  /** Persist a record changed in place (no-op in memory, where it is the stored object). */
+  async save(id: string, record: SessionRecord): Promise<void> {
+    if (record.times.length > 500) record.times.splice(0, record.times.length - 500);
+    if (record.risk.length > 100) record.risk.splice(0, record.risk.length - 100);
+    if (this.store) await this.store.set(`sess:${id}`, JSON.stringify(record), this.ttlMs).catch(() => undefined);
+  }
+}
 
 export class AegisNode {
-  readonly options: Required<Omit<AegisNodeOptions, 'mlUrl' | 'engine' | 'protectedPaths' | 'pow'>> &
-    Pick<AegisNodeOptions, 'mlUrl' | 'engine' | 'protectedPaths' | 'pow'>;
+  readonly options: Required<Omit<AegisNodeOptions, 'mlUrl' | 'engine' | 'protectedPaths' | 'pow' | 'store'>> &
+    Pick<AegisNodeOptions, 'mlUrl' | 'engine' | 'protectedPaths' | 'pow' | 'store'>;
   readonly engine: DetectionEngine;
   readonly challenger: MemoryHardChallenger;
   readonly stats = new AegisStats();
   private ipAnalyzer = new IPAnalyzer();
-  private sessions = new Map<string, SessionStats>();
+  readonly sessions: SessionRecords;
   private ready: Promise<void>;
+  /** Rate limits enforced through the shared store (only when one is configured) */
+  private sharedLimits: Array<{ name: string; path?: string; max: number; windowMs: number }> = [];
 
   constructor(options: AegisNodeOptions) {
     if (!options.secretKey || options.secretKey.length < 16) {
@@ -123,17 +180,53 @@ export class AegisNode {
       tokenTtl: 300,
       mlTimeoutMs: 500,
       maxTelemetryBytes: 64 * 1024,
+      sessionTtl: 1800,
       ...options,
     };
-    this.engine = new DetectionEngine({
+    const engineConfig: Partial<AegisConfig> = {
       ...options.engine,
       siteKey: options.siteKey,
       secretKey: options.secretKey,
       // The engine scores; this class decides (it also fuses token and ML scores)
       mode: 'monitor',
-    });
+    };
+    if (options.store) {
+      // The engine's limiters count per process; with a store the same window and
+      // endpoint limits are counted in the store instead (the per-IP token bucket is
+      // not replicated: the sliding window bounds sustained rates across instances)
+      const { rateLimiting, modules } = mergeConfig(engineConfig);
+      if (rateLimiting.enabled && modules.rateLimiter) {
+        this.sharedLimits.push({ name: 'per-IP window', max: rateLimiting.maxRequests, windowMs: rateLimiting.windowMs });
+        for (const [path, limit] of Object.entries(rateLimiting.endpointLimits)) {
+          this.sharedLimits.push({ name: `endpoint ${path}`, path, max: limit.maxRequests, windowMs: limit.windowMs });
+        }
+      }
+      engineConfig.rateLimiting = { ...rateLimiting, enabled: false };
+    }
+    this.engine = new DetectionEngine(engineConfig);
     this.ready = this.engine.init();
-    this.challenger = new MemoryHardChallenger(options.secretKey, options.pow);
+    this.challenger = new MemoryHardChallenger(options.secretKey, { ...options.pow, store: options.store });
+    this.sessions = new SessionRecords(options.store, this.options.sessionTtl * 1000);
+  }
+
+  /**
+   * Shared-store rate limits; the reason when one is exceeded. If the store is
+   * unreachable the limits are skipped (the rest of the analysis still runs).
+   */
+  private async checkSharedLimits(req: RequestInfo): Promise<string | null> {
+    if (!this.sharedLimits.length) return null;
+    const exceeded: string[] = [];
+    try {
+      await Promise.all(this.sharedLimits
+        .filter(l => !l.path || l.path === req.path)
+        .map(async l => {
+          const count = await this.options.store!.hit(l.path ? `rl:${l.path}|${req.ip}` : `rl:${req.ip}`, l.windowMs);
+          if (count > l.max) exceeded.push(l.name);
+        }));
+    } catch {
+      return null;
+    }
+    return exceeded.length ? 'rate_limit.exceeded' : null;
   }
 
   async shutdown(): Promise<void> {
@@ -175,7 +268,13 @@ export class AegisNode {
     } catch {
       return { status: 400, body: { error: 'invalid JSON' }, headers: noStore };
     }
-    const result = await this.challenger.verify(String(data.challenge ?? ''), data.nonce);
+    let result;
+    try {
+      result = await this.challenger.verify(String(data.challenge ?? ''), data.nonce);
+    } catch {
+      // Store unreachable: refuse rather than risk accepting a replayed solution
+      return { status: 503, body: { error: 'challenge verification unavailable' }, headers: noStore };
+    }
     if (!result.valid) {
       return { status: 403, body: { error: 'challenge failed', reason: result.reason }, headers: noStore };
     }
@@ -184,7 +283,7 @@ export class AegisNode {
     // Carry the behavioural (telemetry) score so the work does not erase that evidence. Request
     // signals are not carried: every request recomputes them, and carrying them would count them twice.
     // "tel" marks that the session sent telemetry, which token-required paths need.
-    const stats = this.sessions.get(sid);
+    const stats = sid === 'anonymous' ? undefined : await this.sessions.get(sid).catch(() => undefined);
     const token = generateToken({
       sid,
       score: stats?.telemetryScore ?? 0,
@@ -211,27 +310,31 @@ export class AegisNode {
     await this.ready;
     try {
       const payload = this.parseTelemetry(req.body);
-      const engineResult = await this.engine.analyze(this.toEngineRequest(req, payload.behavioral as BehavioralPayload));
-      const { sessionId, cookieHeaders } = this.session(engineResult.sessionToken, req);
+      const [engineResult, limited] = await Promise.all([
+        this.engine.analyze(this.toEngineRequest(req, payload.behavioral as BehavioralPayload)),
+        this.checkSharedLimits(req),
+      ]);
+      const { sessionId, cookieHeaders, record } = await this.session(engineResult.sessionToken, req);
 
       const scores = [engineResult.riskScore.score];
       const reasons = engineResult.signals.filter(s => s.value * s.confidence >= 20).map(s => s.type);
+      if (limited) { scores.push(100); reasons.push(limited); }
       // Spoofed-fingerprint evidence from the SDK: only when several checks agree
       if (payload.antiDetectScore >= 0.5) {
         scores.push(80 * payload.antiDetectScore);
         reasons.push('anti_detect');
       }
-      const mlProbability = await this.mlScore(payload.features, req.ip, sessionId);
+      const mlProbability = await this.mlScore(payload.features, req.ip, record);
       if (mlProbability !== null) {
         scores.push(mlProbability * 100);
         reasons.push('ml_model');
       }
       const score = Math.round(noisyOr(scores) * 10) / 10;
       const verdict = this.decide(score);
-      const stats = this.sessions.get(sessionId);
-      if (stats) {
-        stats.risk.push(score);
-        stats.telemetryScore = score;
+      if (record) {
+        record.risk.push(score);
+        record.telemetryScore = score;
+        await this.sessions.save(sessionId, record);
       }
 
       const token = generateToken({
@@ -290,10 +393,9 @@ export class AegisNode {
     };
   }
 
-  private async mlScore(sdkFeatures: Record<string, Record<string, number>>, ip: string, sessionId: string): Promise<number | null> {
+  private async mlScore(sdkFeatures: Record<string, Record<string, number>>, ip: string, session: SessionRecord | undefined): Promise<number | null> {
     if (!this.options.mlUrl) return null;
     const { intelligence } = await this.ipAnalyzer.analyze(ip);
-    const session = this.sessions.get(sessionId);
     const times = session?.times ?? [];
     const gaps = times.slice(1).map((t, i) => t - times[i]);
     const risk = (session?.risk ?? []).slice(-10);
@@ -302,7 +404,7 @@ export class AegisNode {
       session: {
         session_duration: times.length && session ? (times[times.length - 1] - session.created) / 1000 : 0,
         session_request_count: times.length,
-        session_unique_paths: session?.paths.size ?? 0,
+        session_unique_paths: session?.paths.length ?? 0,
         session_avg_time_between_requests: gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length / 1000 : 0,
         session_reputation: risk.length ? risk.reduce((a, b) => a + b, 0) / risk.length / 100 : 0,
       },
@@ -338,11 +440,15 @@ export class AegisNode {
 
   async evaluate(req: RequestInfo): Promise<{ decision: AegisDecision; headers: Record<string, string> }> {
     await this.ready;
-    const engineResult = await this.engine.analyze(this.toEngineRequest(req));
-    const { sessionId, cookieHeaders } = this.session(engineResult.sessionToken, req);
+    const [engineResult, limited] = await Promise.all([
+      this.engine.analyze(this.toEngineRequest(req)),
+      this.checkSharedLimits(req),
+    ]);
+    const { sessionId, cookieHeaders, record } = await this.session(engineResult.sessionToken, req);
 
     const scores = [engineResult.riskScore.score];
     const reasons = engineResult.signals.filter(s => s.value * s.confidence >= 20).map(s => s.type);
+    if (limited) { scores.push(100); reasons.push(limited); }
 
     let claims: Record<string, unknown> | null = null;
     const token = header(req.headers, TOKEN_HEADER);
@@ -375,7 +481,10 @@ export class AegisNode {
       verdict = this.options.mode === 'monitor' ? 'monitor' : 'challenge';
       reasons.push('token_required');
     }
-    this.sessions.get(sessionId)?.risk.push(score);
+    if (record) {
+      record.risk.push(score);
+      await this.sessions.save(sessionId, record);
+    }
     this.stats.record({ path: req.path, verdict, score, reasons, ip: req.ip, telemetry: false });
     return { decision: { verdict, score, reasons, claims, signals: engineResult.signals, sessionToken: engineResult.sessionToken }, headers: cookieHeaders };
   }
@@ -408,27 +517,25 @@ export class AegisNode {
     };
   }
 
-  /** Track the engine's session and set the cookie when the token changed. */
-  private session(sessionToken: string | undefined, req: RequestInfo): { sessionId: string; cookieHeaders: Record<string, string> } {
+  /**
+   * Track the engine's session and set the cookie when the token changed. The
+   * returned record has this request added; the caller saves it once it has
+   * added the risk score (one store write per request).
+   */
+  private async session(sessionToken: string | undefined, req: RequestInfo):
+    Promise<{ sessionId: string; cookieHeaders: Record<string, string>; record?: SessionRecord }> {
     if (!sessionToken) return { sessionId: 'anonymous', cookieHeaders: {} };
     const sessionId = sessionToken.split('.')[0];
     const now = Date.now();
-    let stats = this.sessions.get(sessionId);
-    if (!stats) {
-      if (this.sessions.size > 100_000) this.sessions.clear();
-      stats = { created: now, times: [], paths: new Set(), risk: [] };
-      this.sessions.set(sessionId, stats);
-    }
-    stats.times.push(now);
-    if (stats.times.length > 500) stats.times.shift();
-    if (stats.paths.size < 1000) stats.paths.add(req.path);
-    if (stats.risk.length > 100) stats.risk.shift();
+    const record = await this.sessions.getOrCreate(sessionId, now);
+    record.times.push(now);
+    if (record.paths.length < 1000 && !record.paths.includes(req.path)) record.paths.push(req.path);
 
     const current = (req.cookies ?? parseCookies(header(req.headers, 'cookie')))[SESSION_COOKIE];
     const cookieHeaders: Record<string, string> = current === sessionToken ? {} : {
       'Set-Cookie': `${SESSION_COOKIE}=${encodeURIComponent(sessionToken)}; Path=/; HttpOnly; SameSite=Lax`,
     };
-    return { sessionId, cookieHeaders };
+    return { sessionId, cookieHeaders, record };
   }
 }
 

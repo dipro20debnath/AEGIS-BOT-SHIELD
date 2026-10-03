@@ -1,10 +1,13 @@
 import { Router, Request, Response } from 'express';
 import { verifyToken } from '@aegis/core';
 import { AegisNode } from './AegisNode.js';
+import { aegisGraphQL } from './graphql.js';
 
 /**
- * Read-only status API for the dashboard. Mount it behind authentication:
- * stats and recent events describe your traffic.
+ * Read-only status API for the dashboard: REST endpoints and the same data
+ * through GraphQL at /aegis/graphql (graphql.ts). Mount it behind
+ * authentication: stats and recent events describe your traffic.
+ * POST endpoints need a JSON body parser (express.json()) before this router.
  */
 export function aegisRoutes(aegis: AegisNode) {
   const router = Router();
@@ -25,7 +28,7 @@ export function aegisRoutes(aegis: AegisNode) {
   router.get('/aegis/config', (_req: Request, res: Response) => {
     const { mode, thresholds, requireTokenPaths, protectedPaths, excludedPaths, tokenTtl, mlUrl } = aegis.options;
     res.json({ siteKeyConfigured: !!aegis.options.siteKey, mode, thresholds, requireTokenPaths,
-      protectedPaths: protectedPaths ?? 'all', excludedPaths, tokenTtl, mlEnabled: !!mlUrl });
+      protectedPaths: protectedPaths ?? 'all', excludedPaths, tokenTtl, mlEnabled: !!mlUrl, sharedStore: !!aegis.options.store });
   });
 
   /** Verify a token server-to-server (e.g. from another backend). */
@@ -34,6 +37,8 @@ export function aegisRoutes(aegis: AegisNode) {
     const claims = token ? verifyToken(token, aegis.options.secretKey, aegis.options.tokenTtl) : null;
     res.status(claims ? 200 : 401).json(claims ? { valid: true, score: claims.score, verdict: claims.verdict } : { valid: false });
   });
+
+  router.all('/aegis/graphql', aegisGraphQL(aegis));
 
   return router;
 }

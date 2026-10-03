@@ -140,3 +140,7 @@ htmlcov/
 *.egg-info/
 .pytest_tmp/
 packages/*/build/
+
+# Cloudflare Workers local secrets and state
+.dev.vars
+.wrangler/

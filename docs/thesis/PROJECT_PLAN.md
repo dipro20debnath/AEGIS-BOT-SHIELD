@@ -14,15 +14,16 @@
 | B | B3 Anti-detect checks, WebGPU, memory-hard WASM challenge | Done (PR #2) |
 | B | B4 QUICFingerprinter (Initial-packet parser, real Chromium/aioquic fixtures, pcap CLI) | Done |
 | B | B5 Docker for all services + docker-compose, Checkpoint B | Done (Checkpoint B verified) |
-| C | SHAP, model comparison, LSTM/CNN on trajectories, publication plots | Done (results/phase_c) |
+| C | SHAP, model comparison, LSTM/CNN on trajectories, publication plots | Done (PR #8, merged) |
 | — | **IRB final + submit (supervisor signature)** | **Oct 20–21 (student)** |
-| D | Redis, WebSocket, GraphQL, Cloudflare Worker edge, load tests | **Next** |
-| E | OpenAPI, whitepaper, docs | To do |
+| D | Redis, WebSocket, GraphQL, Cloudflare Worker edge, load tests | Done (results/phase_d, THESIS_NOTES §2.11) |
+| E | OpenAPI, whitepaper, docs | **Next** |
 | F | Self pen-test bots, profiling, Prometheus, K8s/Helm, v1.0.0 | To do |
 | G | Data-collection website | To do |
 
-Tests at handoff: core 123, js-sdk 45, server-node 23, server-python 77,
-ml-engine 31, e2e 5; lint 0 errors; npm audit 0 vulnerabilities; CI green.
+Tests after Phase D: core 135, js-sdk 45, server-node 39, edge-cloudflare 12,
+server-python 90, ml-engine 40, e2e 5; lint 0 errors. Redis cases run when
+`AEGIS_TEST_REDIS_URL` is set (CI starts a Redis service).
 
 ## Working rules
 - Commit as `dipro20debnath <dipro20debnath@users.noreply.github.com>`, no co-author lines.

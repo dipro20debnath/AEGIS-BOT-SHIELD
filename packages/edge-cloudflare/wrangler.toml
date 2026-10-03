@@ -1,0 +1,27 @@
+# AEGIS BOT SHIELD edge worker.
+#
+#   npx wrangler dev                              # local (workerd), forwards to AEGIS_ORIGIN
+#   npx wrangler secret put AEGIS_SECRET_KEY      # same secret as the origin middleware
+#   npx wrangler deploy                           # needs your Cloudflare account
+#
+# For route mode (worker on your zone in front of the origin) remove
+# AEGIS_ORIGIN and add a route, e.g.:
+#   routes = [{ pattern = "example.com/*", zone_name = "example.com" }]
+name = "aegis-edge"
+main = "src/worker.ts"
+compatibility_date = "2026-09-01"
+
+[vars]
+AEGIS_ORIGIN = "http://localhost:3000"
+AEGIS_REQUIRE_TOKEN_PATHS = "/api/login"
+AEGIS_EXCLUDED_PATHS = "/health,/sdk/,/favicon.ico"
+AEGIS_BLOCK_THRESHOLD = "80"
+AEGIS_MODE = "enforce"
+
+# Workers Rate Limiting: counters per Cloudflare location, eventually
+# consistent (a limit, not an exact quota). Without this binding the worker
+# falls back to a per-isolate window (AEGIS_RATE_LIMIT per minute).
+[[ratelimits]]
+name = "AEGIS_RATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 120, period = 60 }
