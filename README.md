@@ -1,108 +1,586 @@
 <div align="center">
   <h1>🛡️ AEGIS BOT SHIELD</h1>
-  <p><strong>International-Grade Bot Defense & Fraud Prevention SDK</strong></p>
-  
-  [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-  [![Version](https://img.shields.io/badge/version-1.0.0-success.svg)](https://github.com/dipro20debnath/AEGIS-BOT-SHIELD)
-  [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
-  [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)]()
-  [![Node](https://img.shields.io/badge/Node-16+-green.svg)]()
+  <p><strong>A layered bot-detection framework: browser SDK + Python/Node middleware + ML engine</strong></p>
+
+  [![CI](https://github.com/dipro20debnath/AEGIS-BOT-SHIELD/actions/workflows/ci.yml/badge.svg)](https://github.com/dipro20debnath/AEGIS-BOT-SHIELD/actions/workflows/ci.yml)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+  ![Node](https://img.shields.io/badge/Node-%E2%89%A522.12-green.svg)
+  ![Python](https://img.shields.io/badge/Python-3.10--3.12-blue.svg)
 </div>
 
 ---
 
-AEGIS BOT SHIELD is a comprehensive, open-source bot detection framework that utilizes advanced machine learning, behavioral biometrics, and cryptographic proof-of-work to protect web applications and APIs from automated threats.
+AEGIS BOT SHIELD tells humans and bots apart on a website. A small JavaScript SDK
+measures how the visitor behaves (mouse, keyboard, scroll, touch, device). The
+server middleware combines that with request-level evidence (headers, IP,
+session patterns, injection payloads) and a machine-learning model. It then
+decides per request: **allow, monitor, challenge or block**.
 
-## ✨ Features
+> **Project status:** research software, built for a B.Sc. thesis at Metropolitan
+> University, Sylhet (supervisor: Rishad Amin Pulok). It works end to end and is
+> tested in CI, but it has **not** been run in production or evaluated on real
+> traffic yet. The ML model is currently trained on **synthetic** data; real
+> human/bot data collection is planned for November 2026. Packages are **not
+> published** to npm/PyPI. Install from this repository as shown below.
 
-- 🧠 **Machine Learning Engine:** Real-time Random Forest & XGBoost classifiers trained on behavioral data.
-- 🖐️ **Behavioral Biometrics:** Analyzes mouse movements, keystroke dynamics, and scroll patterns.
-- 🧬 **Advanced Fingerprinting:** WebGL, Canvas, and AudioContext fingerprinting to detect headless browsers (Puppeteer, Selenium).
-- 🧩 **Cryptographic Proof-of-Work:** Imposes computational costs on suspicious traffic.
-- ⚡ **Ultra-Low Latency:** Inference times < 10ms for minimal impact on legitimate users.
-- 🔒 **End-to-End Encryption:** AES-256-GCM encrypted telemetry payloads.
-- 🔌 **Plug & Play Middleware:** Native support for Express, FastAPI, Flask, and Django.
+---
 
-## 🏗️ Architecture Overview
+## Contents
+- [When to use it (and when not)](#when-to-use-it-and-when-not)
+- [How it works](#how-it-works)
+- [Repository layout](#repository-layout)
+- [Quick start: demo in 5 minutes](#quick-start-demo-in-5-minutes)
+- [Add it to your own site](#add-it-to-your-own-site)
+- [Configuration](#configuration)
+- [Endpoints](#endpoints)
+- [Optional features](#optional-features)
+- [ML engine](#ml-engine)
+- [Dashboard](#dashboard)
+- [Testing](#testing)
+- [Privacy](#privacy)
+- [Limitations](#limitations)
+- [Roadmap and thesis documents](#roadmap-and-thesis-documents)
 
-AEGIS employs a unique **5-Layer Defense Model**:
-1. **Static Rules:** HTTP headers, Threat Intel IPs, Rate Limiting.
-2. **Client Fingerprinting:** Hardware & Browser signatures.
-3. **Behavioral Analysis:** Interaction entropy and dynamics.
-4. **ML Classifier:** 50-dimensional feature vector evaluation.
-5. **Proof-of-Work Challenge:** Silent computational challenges for borderline scores.
+---
 
-*See the [Architecture Documentation](docs/ARCHITECTURE.md) for a deep dive.*
+## When to use it (and when not)
 
-## 🚀 Quick Start
+**Use it to protect endpoints that bots abuse:**
 
-### 1. Installation
+| Endpoint | Typical attack (OWASP OAT) |
+|---|---|
+| Login | Credential stuffing (OAT-008) |
+| Sign-up | Fake account creation (OAT-019) |
+| Checkout, ticket or flash sales | Scalping (OAT-005) |
+| Product or price pages | Scraping (OAT-011) |
+| Contact and comment forms | Spam (OAT-017) |
+| Admin paths | Vulnerability scanning (OAT-014) |
 
-**Node.js (Express / Fastify)**
-```bash
-npm install @aegis-bot-shield/client @aegis-bot-shield/node
+**Start in `monitor` mode** on an existing site. It scores every request but
+never blocks, so you can see what it would do before you enforce it.
+
+**Do not use it as:**
+- a replacement for a WAF, input sanitisation, parameterised queries or authentication;
+- protection for a pure API with no browser in front of it. The behavioural
+  layer needs the JavaScript SDK; for server-to-server calls use
+  [request signing](#request-signing-anti-tamper) instead;
+- proof that a visitor is human. It gives a risk score, and a determined,
+  well-resourced bot can still get through. See [Limitations](#limitations).
+
+---
+
+## How it works
+
+```
+ Browser                                   Your server (Python or Node middleware)
+ ───────                                   ───────────────────────────────────────
+ aegis.min.js                              every request
+  ├ collectors: mouse, keyboard,             ├ L1 request rules: headers, user agent, rate limit,
+  │ scroll, touch (50 features)              │    injection payloads (XSS/SQLi/…), honeypots
+  ├ headless + anti-detect checks            ├ L2 IP: datacenter ranges, Tor exits, threat feeds
+  ├ device fingerprint (hashed)              ├ L3 session patterns: fixed-timer paging,
+  │                                          │    sequential IDs, 4xx probing
+  └─ POST /aegis/telemetry  ───────────────► ├ L4 behaviour rules + ML model on the 50 features
+       ◄── signed token (AEGIS.v1…) ──────── │    → signed token (AES-256-GCM + HMAC, 5 min)
+  fetch('/api/login')                        └ fuse all evidence (noisy-OR) → score 0–100
+   + header X-Aegis-Token  ────────────────►      allow | monitor | challenge | block
+  on 403 "challenge":                        L5 memory-hard proof of work (scrypt, 4 MiB)
+   solve scrypt in WebAssembly ──────────►      /aegis/challenge → turns "challenge" into "allow"
 ```
 
-**Python (FastAPI / Flask / Django)**
+- **Score:** 0–100. Defaults are **≥ 80 block**, **≥ 50 challenge**, otherwise
+  allow. In `monitor` mode, high scores are reported as `monitor` and never blocked.
+- **Fusion:** independent layers are combined with noisy-OR,
+  `100 × (1 − Π(1 − sᵢ/100))`, so extra evidence can only raise the risk.
+- **Token-required paths** (e.g. `/api/login`) need a valid telemetry token.
+  A bare `curl` is challenged.
+- **Proof of work** answers a "challenge". It never lifts a "block", and on its
+  own it does not replace behavioural telemetry on token-required paths.
+
+---
+
+## Repository layout
+
+| Path | What it is |
+|---|---|
+| `packages/js-sdk` | Browser SDK: collectors, headless and anti-detect checks, WebGPU fingerprint, scrypt WASM solver, token handling. Builds `dist/aegis.min.js`. |
+| `packages/server-python` | `aegis_shield`: **reference server middleware** for FastAPI/Starlette, Flask and Django, with the ML model in-process. |
+| `packages/core` | `@aegis/core`: TypeScript detection engine (rate limiting, IP intelligence, header/TLS/HTTP2 fingerprints, honeypots, threat feeds, input validation, session patterns, PoW). |
+| `packages/server-node` | `@aegis/server-node`: Express, Fastify and plain `http` middleware on top of the core, plus a status API. |
+| `packages/ml-engine` | `aegis_ml`: feature extractor, synthetic data generator, RandomForest + XGBoost ensemble, training and threshold tuning, HTTP inference service. |
+| `packages/dashboard` | React + Vite dashboard: live stats from the Node status API, ML results. |
+| `contracts/features.json` | The 50-feature contract shared by the SDK, servers and ML engine. Tests in TS and Python enforce it. |
+| `examples/` | Runnable demos: `fastapi-integration`, `python-flask`, `express-integration`, `html-basic`. |
+| `e2e/` | Playwright end-to-end tests: real Chromium → SDK → Python server → ML. |
+| `docs/thesis/` | Thesis notes, project plan, IRB drafts, experiment results. |
+
+---
+
+## Quick start: demo in 5 minutes
+
+**Requirements:** Node.js **≥ 22.12**, Python **3.10–3.12**, Git.
+
+### 1. Install and build
+
 ```bash
-pip install aegis-bot-shield-python
+git clone https://github.com/dipro20debnath/AEGIS-BOT-SHIELD.git
+cd AEGIS-BOT-SHIELD
+npm ci
+npm run build                      # core, js-sdk (dist/aegis.min.js), server-node, dashboard
+
+python -m venv .venv
+source .venv/bin/activate          # Windows PowerShell: .\.venv\Scripts\Activate.ps1
+pip install -e "packages/ml-engine[test]" -e "packages/server-python[test]" fastapi uvicorn
 ```
 
-### 2. Frontend Integration
+### 2. (Optional) Train a model for ML scoring
 
-Inject the AEGIS SDK into your HTML and generate a token before submitting sensitive requests.
+```bash
+python e2e/train_model.py model.pkl     # small model on synthetic data, about 10 s
+```
+
+### 3. Run the FastAPI demo
+
+```bash
+# Linux / macOS
+export AEGIS_SECRET_KEY=$(python -c "import secrets; print(secrets.token_hex(16))")
+export AEGIS_ML_MODEL_PATH=model.pkl     # optional
+uvicorn main:app --app-dir examples/fastapi-integration --port 8000
+```
+
+```powershell
+# Windows PowerShell
+$env:AEGIS_SECRET_KEY = python -c "import secrets; print(secrets.token_hex(16))"
+$env:AEGIS_ML_MODEL_PATH = "model.pkl"   # optional
+uvicorn main:app --app-dir examples/fastapi-integration --port 8000
+```
+
+### 4. Try it
+
+- Open **http://localhost:8000** and log in with `demo` / `demo`. Move the
+  mouse and type normally; the login succeeds.
+- A script without the SDK is challenged:
+  ```bash
+  curl -i -X POST http://localhost:8000/api/login \
+       -H "Content-Type: application/json" -d '{"username":"demo","password":"demo"}'
+  # HTTP/1.1 403  {"aegis":"challenge","telemetry":"/aegis/telemetry","challenge":"/aegis/challenge"}
+  ```
+- Default headless Chromium (Playwright/Puppeteer) is denied at the first page
+  load. A "stealth" headless browser loads the page but is blocked at login by
+  the behavioural layer. `npm run test:e2e` shows both.
+
+**Other demos:**
+- **Flask:** `flask --app examples/python-flask/app.py run` (login `demo` / `demo`).
+- **Express:** `node examples/express-integration/server.js`, then open
+  http://localhost:3000 (login `admin` / `password`). It also serves the status
+  API for the dashboard.
+
+---
+
+## Add it to your own site
+
+### Step 1: the browser SDK
+
+Build it with `npm run build -w packages/js-sdk` and serve
+`packages/js-sdk/dist/aegis.min.js` from your site. There is no public CDN.
+
+**Automatic (recommended):**
 
 ```html
-<script src="https://cdn.aegis-shield.com/v1/aegis.min.js"></script>
-<script>
-  const aegis = new AegisClient({ siteKey: 'YOUR_SITE_KEY' });
-  aegis.init();
+<script src="/static/aegis.min.js" data-site-key="YOUR_SITE_KEY"></script>
+```
 
-  async function performAction() {
-      const token = await aegis.getToken();
-      fetch('/api/secure', {
-          headers: { 'X-Aegis-Token': token }
-      });
-  }
+That's all for most sites:
+- the SDK starts collecting;
+- it posts telemetry when your page makes its first same-origin `fetch`/XHR;
+- it adds the `X-Aegis-Token` header to your own requests (never to third-party origins);
+- on a 403 "challenge" it solves the proof of work and retries once.
+
+Optional attributes:
+- `data-endpoint="https://api.example.com"`: AEGIS server on another origin;
+- `data-beacon="true"`: send a final report when the page is closed;
+- `data-debug="true"`: log to the console.
+
+**Manual control:**
+
+```html
+<script src="/static/aegis.min.js"></script>
+<script>
+  const aegis = new Aegis.AegisClient({
+    siteKey: 'YOUR_SITE_KEY',
+    endpoint: 'https://api.example.com',        // default: this page's origin
+    allowedOrigins: ['https://api.example.com'], // extra origins that get the token
+    autoChallenge: true,                         // solve PoW on 403 "challenge" and retry
+  });
+  aegis.on('token', r => console.log('verdict', r.verdict, 'score', r.score));
+
+  // If you do not use fetch/XHR interception:
+  const token = await aegis.getToken();          // sends telemetry if needed
+  await fetch('/api/login', { method: 'POST', headers: { 'X-Aegis-Token': token }, body });
 </script>
 ```
 
-### 3. Backend Integration (Express.js Example)
+Other SDK config keys (all default `true`):
+- `collectMouse`, `collectKeyboard`, `collectScroll`, `collectTouch`;
+- `fingerprint`, `detectHeadless`, `detectAntiDetect`;
+- `autoIntercept`, `autoStart`.
 
-```javascript
-const express = require('express');
-const { aegisExpress } = require('@aegis-bot-shield/node');
+### Step 2a: Python backend (reference server)
 
-const app = express();
-
-app.post('/api/login', aegisExpress({
-    secretKey: process.env.AEGIS_SECRET_KEY,
-    blockMode: true
-}), (req, res) => {
-    // If we reach here, the request is from a verified human
-    res.json({ success: true });
-});
+```bash
+pip install -e packages/server-python       # add -e packages/ml-engine for local ML scoring
 ```
 
-## 📚 Documentation
+**FastAPI / Starlette**
 
-For complete documentation, check the `docs/` directory:
-- [API Reference](docs/API_REFERENCE.md)
-- [Integration Guide](docs/INTEGRATION_GUIDE.md)
-- [Machine Learning Model Guide](docs/ML_MODEL_GUIDE.md)
-- [Architecture Details](docs/ARCHITECTURE.md)
+```python
+from fastapi import FastAPI, Request
+from aegis_shield import AegisFastAPIMiddleware
 
-## 🛠️ Technology Stack
+app = FastAPI()
+app.add_middleware(
+    AegisFastAPIMiddleware,
+    site_key="YOUR_SITE_KEY",
+    secret_key="at-least-16-random-chars",   # keep secret; same value on every instance
+    mode="monitor",                          # start here, switch to "enforce" later
+    require_token_paths=["/api/login", "/api/checkout"],
+    excluded_paths=["/health", "/static"],
+    ml_model_path="model.pkl",               # optional
+)
 
-- **Client:** TypeScript, Web APIs
-- **Core Engine:** Node.js, Python
-- **Machine Learning:** Scikit-learn, XGBoost, ONNX Runtime
-- **Cryptography:** WebCrypto API, PyCryptodome
+@app.post("/api/login")
+def login(request: Request):
+    aegis = request.scope["state"]["aegis"]  # AegisResult: action, score, reason
+    ...
+```
 
-## 🤝 Contributing
+**Flask**
 
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on how to submit pull requests, report issues, and propose new features.
+```python
+from flask import Flask, g
+from aegis_shield import AegisFlaskMiddleware
 
-## 📄 License
+app = Flask(__name__)
+AegisFlaskMiddleware(app, site_key="...", secret_key="...", require_token_paths=["/login"])
+# inside a view: g.aegis.action, g.aegis.score, g.aegis.reason
+```
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+**Django** (`settings.py`)
+
+```python
+MIDDLEWARE = ["aegis_shield.AegisDjangoMiddleware", ...]
+AEGIS = {"site_key": "...", "secret_key": "...", "require_token_paths": ["/accounts/login/"]}
+# inside a view: request.aegis.action / .score
+```
+
+Configuration from environment variables: `from aegis_shield import get_config`,
+then `AegisFastAPIMiddleware(app, **get_config(), ...)`. See
+[environment variables](#environment-variables-python).
+
+### Step 2b: Node backend
+
+The Node packages are workspace packages. Build them and import from the repo,
+as `examples/express-integration/server.js` does.
+
+**Express**
+
+```js
+const express = require('express');
+const { AegisNode, aegisExpress, aegisRoutes } = require('./packages/server-node/dist');
+
+const aegis = new AegisNode({
+  siteKey: 'YOUR_SITE_KEY',
+  secretKey: process.env.AEGIS_SECRET_KEY,       // >= 16 characters
+  mode: 'monitor',
+  requireTokenPaths: ['/api/login'],
+  excludedPaths: ['/health', '/static', '/aegis/'],
+  mlUrl: process.env.AEGIS_ML_URL,              // optional ML service (see ML engine)
+});
+
+const app = express();
+app.use(express.json());
+app.use(aegisExpress(aegis.options, aegis));
+app.use(aegisRoutes(aegis));                    // status API: protect it behind auth!
+app.post('/api/login', (req, res) => res.json({ score: req.aegis.score }));
+```
+
+**Fastify:**
+
+```js
+const { aegisFastify } = require('./packages/server-node/dist/middleware/fastify');
+fastify.register(aegisFastify, { siteKey: '...', secretKey: '...', requireTokenPaths: ['/api/login'] });
+```
+
+**Plain `http` / Connect:** use `aegisGeneric(options)` as middleware.
+
+### What happens to a request
+
+| Verdict | Response | Your handler |
+|---|---|---|
+| `allow` | passes through | runs; the decision is in `request.aegis` |
+| `monitor` | passes through (monitor mode, high score) | runs; log or flag it |
+| `challenge` | `403 {"aegis":"challenge", "telemetry":…, "challenge":…}` + header `X-Aegis-Action: challenge` | not called; the SDK solves and retries |
+| `block` | `403 {"aegis":"block"}` + header `X-Aegis-Action: block` | not called |
+
+If detection itself fails, the request is **allowed** by default
+(`fail_open=True`). A bug in AEGIS must not take your site down.
+
+---
+
+## Configuration
+
+### Python (`aegis_shield`) keyword arguments
+
+| Option | Default | Meaning |
+|---|---|---|
+| `site_key`, `secret_key` | required | Site id and signing key (≥ 16 chars) |
+| `mode` | `"enforce"` | `"monitor"` scores without blocking |
+| `block_threshold`, `challenge_threshold` | `80`, `50` | Score cut-offs |
+| `require_token_paths` | `[]` | Path prefixes that need a telemetry token |
+| `protected_paths` | `None` (all) | Only analyse these prefixes |
+| `excluded_paths` | `["/health", "/favicon.ico"]` | Never analysed |
+| `token_ttl` | `300` | Token lifetime, seconds |
+| `ml_model_path` / `ml_url` | `None` | Local model file or ML HTTP service |
+| `trusted_proxies` | `[]` | IPs/CIDRs whose `X-Forwarded-For` is trusted (set this behind nginx/Cloudflare) |
+| `verify_search_engines` | `False` | Confirm Googlebot/Bingbot by reverse DNS (adds latency) |
+| `input_validation` | `True` | XSS/SQLi/path-traversal/CRLF checks on path and query |
+| `session_patterns` | `True` | Request-sequence checks per session |
+| `live_feeds`, `feeds`, `feed_cache_dir`, `abuseipdb_key` | off | [Live IP lists](#live-ip-lists-tor-firehol-spamhaus-abuseipdb) |
+| `challenge_path`, `pow_n`, `pow_r`, `pow_bits` | `/aegis/challenge`, 4096, 8, 4 | [Proof of work](#memory-hard-proof-of-work) |
+| `fail_open` | `True` | Allow requests when analysis errors |
+
+### Environment variables (Python)
+
+Read by `get_config()`:
+
+| Variable | Purpose |
+|---|---|
+| `AEGIS_SITE_KEY`, `AEGIS_SECRET_KEY` | Site key and secret |
+| `AEGIS_MODE` | `monitor` or `enforce` |
+| `AEGIS_BLOCK_THRESHOLD`, `AEGIS_CHALLENGE_THRESHOLD` | Score thresholds |
+| `AEGIS_FAIL_OPEN` | `true` / `false` |
+| `AEGIS_ML_MODEL_PATH`, `AEGIS_ML_URL` | ML model file or service URL |
+| `AEGIS_TRUSTED_PROXIES` | Comma-separated IPs/CIDRs |
+| `ABUSEIPDB_API_KEY` | Enables the AbuseIPDB feed when live feeds are on |
+
+### Node (`AegisNode`) options
+
+The Node options mirror the Python ones in camelCase:
+- `siteKey`, `secretKey`, `mode`;
+- `thresholds: {block, challenge}`;
+- `requireTokenPaths`, `protectedPaths`, `excludedPaths`;
+- `tokenTtl`, `mlUrl`, `mlTimeoutMs`;
+- `telemetryPath`, `challengePath`;
+- `pow: {n, r, bits}`;
+- `engine` (an extra `DetectionEngine` config, e.g.
+  `engine: { ipIntelligence: { liveFeeds: { tor: true, threatFeeds: true, cacheDir: '.aegis-cache' } } }`).
+
+---
+
+## Endpoints
+
+These are answered by the middleware itself:
+
+| Method and path | Purpose |
+|---|---|
+| `POST /aegis/telemetry` | SDK sends behaviour features and receives `{token, expiresIn, verdict, score}` |
+| `GET /aegis/challenge` | Issue a memory-hard challenge `{challenge, seed, n, r, bits, expiresAt}` |
+| `POST /aegis/challenge` | Verify `{challenge, nonce}` and receive a token |
+
+Node status API (`aegisRoutes`), meant for the dashboard. **Put it behind authentication.**
+
+| Method and path | Purpose |
+|---|---|
+| `GET /aegis/health` | Liveness |
+| `GET /aegis/stats` | Counts per verdict, top reasons (since process start) |
+| `GET /aegis/events?limit=100` | Recent decisions (IPs truncated to /24 or /48) |
+| `GET /aegis/config` | Active configuration (no secrets) |
+| `POST /aegis/verify` | Verify a token from another backend |
+
+---
+
+## Optional features
+
+### Live IP lists (Tor, FireHOL, Spamhaus, AbuseIPDB)
+
+These are off by default because they need outbound network access.
+
+```python
+AegisFastAPIMiddleware(app, ..., live_feeds=True, feed_cache_dir="/var/cache/aegis")
+# AbuseIPDB as well: set ABUSEIPDB_API_KEY (free plan: synced at most every 6 h)
+```
+
+How the lists are handled:
+- They refresh in the background and are cached on disk.
+- A failed download keeps the previous list.
+- Private, loopback, CGNAT and documentation ranges are always dropped (FireHOL
+  level1 contains `10.0.0.0/8`, `127.0.0.0/8` and `100.64.0.0/10`).
+
+**Use when** your site is internet-facing and you see traffic from hosting
+providers or known attackers. A listed IP is evidence, not proof (shared NAT,
+recycled cloud IPs).
+
+### Memory-hard proof of work
+
+This is on automatically: `challenge` responses point to `/aegis/challenge`, and
+the SDK solves it with `autoChallenge`.
+- **Puzzle:** scrypt with N=4096, r=8 (4 MiB per attempt), about 16 attempts.
+  Measured in Chromium: 13.7 ms per attempt in WebAssembly, so about 0.2 s per
+  challenge on a desktop. Slower phones take longer.
+- **Raise or lower `pow_bits`** to make it harder or easier. Each +1 doubles the
+  expected work. Measure on a low-end phone first.
+- **Works on plain HTTP:** the SDK uses a JS SHA-256 fallback where WebCrypto is
+  unavailable.
+- **Content-Security-Policy:** if your CSP blocks WebAssembly, add
+  `'wasm-unsafe-eval'` to `script-src`. Otherwise the slower JS solver is used.
+
+### Security headers
+
+```python
+from aegis_shield import SecurityHeadersMiddleware
+app.add_middleware(SecurityHeadersMiddleware, hsts=False)  # pass hsts=True only on HTTPS
+```
+
+```js
+const { aegisSecurityHeaders } = require('./packages/server-node/dist');
+app.use(aegisSecurityHeaders({ contentSecurityPolicy: "default-src 'self'" }));
+```
+
+These add CSP, HSTS, X-Frame-Options, nosniff, Referrer-Policy,
+Permissions-Policy and COOP. They harden the site; they do not detect bots.
+
+### Request signing (anti-tamper)
+
+For **server-to-server** calls and webhooks, not browsers. Both sides share a
+secret; a request is accepted once, and replays or modified bodies are rejected.
+Node and Python produce identical signatures.
+
+```js
+// receiver (Express): mount before the JSON parser, or keep the raw body
+app.post('/webhook', aegisRequireSignature(process.env.WEBHOOK_SECRET), handler);
+```
+
+```python
+# sender (Python)
+from aegis_shield import sign_request
+headers = {"X-Aegis-Signature": sign_request("POST", "/webhook", body_bytes, secret)}
+```
+
+---
+
+## ML engine
+
+```bash
+cd packages/ml-engine
+python scripts/thesis_experiment.py --out ../../docs/thesis/results/synthetic   # full experiment
+```
+
+The full experiment:
+- trains the RandomForest + XGBoost ensemble on synthetic data;
+- tunes the decision threshold on out-of-fold predictions (≤ 2% FPR budget);
+- runs per-category and group ablation;
+- writes `thesis_report.md`, `results.json`, `metrics.csv` and ROC, importance
+  and confusion plots.
+
+**Use the model:**
+- **In-process (Python server):** `ml_model_path="model.pkl"`. Train a quick
+  one with `python e2e/train_model.py model.pkl`.
+- **As a service** (for the Node server):
+  ```bash
+  pip install -e "packages/ml-engine[server]"
+  MODEL_PATH=model.pkl uvicorn aegis_ml.server:app --port 8001   # POST /predict
+  ```
+  Then pass `mlUrl: 'http://localhost:8001'` to `AegisNode`.
+
+Results so far are on **synthetic** data only (see
+`docs/thesis/results/synthetic/thesis_report.md`). They show the pipeline
+works; they are not real-world accuracy.
+
+---
+
+## Dashboard
+
+```bash
+node examples/express-integration/server.js              # serves the status API on :3000
+AEGIS_API=http://localhost:3000 npm run dev -w packages/dashboard
+```
+
+Open the URL Vite prints. It shows live counts, recent decisions, top reasons
+and the ML results from `docs/thesis/results/`.
+
+---
+
+## Testing
+
+```bash
+npm run build && npm test && npm run lint                      # core, js-sdk, server-node
+python -m pytest packages/ml-engine/tests packages/server-python/tests
+npx playwright install chromium && npm run test:e2e            # real browser end to end
+```
+
+On **Windows**:
+- add `--basetemp=.pytest_tmp` to pytest;
+- set `$env:PYTHON="python"` before `npm run test:e2e`.
+
+CI runs all of this on every pull request:
+- Node 22 and 24;
+- Python 3.10–3.12;
+- the e2e test;
+- `npm audit` and `pip-audit`.
+
+---
+
+## Privacy
+
+What the SDK sends:
+- **Timing and geometry statistics only.** No key contents, no typed text, no
+  URLs, no raw user agent.
+- **The device fingerprint as a SHA-256 hash.**
+
+The server keeps:
+- **Sessions:** in memory, through an HttpOnly `aegis_sid` cookie.
+- **Dashboard events:** truncated IPs (/24 or /48).
+
+If you add data logging (`on_record`), you are responsible for consent and
+retention. See `docs/thesis/irb/` for the study's data dictionary and consent
+forms.
+
+---
+
+## Limitations
+
+- **Synthetic training data:** detection rates on real traffic are unknown until
+  the planned study.
+- **Rule thresholds** are hand-set, and independent layers are assumed
+  independent. Correlated signals are counted twice.
+- **Anti-detect checks** catch inconsistent profiles. A carefully consistent
+  profile, patched at the browser's native level, passes. They have not yet
+  been tested against a real anti-detect browser.
+- **Session-pattern checks** are evaded by a real browser with random timing
+  that follows links.
+- **Proof of work** proves cost, not humanity. It makes mass automation
+  expensive but does not stop a single bot.
+- **Single process:** state (sessions, nonces, rate limits) is in memory. Run
+  multiple instances only with sticky sessions until the Redis backend lands.
+- **QUIC/HTTP3 fingerprinting** is not implemented yet.
+
+---
+
+## Roadmap and thesis documents
+
+- **[docs/thesis/PROJECT_PLAN.md](docs/thesis/PROJECT_PLAN.md):** phase plan and
+  current status. Next: QUIC fingerprint parser, Docker, SHAP and model
+  comparison, Redis, load tests, data-collection website.
+- **[docs/thesis/THESIS_NOTES.md](docs/thesis/THESIS_NOTES.md):** every design
+  decision, measurement, bug and limitation, with reasons.
+- **[docs/thesis/irb/](docs/thesis/irb/):** study protocol, consent forms
+  (English and Bangla), data dictionary.
+
+The older files directly under `docs/` (API reference, integration guide,
+architecture) predate the current code and will be rewritten in the
+documentation phase. When they disagree with this README, trust the README.
+
+## Contributing and license
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Security issues: [SECURITY.md](SECURITY.md).
+MIT License, © Dipro Debnath.
