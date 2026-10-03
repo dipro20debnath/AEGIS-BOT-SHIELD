@@ -6,7 +6,7 @@ and providing predictions with low latency.
 """
 import os
 import time
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, List, Optional, Tuple
 import numpy as np
 
 from ..features.extractor import FeatureExtractor
@@ -24,6 +24,7 @@ class InferenceEngine:
         # Simple caching for repeat clients (in memory for demo)
         self.cache = {}
         self.latency_stats = []
+        self._explainer = None
 
     def _load_model(self):
         """Loads the saved classifier model if it exists."""
@@ -79,6 +80,18 @@ class InferenceEngine:
             print(f"Inference error: {e}")
             self._record_latency(start_time)
             return 0.5, False
+
+    def explain(self, request_data: Dict[str, Any], top_k: int = 5) -> Optional[List[Dict[str, float]]]:
+        """Top features behind the score of one request (SHAP values of the XGBoost
+        component, see aegis_ml.evaluation.explain). None without a model or its XGBoost component."""
+        if not self.is_loaded:
+            return None
+        if self._explainer is None:
+            from ..evaluation.explain import try_explainer
+            self._explainer = try_explainer(self.classifier) or False
+        if not self._explainer:
+            return None
+        return self._explainer.explain(self.extractor.extract_batch([request_data])[0], top_k)
 
     def _record_latency(self, start_time: float):
         latency_ms = (time.time() - start_time) * 1000
