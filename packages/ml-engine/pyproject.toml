@@ -20,7 +20,7 @@ dependencies = [
 server = ["fastapi>=0.95.0", "uvicorn>=0.22.0", "pydantic>=2.0.0"]
 # Sequence models (Phase C)
 deep = ["torch>=2.0.0"]
-# SHAP explanations (Phase C)
+# Optional cross-check of the built-in XGBoost TreeSHAP against the shap package
 explain = ["shap>=0.41.0"]
 test = ["pytest>=7.0.0"]
 dev = ["aegis-ml-engine[server,test]"]

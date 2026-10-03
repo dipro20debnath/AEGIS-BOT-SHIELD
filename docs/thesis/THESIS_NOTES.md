@@ -39,6 +39,7 @@ Phase B progress (2026-10-03): B1 security layer, B2 live feeds + session
 patterns, B3 anti-detect + WebGPU + memory-hard challenge, B4 QUIC fingerprint
 parser, B5 Docker done (**Checkpoint B reached**). Core 123 tests, SDK 45, Node 23,
 Python 77, ML 31, e2e 5; `docker compose up` verified with a real browser.
+Phase C (ML) done 2026-10-03: ML tests 40; results in `docs/thesis/results/phase_c/`.
 
 Before Phase A (2026-10-02 audit): only the ML engine worked; core/SDK/Node did
 not compile, no layer called another, the SDK sent no behavioural data, and the
@@ -396,6 +397,108 @@ fingerprinting papers appeared from 2023 on.
   - the bundled model is synthetic;
   - state is in memory (one replica per service until Redis in Phase D);
   - no TLS termination (put a reverse proxy in front).
+
+### 2.10 Phase C: model comparison, SHAP, sequence models (2026-10-03)
+Code: `aegis_ml/evaluation/` (compare, stats, explain, plots, trajectory_experiment),
+`aegis_ml/trajectories/`, `aegis_ml/models/sequence_models.py`. Reproduce with:
+- `scripts/phase_c_experiment.py`: about 15 min on 4 CPUs;
+- `scripts/phase_c_seed_robustness.py`: about 20 min.
+
+Report, figures and JSON: `docs/thesis/results/phase_c/`. **All data is synthetic.**
+
+**C1 Model comparison (identical 5-fold CV, 5,000 sessions, stratified bootstrap
+95% CIs, paired differences):**
+| Model | AUC-ROC | Recall @ 2% FPR | p50 latency |
+|---|---|---|---|
+| Logistic regression | 0.9947 (0.9931–0.9961) | 0.961 | 0.29 ms |
+| Random forest | 0.9931 (0.9910–0.9950) | 0.956 | 58 ms* |
+| XGBoost | 0.9939 (0.9919–0.9955) | 0.955 | 0.33 ms |
+| Stacked ensemble (AEGIS) | 0.9940 (0.9920–0.9958) | 0.960 | 1.16 ms |
+
+- **The ensemble is not significantly better than logistic regression or
+  XGBoost** (paired ΔAUC CIs include 0). It beats the random forest by
+  +0.0008, which is statistically significant but negligible.
+- On this synthetic feature space, a linear model is enough. Do not claim the
+  ensemble helps until the real data shows it.
+- *The standalone RF latency is joblib thread dispatch (`n_jobs=-1`) for a single
+  row. The production ensemble evaluates the RF through FlatForest (§4), at 1.16 ms total.
+
+**C1b Unseen bot types (leave one type out):**
+- Recall on the held-out **replay bot** is only **0.36–0.47** at 2% FPR, for
+  every model. It is also the weakest type even when it is seen in training
+  (0.79–0.82).
+- A bot that replays recorded human behaviour cannot be separated by
+  behavioural features alone. This is the quantitative argument for the
+  non-behavioural layers (session patterns, IP reputation, proof of work): RQ3.
+
+**C2 SHAP** (TreeSHAP on the XGBoost component, computed with XGBoost's
+built-in `pred_contribs`, which matches the `shap` package; exact, additivity error 5e-6;
+1.8 ms per explanation):
+- **Network features dominate** (`ip_reputation` mean |SHAP| 2.78), then
+  `headless_confidence` 1.60, then `session_reputation` 0.83.
+- This reflects the synthetic generator, which gives bots bad IP reputation.
+  Real bots behind residential proxies will make this feature far weaker.
+  **Re-run SHAP on the November data before interpreting it.**
+- Rank agreement with the other base models: RF 0.75, LR 0.55 (Spearman).
+  So explaining only the XGBoost part is a reasonable but imperfect proxy for
+  the ensemble.
+- Available per request: `InferenceEngine.explain()` and
+  `POST /predict {"explain": true}`. This can back a dashboard "why was I
+  blocked" view.
+
+**C3 Raw mouse trajectories** (new simulator: minimum-jerk + Fitts' law +
+tremor + overshoot for humans; linear / teleport / Bézier (ghost-cursor) /
+humanized / replay bots):
+- **First attempt failed for set-up reasons.** Deep models on raw `(dx, dy, dt)`
+  at 6 epochs reached only AUC 0.54 (LSTM) and 0.88 (CNN). Fixed by:
+  1. adding speed, turning-angle and pause channels;
+  2. standardising each channel;
+  3. a strided-convolution front end before the LSTM;
+  4. training for 20 epochs with best-validation checkpointing.
+  Report this as tuning that was needed, not as a property of the method.
+- **Mixed split** (4,000 trajectories), AUC:
+  | Model | AUC |
+  |---|---|
+  | Features + RF | 0.996 |
+  | Features + XGBoost | 0.999 |
+  | 1D-CNN | 0.998 |
+  | Conv-LSTM | 0.998 |
+
+  Sequence models add **nothing** when every bot type is in training.
+- **Unseen bot type, 3 seeds (mean ± sd recall @ 2% FPR):**
+  | Held-out type | Feature models | Sequence models |
+  |---|---|---|
+  | linear | 0.10–0.17 | **0.95–0.98** |
+  | Bézier | 0.27 ± 0.44 (RF), ≈0 (others) | ≈0 |
+  | replay | 0.14–0.44 | 0.26–0.36 |
+  | teleport, humanized | ≈1 | ≈1 |
+
+  - **Linear:** sequence models generalise; feature models do not.
+  - **Bézier (ghost-cursor style):** essentially undetected when unseen.
+  - **Replay:** hard for all models.
+- **Lesson on single seeds:** the first single-seed run reported Bézier at 0.98
+  for RF. Across seeds it is 0.27 ± 0.44. Single-seed generalisation numbers are
+  unreliable; always report several seeds.
+- **Thesis claim supported:** the model families fail on different unseen
+  attacks, so diversity (features + sequence models, plus non-behavioural layers)
+  is what helps generalisation, not one "best" model.
+- **Latency:** CNN 1.1 ms and LSTM 1.7 ms per trajectory on CPU, which is
+  acceptable server-side.
+- **Not integrated in the live pipeline yet.** The SDK sends only summary
+  features, and sending raw trajectories needs an IRB/privacy decision (they
+  are richer behavioural data). Decide before the November study.
+
+**Figures (300 dpi PDF + PNG):**
+- `fig_c1_roc_pr`: ROC on a log-FPR axis with the 2% budget marked, plus PR, with bootstrap 95% bands;
+- `fig_c1_unseen_bot_types`;
+- `fig_shap_importance`;
+- `fig_trajectory_examples`;
+- `fig_c3_trajectory_roc_pr`;
+- `fig_c3_trajectory_unseen_types`.
+
+**Colour and print:** colours come from a validated palette (CVD-safe). The
+two low-contrast hues also differ in line style, so the figures survive
+grayscale printing.
 
 ## 3. Contributions — what can honestly be claimed
 

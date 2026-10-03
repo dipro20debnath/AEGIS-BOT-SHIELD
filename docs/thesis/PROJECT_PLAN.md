@@ -14,9 +14,9 @@
 | B | B3 Anti-detect checks, WebGPU, memory-hard WASM challenge | Done (PR #2) |
 | B | B4 QUICFingerprinter (Initial-packet parser, real Chromium/aioquic fixtures, pcap CLI) | Done |
 | B | B5 Docker for all services + docker-compose, Checkpoint B | Done (Checkpoint B verified) |
-| C | SHAP, model comparison, LSTM/CNN on trajectories, publication plots | **Next** (Oct 16–19) |
+| C | SHAP, model comparison, LSTM/CNN on trajectories, publication plots | Done (results/phase_c) |
 | — | **IRB final + submit (supervisor signature)** | **Oct 20–21 (student)** |
-| D | Redis, WebSocket, GraphQL, Cloudflare Worker edge, load tests | To do |
+| D | Redis, WebSocket, GraphQL, Cloudflare Worker edge, load tests | **Next** |
 | E | OpenAPI, whitepaper, docs | To do |
 | F | Self pen-test bots, profiling, Prometheus, K8s/Helm, v1.0.0 | To do |
 | G | Data-collection website | To do |
