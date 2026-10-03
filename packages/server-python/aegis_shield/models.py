@@ -29,6 +29,21 @@ class AegisConfig(BaseModel):
     max_telemetry_bytes: int = 64 * 1024
     #: Check path and query string for XSS / SQLi / path traversal / CRLF payloads
     input_validation: bool = True
+    #: Memory-hard proof-of-work challenge (GET issues, POST verifies)
+    challenge_path: str = "/aegis/challenge"
+    #: scrypt cost: memory per attempt = 128 * pow_r * pow_n bytes (4 MiB by default)
+    pow_n: int = 4096
+    pow_r: int = 8
+    #: Required leading zero bits; expected client attempts = 2 ** pow_bits
+    pow_bits: int = 4
+    #: Request-sequence checks per session (timer-regular paging, ID enumeration, 4xx probing)
+    session_patterns: bool = True
+    #: Download the Tor exit list and threat feeds (network access; off by default)
+    live_feeds: bool = False
+    #: Which lists; abuseipdb needs abuseipdb_key or env ABUSEIPDB_API_KEY
+    feeds: List[str] = ["tor", "firehol_level1", "spamhaus_drop", "abuseipdb"]
+    feed_cache_dir: Optional[str] = None
+    abuseipdb_key: Optional[str] = None
 
     @field_validator("secret_key")
     @classmethod
@@ -45,6 +60,7 @@ class AegisResult(BaseModel):
     payload: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
     is_bot: bool = False
+    session_id: Optional[str] = None
 
 
 class AnalysisResult(BaseModel):
@@ -72,3 +88,12 @@ class TelemetryPayload(BaseModel):
     features: TelemetryFeatures
     behavioral: Dict[str, Any] = {}
     headlessChecks: List[str] = Field(default_factory=list, max_length=32)
+    antiDetect: Optional["AntiDetectSummary"] = None
+
+
+class AntiDetectSummary(BaseModel):
+    """Anti-detect browser consistency checks from the SDK (outside the ML feature contract)."""
+    score: float = Field(0.0, ge=0, le=1)
+    checks: List[str] = Field(default_factory=list, max_length=16)
+
+TelemetryPayload.model_rebuild()

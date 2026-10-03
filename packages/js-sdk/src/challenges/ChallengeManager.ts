@@ -1,5 +1,6 @@
 import { ChallengeRequest, ChallengeResponse } from '../types';
 import { ProofOfWork } from './ProofOfWork';
+import { MemoryHardChallenge, solveMemoryHard } from './MemoryHardChallenge';
 
 export class ChallengeManager {
   private pow: ProofOfWork;
@@ -19,8 +20,11 @@ export class ChallengeManager {
           result: { nonce: result.nonce, hash: result.hash },
           timeMs: result.timeMs
         };
-      } else if (request.type === 'wasm' || request.type === 'interactive') {
-        return { id: request.id, solved: false, error: `${request.type} challenges are not implemented yet` };
+      } else if (request.type === 'wasm' || request.type === 'memory-hard') {
+        const result = await solveMemoryHard(request.payload as MemoryHardChallenge);
+        return { id: request.id, solved: true, result: { nonce: result.nonce, engine: result.engine }, timeMs: result.timeMs };
+      } else if (request.type === 'interactive') {
+        return { id: request.id, solved: false, error: 'interactive challenges are not implemented' };
       }
       
       return { id: request.id, solved: false, error: 'Unknown challenge type' };

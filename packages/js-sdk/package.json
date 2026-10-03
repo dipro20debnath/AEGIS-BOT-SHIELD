@@ -8,9 +8,10 @@
   "scripts": {
     "build": "tsc && npm run bundle",
     "bundle": "esbuild src/browser.ts --bundle --minify --sourcemap --format=iife --global-name=Aegis --target=es2019 --outfile=dist/aegis.min.js",
-    "test": "vitest run",
+    "test": "node scripts/build-scrypt-wasm.mjs --check && vitest run",
     "clean": "rm -rf dist",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src --ext .ts",
+    "build:wasm": "node scripts/build-scrypt-wasm.mjs"
   },
   "author": "dipro20debnath",
   "license": "MIT",
@@ -18,7 +19,8 @@
     "esbuild": "^0.28.2",
     "jsdom": "^30.1.1",
     "typescript": "^5.0.0",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "wabt": "^1.0.39"
   },
   "unpkg": "dist/aegis.min.js",
   "files": [

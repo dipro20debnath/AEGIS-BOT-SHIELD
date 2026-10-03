@@ -9,6 +9,9 @@ import { ScrollCollector } from './collectors/ScrollCollector';
 import { TouchCollector } from './collectors/TouchCollector';
 import { DeviceFingerprinter } from './fingerprint/DeviceFingerprinter';
 import { buildTelemetry, DeviceSignals, TelemetryPayload } from './telemetry';
+import { AntiDetectDetector, AntiDetectResult } from './detection/AntiDetectDetector';
+import { WebGPUFingerprinter } from './fingerprint/WebGPUFingerprinter';
+import { MemoryHardChallenge, solveMemoryHard } from './challenges/MemoryHardChallenge';
 
 type Handler = (data?: unknown) => void;
 
@@ -17,7 +20,7 @@ type Handler = (data?: unknown) => void;
  * server, and attaches the server-issued token to the site's own requests.
  */
 export class AegisClient {
-  private config: Required<Pick<AegisClientConfig, 'siteKey' | 'endpoint' | 'telemetryPath'>> & AegisClientConfig;
+  private config: Required<Pick<AegisClientConfig, 'siteKey' | 'endpoint' | 'telemetryPath' | 'challengePath'>> & AegisClientConfig;
   private headlessDetector = new HeadlessDetector();
   private challengeManager = new ChallengeManager();
   private tokenManager = new TokenManager();
@@ -29,6 +32,8 @@ export class AegisClient {
   private initialized = false;
   private eventHandlers: Map<string, Handler[]> = new Map();
   private detectionResult: HeadlessDetectionResult | null = null;
+  private antiDetectResult: AntiDetectResult | null = null;
+  private challengeInFlight: Promise<boolean> | null = null;
   private device: DeviceSignals = { hasWebGL: false, hasCanvas: false, pluginCount: 0 };
   private streamId = randomId();
   private inFlight: Promise<string> | null = null;
@@ -47,16 +52,19 @@ export class AegisClient {
       collectTouch: true,
       fingerprint: true,
       detectHeadless: true,
+      detectAntiDetect: true,
+      autoChallenge: true,
       beaconOnExit: false,
       ...config,
       // explicit undefined in config must not override these defaults
       endpoint: config.endpoint ?? window.location.origin,
       telemetryPath: config.telemetryPath ?? '/aegis/telemetry',
+      challengePath: config.challengePath ?? '/aegis/challenge',
     };
     this.nativeFetch = window.fetch.bind(window);
     this.requestInterceptor = new RequestInterceptor(this, {
       allowedOrigins: this.config.allowedOrigins,
-      excludeUrls: [this.telemetryUrl()],
+      excludeUrls: [this.telemetryUrl(), this.challengeUrl()],
       extraHeaders: this.config.interceptHeaders,
     });
     if (this.config.autoStart) {
@@ -66,6 +74,10 @@ export class AegisClient {
 
   public telemetryUrl(): string {
     return new URL(this.config.telemetryPath, this.config.endpoint).href;
+  }
+
+  public challengeUrl(): string {
+    return new URL(this.config.challengePath, this.config.endpoint).href;
   }
 
   public async start(): Promise<void> {
@@ -79,12 +91,14 @@ export class AegisClient {
       if (this.config.autoIntercept) this.requestInterceptor.enable();
       if (this.config.beaconOnExit) window.addEventListener('pagehide', this.onPageHide);
 
-      const [headless, device] = await Promise.all([
+      const [headless, device, antiDetect] = await Promise.all([
         this.config.detectHeadless ? this.headlessDetector.detect() : Promise.resolve(null),
         this.config.fingerprint ? collectDeviceSignals() : Promise.resolve(this.device),
+        this.config.detectAntiDetect ? detectAntiDetect() : Promise.resolve(null),
       ]);
       this.detectionResult = headless;
       this.device = device;
+      this.antiDetectResult = antiDetect;
       this.emit('ready', { success: true });
     } catch (e) {
       this.emit('error', e);
@@ -111,6 +125,7 @@ export class AegisClient {
       scroll: this.scroll.getData(),
       touch: this.touch.getData(),
       headless: this.detectionResult,
+      antiDetect: this.antiDetectResult,
       device: this.device,
     }, { siteKey: this.config.siteKey, streamId: this.streamId });
   }
@@ -161,6 +176,42 @@ export class AegisClient {
     return navigator.sendBeacon(this.telemetryUrl(), blob);
   }
 
+  /**
+   * Fetch a memory-hard challenge from the server, solve it (WebAssembly
+   * scrypt) and store the token the server returns. Concurrent calls share one solve.
+   */
+  public passChallenge(): Promise<boolean> {
+    this.challengeInFlight ??= (async () => {
+      const issued = await this.nativeFetch(this.challengeUrl(), { credentials: 'include' });
+      if (!issued.ok) throw new Error(`AEGIS challenge unavailable: HTTP ${issued.status}`);
+      const challenge = await issued.json() as MemoryHardChallenge;
+      const solution = await solveMemoryHard(challenge);
+      const verified = await this.nativeFetch(this.challengeUrl(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ challenge: challenge.challenge, nonce: solution.nonce }),
+      });
+      if (!verified.ok) return false;
+      const result = await verified.json() as TelemetryResponse;
+      this.tokenManager.set(result.token, result.expiresIn * 1000);
+      this.emit('challenge', solution);
+      return true;
+    })()
+      .catch(e => { this.emit('error', e); return false; })
+      .finally(() => { this.challengeInFlight = null; });
+    return this.challengeInFlight;
+  }
+
+  /** Called by the request interceptor after a 403 "challenge" response. */
+  public handleChallenge(): Promise<boolean> {
+    return this.config.autoChallenge ? this.passChallenge() : Promise.resolve(false);
+  }
+
+  public getAntiDetectResult(): AntiDetectResult | null {
+    return this.antiDetectResult;
+  }
+
   public async solveChallenge(challenge: ChallengeRequest): Promise<ChallengeResponse> {
     return this.challengeManager.solve(challenge);
   }
@@ -204,6 +255,15 @@ function randomId(): string {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function detectAntiDetect(): Promise<AntiDetectResult | null> {
+  try {
+    const webgpu = await new WebGPUFingerprinter().collect();
+    return new AntiDetectDetector().detect(webgpu);
+  } catch {
+    return null;
+  }
 }
 
 async function collectDeviceSignals(): Promise<DeviceSignals> {

@@ -20,6 +20,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from pydantic import ValidationError
 
 from .detector import RequestAnalyzer, Signal, behavior_signals, noisy_or
+from .feeds import FEED_SEVERITY, IPReputation
 from .ip_intel import classify_ip
 from .ml import MLScorer
 from .models import AegisConfig, TelemetryPayload
@@ -74,8 +75,10 @@ def decide(score: float, config: AegisConfig) -> str:
 class TelemetryService:
     def __init__(self, config: AegisConfig, sessions: SessionTracker, scorer: MLScorer,
                  analyzer: Optional[RequestAnalyzer] = None,
-                 on_record: Optional[Callable[[Dict[str, Any]], None]] = None):
+                 on_record: Optional[Callable[[Dict[str, Any]], None]] = None,
+                 reputation: Optional[IPReputation] = None):
         self.config = config
+        self.reputation = reputation
         self.sessions = sessions
         self.scorer = scorer
         self.analyzer = analyzer or RequestAnalyzer(config.verify_search_engines)
@@ -100,7 +103,7 @@ class TelemetryService:
             group = sent.get(category, {})
             features[category] = {k: float(group.get(k, 0.0) or 0.0) for k in keys}
         features["session"] = self.sessions.features(session)
-        features["network"] = classify_ip(ip)
+        features["network"] = classify_ip(ip, self.reputation)
         return features
 
     def process(self, body: bytes, ip: str, headers: Dict[str, str], session: Session) -> Tuple[Dict[str, Any], List[Signal]]:
@@ -109,11 +112,17 @@ class TelemetryService:
 
         signals: List[Signal] = list(self.analyzer.signals(ip, headers, "POST", self.config.telemetry_path))
         signals += behavior_signals(features, payload.headlessChecks)
+        # Spoofed-fingerprint evidence: only when several checks agree (score >= 0.5)
+        if payload.antiDetect and payload.antiDetect.score >= 0.5:
+            signals.append(("anti_detect", round(80 * payload.antiDetect.score, 1)))
         network = features["network"]
         if network["is_tor"]:
             signals.append(("tor_exit", 70))
         if network["is_datacenter"]:
             signals.append(("datacenter_ip", 45))
+        if self.reputation is not None:
+            signals += [(f"threat_list:{name}", FEED_SEVERITY[name])
+                        for name in self.reputation.lookup(ip)["lists"]]
         rule_score = noisy_or(s for _, s in signals)
 
         ml_probability = self.scorer.score(features)
@@ -131,6 +140,7 @@ class TelemetryService:
         score = round(noisy_or(scores), 1)
         verdict = decide(score, self.config)
         self.sessions.record_risk(session, score)
+        session.telemetry_score = score
 
         now = int(time.time())
         ua = next((v for k, v in headers.items() if k.lower() == "user-agent"), "")
@@ -149,6 +159,7 @@ class TelemetryService:
                 "stream": payload.streamId,
                 "features": features,
                 "headless_checks": payload.headlessChecks,
+                "anti_detect": payload.antiDetect.model_dump() if payload.antiDetect else None,
                 "rule_score": round(rule_score, 1),
                 "ml_probability": ml_probability,
                 "score": score,
