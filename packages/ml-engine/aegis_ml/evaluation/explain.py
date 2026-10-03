@@ -1,7 +1,10 @@
 """
 SHAP explanations for the bot classifier.
 
-TreeSHAP (exact, polynomial time) is computed for the XGBoost base model of
+TreeSHAP (exact, polynomial time; Lundberg et al. 2020) is computed with
+XGBoost's built-in implementation (`pred_contribs=True`), so no extra
+dependency is needed and there is no version coupling between the `shap`
+package and XGBoost's model format. It explains the XGBoost base model of
 the stacked ensemble. It does not explain the ensemble's final probability
 exactly: the logistic meta-model also mixes in the random forest and the
 logistic regression. `component_agreement` reports how far the three base
@@ -25,21 +28,31 @@ class ShapExplainer:
     def __init__(self, classifier: BotClassifier):
         if not classifier.is_fitted or classifier.models.get('xgboost') is None:
             raise ValueError('needs a fitted BotClassifier with its XGBoost component')
-        import shap  # optional dependency: pip install "aegis-ml-engine[explain]"
+        import xgboost
 
+        self._xgb = xgboost
         self.classifier = classifier
         self.names = classifier.feature_names or _feature_names()
-        self.explainer = shap.TreeExplainer(classifier.models['xgboost'])
+        self.booster = classifier.models['xgboost'].get_booster()
+        self._bias: Optional[float] = None
+
+    def _contribs(self, X: np.ndarray) -> np.ndarray:
+        """(n, n_features + 1) TreeSHAP contributions; the last column is the bias term."""
+        dm = self._xgb.DMatrix(self.classifier.scaler.transform(np.atleast_2d(X)))
+        return self.booster.predict(dm, pred_contribs=True)
 
     def shap_values(self, X: np.ndarray) -> np.ndarray:
         """SHAP values, shape (n_samples, n_features), for raw (unscaled) feature rows."""
-        values = self.explainer.shap_values(self.classifier.scaler.transform(np.atleast_2d(X)))
-        return np.asarray(values[1] if isinstance(values, list) else values)
+        c = self._contribs(X)
+        self._bias = float(c[0, -1])
+        return c[:, :-1]
 
     @property
     def expected_value(self) -> float:
-        ev = self.explainer.expected_value
-        return float(ev[1] if np.ndim(ev) else ev)
+        """Base value (log-odds) the SHAP values are added to."""
+        if self._bias is None:
+            self.shap_values(np.zeros((1, len(self.names))))
+        return float(self._bias)
 
     def explain(self, x: np.ndarray, top_k: int = 5) -> List[Dict[str, float]]:
         """Top features behind one request, largest absolute contribution first."""
@@ -80,8 +93,8 @@ class ShapExplainer:
 
 
 def try_explainer(classifier: BotClassifier) -> Optional[ShapExplainer]:
-    """ShapExplainer, or None when shap is not installed."""
+    """ShapExplainer, or None when the classifier has no XGBoost component."""
     try:
         return ShapExplainer(classifier)
-    except ImportError:
+    except (ImportError, ValueError):
         return None
