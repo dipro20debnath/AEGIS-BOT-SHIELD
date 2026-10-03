@@ -59,7 +59,8 @@ jobs:
           cache: pip
       - run: npm ci
       - run: npm run build
-      - run: pip install -e packages/ml-engine -e packages/server-python fastapi uvicorn
+      # non-editable on purpose: catches packaging mistakes (missing subpackages) that -e hides
+      - run: pip install ./packages/ml-engine ./packages/server-python fastapi uvicorn
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 
