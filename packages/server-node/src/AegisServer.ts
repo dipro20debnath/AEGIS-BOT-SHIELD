@@ -4,12 +4,14 @@ import { Logger } from '@aegis/core';
 import { AegisNode } from './AegisNode.js';
 import { aegisExpress, AegisExpressOptions } from './middleware/express.js';
 import { aegisRoutes } from './routes.js';
+import { attachLiveFeed, LiveFeed } from './live.js';
 
-/** Standalone Express app with the AEGIS middleware and status API. */
+/** Standalone Express app with the AEGIS middleware, status API (REST + GraphQL) and live feed. */
 export class AegisServer {
   private app: Express;
   private logger = new Logger('AegisServer');
   readonly aegis: AegisNode;
+  live?: LiveFeed;
 
   constructor(options: AegisExpressOptions) {
     this.aegis = new AegisNode({ ...options, excludedPaths: [...(options.excludedPaths ?? ['/health']), '/aegis/'] });
@@ -25,8 +27,10 @@ export class AegisServer {
   }
 
   public start(port: number = 3000): Server {
-    return this.app.listen(port, () => {
+    const server = this.app.listen(port, () => {
       this.logger.info(`AEGIS Server listening on port ${port}`);
     });
+    this.live = attachLiveFeed(server, this.aegis);
+    return server;
   }
 }

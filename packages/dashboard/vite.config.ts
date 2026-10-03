@@ -10,7 +10,8 @@ const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    proxy: { '/aegis': process.env.AEGIS_API ?? 'http://localhost:3000' },
+    // ws: also proxy the WebSocket live feed (/aegis/live)
+    proxy: { '/aegis': { target: process.env.AEGIS_API ?? 'http://localhost:3000', ws: true } },
     fs: { allow: [repoRoot] },
   },
   resolve: {

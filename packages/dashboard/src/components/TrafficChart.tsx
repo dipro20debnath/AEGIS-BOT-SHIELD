@@ -8,7 +8,7 @@ interface Props {
   theme: Theme;
 }
 
-/** Requests per minute, stacked by verdict (status colours, with a legend). */
+/** Requests per minute, stacked by verdict (status colours, with a legend). Not animated: live updates would restart the animation. */
 const TrafficChart: React.FC<Props> = ({ events, theme }) => {
   const data = useMemo(() => {
     const buckets = new Map<number, Record<string, number>>();
@@ -38,7 +38,7 @@ const TrafficChart: React.FC<Props> = ({ events, theme }) => {
           <Legend formatter={(value: string) => <span style={{ color: theme.textSecondary }}>{value}</span>} />
           {present.map((verdict, i) => (
             <Bar key={verdict} dataKey={verdict} stackId="v" fill={VERDICT_COLORS[verdict]} name={verdict}
-              stroke={theme.surface} strokeWidth={1}
+              stroke={theme.surface} strokeWidth={1} isAnimationActive={false}
               radius={i === present.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
           ))}
         </BarChart>

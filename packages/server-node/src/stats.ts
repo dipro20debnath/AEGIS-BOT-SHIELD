@@ -1,8 +1,11 @@
 /**
  * In-memory request statistics for the dashboard API (real counts since the
  * process started; nothing is persisted). IPs are stored truncated to /24
- * (IPv4) or /48 (IPv6).
+ * (IPv4) or /48 (IPv6). Every recorded event is also emitted as 'event'
+ * (the WebSocket live feed, live.ts, listens to it).
  */
+import { EventEmitter } from 'events';
+
 export interface StatsEvent {
   timestamp: number;
   path: string;
@@ -20,7 +23,7 @@ export function maskIp(ip: string): string {
   return 'unknown';
 }
 
-export class AegisStats {
+export class AegisStats extends EventEmitter {
   readonly startedAt = Date.now();
   totalRequests = 0;
   telemetrySubmissions = 0;
@@ -28,15 +31,21 @@ export class AegisStats {
   byReason: Record<string, number> = {};
   private events: StatsEvent[] = [];
 
-  constructor(private maxEvents = 500) {}
+  constructor(private maxEvents = 500) {
+    super();
+    // Any number of live-feed connections may listen
+    this.setMaxListeners(0);
+  }
 
   record(event: Omit<StatsEvent, 'timestamp'>): void {
     this.totalRequests++;
     if (event.telemetry) this.telemetrySubmissions++;
     this.byVerdict[event.verdict] = (this.byVerdict[event.verdict] ?? 0) + 1;
     for (const reason of event.reasons) this.byReason[reason] = (this.byReason[reason] ?? 0) + 1;
-    this.events.push({ ...event, ip: maskIp(event.ip), timestamp: Date.now() });
+    const stored: StatsEvent = { ...event, ip: maskIp(event.ip), timestamp: Date.now() };
+    this.events.push(stored);
     if (this.events.length > this.maxEvents) this.events.shift();
+    this.emit('event', stored);
   }
 
   recent(limit = 100): StatsEvent[] {

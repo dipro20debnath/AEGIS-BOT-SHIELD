@@ -3,22 +3,25 @@ import StatsCard from '../components/StatsCard';
 import TrafficChart from '../components/TrafficChart';
 import RequestTable from '../components/RequestTable';
 import ApiStatus from '../components/ApiStatus';
-import { StatsEvent, StatsSummary, useApi } from '../api';
+import LiveIndicator from '../components/LiveIndicator';
+import { useLiveStats } from '../api';
 import { Theme, cardStyle } from '../theme';
 
 const pct = (part: number, total: number) => (total > 0 ? `${((part / total) * 100).toFixed(1)}%` : '—');
 
 const Overview: React.FC<{ theme: Theme }> = ({ theme }) => {
-  const stats = useApi<StatsSummary>('/aegis/stats');
-  const events = useApi<StatsEvent[]>('/aegis/events?limit=500');
-  const s = stats.data;
-  const recent = events.data ?? [];
+  const live = useLiveStats();
+  const s = live.summary;
+  const recent = live.events;
   const meanScore = recent.length ? (recent.reduce((a, e) => a + e.score, 0) / recent.length).toFixed(1) : '—';
 
   return (
     <div style={{ padding: 20 }}>
-      <h1 style={{ marginTop: 0 }}>Overview</h1>
-      <ApiStatus loading={stats.loading} error={stats.error} hasData={!!s} theme={theme} />
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap' }}>
+        <h1 style={{ marginTop: 0 }}>Overview</h1>
+        <LiveIndicator status={live.status} theme={theme} />
+      </div>
+      <ApiStatus loading={live.loading} error={live.error} hasData={!!s} theme={theme} />
       {s && (
         <>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>

@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, PrivateAttr, field_validator
 
 
 class AegisConfig(BaseModel):
@@ -44,6 +44,13 @@ class AegisConfig(BaseModel):
     feeds: List[str] = ["tor", "firehol_level1", "spamhaus_drop", "abuseipdb"]
     feed_cache_dir: Optional[str] = None
     abuseipdb_key: Optional[str] = None
+    #: Redis URL for state shared by several processes (replay nonces, rate limits, sessions)
+    redis_url: Optional[str] = None
+    #: Requests per IP within rate_limit_window seconds before "rate_limit.exceeded" (0: off)
+    rate_limit: int = 0
+    rate_limit_window: float = 60
+    #: Stricter limits for path prefixes: {"/api/login": [5, 60]} = 5 requests per 60 s per IP
+    endpoint_limits: Dict[str, List[float]] = {}
 
     @field_validator("secret_key")
     @classmethod
@@ -61,6 +68,8 @@ class AegisResult(BaseModel):
     error: Optional[str] = None
     is_bot: bool = False
     session_id: Optional[str] = None
+    #: The session object of this request (internal; saves a store read in record_response)
+    _session: Any = PrivateAttr(default=None)
 
 
 class AnalysisResult(BaseModel):

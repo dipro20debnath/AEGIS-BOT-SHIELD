@@ -7,8 +7,9 @@
 #   http://localhost:3000  Express demo (Node server, ML via the ml service) login admin / password
 #   http://localhost:8080  Dashboard (live stats of the Express server)
 #
-# The ml service is only reachable inside the compose network: its /train
-# endpoint has no authentication.
+# The ml and redis services are only reachable inside the compose network
+# (ml's /train endpoint has no authentication). Redis holds the state the
+# API servers share: replay nonces, rate-limit windows and sessions.
 name: aegis
 
 x-aegis-env: &aegis-env
@@ -17,6 +18,16 @@ x-aegis-env: &aegis-env
   AEGIS_MODE: ${AEGIS_MODE:-enforce}
 
 services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "volatile-ttl"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
   ml:
     build: { context: ., target: ml }
     image: aegis/ml:local
@@ -27,8 +38,12 @@ services:
     image: aegis/api-python:local
     environment:
       <<: *aegis-env
+      # Separate database per site: the two demos must not share rate-limit counters
+      AEGIS_REDIS_URL: redis://redis:6379/1
     ports:
       - "8000:8000"
+    depends_on:
+      redis: { condition: service_healthy }
     restart: unless-stopped
 
   api-node:
@@ -37,10 +52,12 @@ services:
     environment:
       <<: *aegis-env
       AEGIS_ML_URL: http://ml:8001
+      AEGIS_REDIS_URL: redis://redis:6379/0
     ports:
       - "3000:3000"
     depends_on:
       ml: { condition: service_healthy }
+      redis: { condition: service_healthy }
     restart: unless-stopped
 
   dashboard:
