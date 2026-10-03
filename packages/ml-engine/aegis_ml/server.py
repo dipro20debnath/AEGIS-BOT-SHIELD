@@ -26,11 +26,13 @@ is_training = False
 class PredictRequest(BaseModel):
     client_id: str
     behavioral_data: Dict[str, Any] = Field(..., description="Raw behavioral event payload")
+    explain: bool = Field(False, description="Also return the top SHAP feature contributions")
 
 class PredictResponse(BaseModel):
     is_bot: bool
     confidence_score: float
     client_id: str
+    explanation: Optional[List[Dict[str, Any]]] = None
 
 class TrainRequest(BaseModel):
     use_synthetic: bool = True
@@ -48,7 +50,8 @@ async def predict(request: PredictRequest):
     return PredictResponse(
         is_bot=is_bot,
         confidence_score=score,
-        client_id=request.client_id
+        client_id=request.client_id,
+        explanation=inference_engine.explain(request.behavioral_data) if request.explain else None,
     )
 
 def _background_train(req: TrainRequest):

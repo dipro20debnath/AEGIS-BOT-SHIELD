@@ -539,6 +539,19 @@ The full experiment:
   ```
   Then pass `mlUrl: 'http://localhost:8001'` to `AegisNode`.
 
+**Phase C experiments** (model comparison with bootstrap CIs, unseen-bot-type
+tests, SHAP, 1D-CNN/LSTM on raw mouse trajectories, publication figures):
+
+```bash
+pip install -e "packages/ml-engine[explain,deep]"
+cd packages/ml-engine
+python scripts/phase_c_experiment.py --out ../../docs/thesis/results/phase_c   # ~15 min on 4 CPUs
+python scripts/phase_c_seed_robustness.py --out ../../docs/thesis/results/phase_c
+```
+
+Per-request explanations: `InferenceEngine.explain(data)` or `POST /predict`
+with `"explain": true` (needs the `explain` extra).
+
 Results so far are on **synthetic** data only (see
 `docs/thesis/results/synthetic/thesis_report.md`). They show the pipeline
 works; they are not real-world accuracy.

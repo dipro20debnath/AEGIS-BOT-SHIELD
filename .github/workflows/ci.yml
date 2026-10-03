@@ -41,8 +41,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: pip install -e "packages/ml-engine[test]" -e "packages/server-python[test]"
-      - run: pytest packages/ml-engine/tests packages/server-python/tests -v
+      - run: pip install -e "packages/ml-engine[test,explain]" -e "packages/server-python[test]"
+      # PyTorch (CPU build) for the sequence-model tests; one Python version keeps CI fast
+      - if: matrix.python-version == '3.12'
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - run: pytest packages/ml-engine/tests packages/server-python/tests -v -rs
 
   e2e:
     name: End-to-end (Chromium -> SDK -> Python server -> ML)
