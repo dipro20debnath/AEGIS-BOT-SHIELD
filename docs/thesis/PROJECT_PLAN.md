@@ -12,8 +12,8 @@
 | B | B1 InputValidator, SecurityHeaders, AntiTamper | Done (PR #1, merged) |
 | B | B2 Tor list, threat feeds, session patterns | Done (PR #2) |
 | B | B3 Anti-detect checks, WebGPU, memory-hard WASM challenge | Done (PR #2) |
-| B | B4 QUICFingerprinter (Initial-packet parser + fixtures; no live capture from Node) | **Next** |
-| B | B5 Docker for all services + docker-compose, Checkpoint B | To do |
+| B | B4 QUICFingerprinter (Initial-packet parser, real Chromium/aioquic fixtures, pcap CLI) | Done |
+| B | B5 Docker for all services + docker-compose, Checkpoint B | **Next** |
 | C | SHAP, model comparison, LSTM/CNN on trajectories, publication plots | To do (Oct 16–19) |
 | — | **IRB final + submit (supervisor signature)** | **Oct 20–21 (student)** |
 | D | Redis, WebSocket, GraphQL, Cloudflare Worker edge, load tests | To do |
@@ -21,7 +21,7 @@
 | F | Self pen-test bots, profiling, Prometheus, K8s/Helm, v1.0.0 | To do |
 | G | Data-collection website | To do |
 
-Tests at handoff: core 110, js-sdk 45, server-node 23, server-python 77,
+Tests at handoff: core 123, js-sdk 45, server-node 23, server-python 77,
 ml-engine 31, e2e 5; lint 0 errors; npm audit 0 vulnerabilities; CI green.
 
 ## Working rules

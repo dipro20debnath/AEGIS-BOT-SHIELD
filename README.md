@@ -449,6 +449,23 @@ app.use(aegisSecurityHeaders({ contentSecurityPolicy: "default-src 'self'" }));
 These add CSP, HSTS, X-Frame-Options, nosniff, Referrer-Policy,
 Permissions-Policy and COOP. They harden the site; they do not detect bots.
 
+### QUIC / HTTP3 fingerprints (offline)
+
+**What it reads:** the client's first QUIC packets. Anyone on the path can
+decrypt these, and they contain the TLS ClientHello and the QUIC transport
+parameters. The output is JA4 (`q…`), a transport-parameter hash, SNI, ALPN and
+the QUIC stack (Chromium vs. client library).
+
+```bash
+sudo tcpdump -i any -w quic.pcap 'udp port 443'          # on the server, while traffic arrives
+node packages/core/scripts/quic-fingerprint.mjs quic.pcap --json
+```
+
+**Use when** you serve HTTP/3 yourself and want to know which clients are real
+browsers. For example, a Python HTTP/3 library that claims a Chrome user agent
+is detected. In code: `fingerprintQuicDatagrams(datagrams)` and
+`new QUICFingerprinter().analyze(fp, userAgent)`.
+
 ### Request signing (anti-tamper)
 
 For **server-to-server** calls and webhooks, not browsers. Both sides share a
@@ -562,7 +579,9 @@ forms.
   expensive but does not stop a single bot.
 - **Single process:** state (sessions, nonces, rate limits) is in memory. Run
   multiple instances only with sticky sessions until the Redis backend lands.
-- **QUIC/HTTP3 fingerprinting** is not implemented yet.
+- **QUIC/HTTP3 fingerprinting** works on captured packets (pcap or a UDP tap), not
+  inside the request path: HTTP/3 is terminated by your proxy/CDN, which does not
+  pass the handshake on. Only Chromium and aioquic have been profiled so far.
 
 ---
 
