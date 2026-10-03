@@ -139,3 +139,4 @@ htmlcov/
 # Python packaging / test artifacts
 *.egg-info/
 .pytest_tmp/
+packages/*/build/

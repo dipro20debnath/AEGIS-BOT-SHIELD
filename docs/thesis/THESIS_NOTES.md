@@ -37,7 +37,8 @@
 
 Phase B progress (2026-10-03): B1 security layer, B2 live feeds + session
 patterns, B3 anti-detect + WebGPU + memory-hard challenge, B4 QUIC fingerprint
-parser done. Core 123 tests, SDK 45, Node 23, Python 77, ML 31, e2e 5.
+parser, B5 Docker done (**Checkpoint B reached**). Core 123 tests, SDK 45, Node 23,
+Python 77, ML 31, e2e 5; `docker compose up` verified with a real browser.
 
 Before Phase A (2026-10-02 audit): only the ML engine worked; core/SDK/Node did
 not compile, no layer called another, the SDK sent no behavioural data, and the
@@ -354,6 +355,47 @@ fingerprinting papers appeared from 2023 on.
   - The Chromium capture targeted an IP literal, so it has no SNI (JA4 `i`
     instead of `d`). Hostname resolution was not available in the sandbox.
   - pcapng and IPv6 extension headers are not parsed.
+
+### 2.9 Containers and Checkpoint B (2026-10-03, Phase B5)
+**Setup:** one multi-target `Dockerfile` and a working `docker-compose.yml`.
+| Service | Contents |
+|---|---|
+| `ml` | Inference service; internal only, because `/train` has no authentication |
+| `api-python` | FastAPI reference server, model in-process |
+| `api-node` | Express server, ML via the `ml` service |
+| `dashboard` | nginx serving the Vite build, `/aegis` proxied to `api-node` |
+
+- **Removed from the old setup:** the previous compose file started
+  `packages/core/dist/index.js`, which is a library that exits at once, plus an
+  unused Postgres and an empty nginx. All removed.
+- **Checkpoint B, verified in the dev container** (Docker 29):
+  - all 4 images build;
+  - `docker compose up` gives healthy services;
+  - `curl` to the login is challenged;
+  - the dashboard proxy shows live stats;
+  - `ml` is unreachable from the host;
+  - headless Chromium through the stack is blocked at login on both servers
+    (scores 98.5 and 100), with `api-node` calling `ml /predict`.
+- **Bugs that only Docker exposed:**
+  1. **Packaging:** `aegis_ml` subpackages had no `__init__.py`, so a normal
+     `pip install` shipped only the top-level module, and importing failed.
+     `pip install -e` (used everywhere until now) hides this. Fixed. The CI e2e
+     job now installs non-editable, to catch it in future.
+  2. **Stale `tsconfig.tsbuildinfo`:** copied into the build context, it made
+     incremental `tsc` skip emitting core's `dist/`. Now excluded in `.dockerignore`.
+- **Security-audit failure (same day):** a new advisory, GHSA-vfj7-8cjw-p6xm
+  (`braces`, all versions), came in only through dev tooling (jest 29,
+  typescript-eslint 7, tailwind 3). Fixed by upgrading to jest 30,
+  typescript-eslint 8 and tailwind 4. No runtime dependency was affected.
+- **Image sizes:**
+  - dashboard 93 MB;
+  - api-node 313 MB;
+  - each Python image 1.64 GB, mostly xgboost's CUDA libraries. A CPU-only
+    build would shrink this (to do).
+- **Limits:**
+  - the bundled model is synthetic;
+  - state is in memory (one replica per service until Redis in Phase D);
+  - no TLS termination (put a reverse proxy in front).
 
 ## 3. Contributions — what can honestly be claimed
 

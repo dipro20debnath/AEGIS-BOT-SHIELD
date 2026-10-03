@@ -13,8 +13,8 @@
 | B | B2 Tor list, threat feeds, session patterns | Done (PR #2) |
 | B | B3 Anti-detect checks, WebGPU, memory-hard WASM challenge | Done (PR #2) |
 | B | B4 QUICFingerprinter (Initial-packet parser, real Chromium/aioquic fixtures, pcap CLI) | Done |
-| B | B5 Docker for all services + docker-compose, Checkpoint B | **Next** |
-| C | SHAP, model comparison, LSTM/CNN on trajectories, publication plots | To do (Oct 16–19) |
+| B | B5 Docker for all services + docker-compose, Checkpoint B | Done (Checkpoint B verified) |
+| C | SHAP, model comparison, LSTM/CNN on trajectories, publication plots | **Next** (Oct 16–19) |
 | — | **IRB final + submit (supervisor signature)** | **Oct 20–21 (student)** |
 | D | Redis, WebSocket, GraphQL, Cloudflare Worker edge, load tests | To do |
 | E | OpenAPI, whitepaper, docs | To do |

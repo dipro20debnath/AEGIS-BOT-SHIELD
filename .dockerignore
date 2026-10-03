@@ -1,0 +1,18 @@
+**/node_modules
+**/dist
+**/__pycache__
+**/*.egg-info
+**/.pytest_cache
+.pytest_tmp
+.venv
+venv
+.git
+.github
+**/*.pkl
+# trained models are rebuilt inside the image; source packages named "models" must stay
+docs/thesis/irb
+docs/*.pdf
+*.docx
+*.pdf
+**/build
+**/*.tsbuildinfo
