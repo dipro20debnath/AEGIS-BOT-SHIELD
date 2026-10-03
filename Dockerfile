@@ -20,6 +20,7 @@ COPY packages/core/package.json packages/core/
 COPY packages/js-sdk/package.json packages/js-sdk/
 COPY packages/server-node/package.json packages/server-node/
 COPY packages/dashboard/package.json packages/dashboard/
+COPY packages/edge-cloudflare/package.json packages/edge-cloudflare/
 RUN --mount=type=secret,id=extra_ca,required=false \
     if [ -f /run/secrets/extra_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/extra_ca; fi; \
     npm ci --no-audit --no-fund
@@ -70,7 +71,7 @@ COPY packages/ml-engine packages/ml-engine
 COPY packages/server-python packages/server-python
 RUN --mount=type=secret,id=extra_ca,required=false \
     if [ -f /run/secrets/extra_ca ]; then export PIP_CERT=/run/secrets/extra_ca; fi; \
-    pip install "./packages/ml-engine[server]" ./packages/server-python \
+    pip install "./packages/ml-engine[server]" "./packages/server-python[redis]" \
  && useradd --create-home --uid 10001 aegis
 # Synthetic-data model (pipeline demo only; retrain on real data for real use)
 COPY e2e/train_model.py /app/train_model.py

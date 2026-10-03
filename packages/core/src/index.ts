@@ -66,3 +66,7 @@ export {
 export type { ClientHello, TransportParameter, InitialPacket } from './modules/fingerprint/quic.js';
 export { readPcapUdp, writePcapUdp } from './modules/fingerprint/pcap.js';
 export type { UdpDatagram } from './modules/fingerprint/pcap.js';
+
+// Shared state (several server instances): in-process default, Redis
+export { MemoryStore, RedisStore, createRedisStore, MAX_HITS_PER_KEY } from './store/Store.js';
+export type { AegisStore, RedisLikeClient } from './store/Store.js';

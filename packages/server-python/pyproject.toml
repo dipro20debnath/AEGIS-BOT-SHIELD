@@ -17,12 +17,15 @@ dependencies = [
 django = ["django>=3.2"]
 flask = ["flask>=2.0"]
 fastapi = ["fastapi>=0.95.0", "starlette>=0.26.1"]
+# Shared state for several processes (AEGIS_REDIS_URL)
+redis = ["redis[hiredis]>=4.2"]
 test = [
     "pytest>=7.0.0",
     "httpx>=0.24.0",
     "fastapi>=0.95.0",
     "flask>=2.0",
     "django>=3.2",
+    "redis>=4.2",
 ]
 dev = [
     "aegis-server-python[test]",

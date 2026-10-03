@@ -59,13 +59,15 @@ def generate_token(claims: Dict[str, Any], secret_key: str) -> str:
 class TokenVerifier:
     """Verifies AEGIS tokens issued by this server (or the Node core)."""
 
-    def __init__(self, secret_key: str, max_token_age: int = 300, single_use: bool = False):
+    def __init__(self, secret_key: str, max_token_age: int = 300, single_use: bool = False, store=None):
         if not secret_key:
             raise ValueError("TokenVerifier requires a secret key")
         self.secret_key = secret_key
         self.max_token_age = max_token_age
         self.single_use = single_use
         self._used_nonces: Dict[str, float] = {}
+        #: Shared store (aegis_shield.store) for single-use nonces across processes
+        self.store = store
         self._last_cleanup = time.time()
 
     def verify(self, token: str) -> Optional[Dict[str, Any]]:
@@ -95,7 +97,11 @@ class TokenVerifier:
 
             if self.single_use:
                 nonce = claims.get("nonce", "")
-                if not nonce or nonce in self._used_nonces:
+                if not nonce:
+                    return None
+                if self.store is not None:
+                    return claims if self.store.claim_once(f"tok:{nonce}", self.max_token_age * 2) else None
+                if nonce in self._used_nonces:
                     return None
                 self._used_nonces[nonce] = time.time()
                 self._maybe_cleanup_nonces()

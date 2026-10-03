@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { AntiTamper, SIGNATURE_HEADER } from '@aegis/core';
+import { AntiTamper, SIGNATURE_HEADER, AegisStore } from '@aegis/core';
 
 /**
  * Rejects requests whose X-Aegis-Signature is missing, stale, forged or replayed
@@ -8,9 +8,11 @@ import { AntiTamper, SIGNATURE_HEADER } from '@aegis/core';
  *
  * The signature covers the exact body bytes, so mount it before any JSON
  * parser, or keep the raw body with `express.json({ verify: (req, _res, buf) => { req.rawBody = buf } })`.
+ * Pass a shared store (RedisStore) when several instances receive the calls,
+ * so a nonce used at one instance is rejected at all of them.
  */
-export function aegisRequireSignature(secret: string, maxSkewSeconds = 300) {
-  const antiTamper = new AntiTamper(secret, maxSkewSeconds);
+export function aegisRequireSignature(secret: string, maxSkewSeconds = 300, store?: AegisStore) {
+  const antiTamper = new AntiTamper(secret, maxSkewSeconds, store);
   const middleware = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     let body: string;
     const raw = (req as any).rawBody ?? req.body;
@@ -19,7 +21,13 @@ export function aegisRequireSignature(secret: string, maxSkewSeconds = 300) {
     else if (raw === undefined || (typeof raw === 'object' && raw !== null && Object.keys(raw).length === 0)) body = '';
     else { res.status(500).json({ error: 'raw body unavailable for signature check' }); return; }
 
-    const result = antiTamper.verify({ method: req.method, path: req.originalUrl, body }, req.get(SIGNATURE_HEADER));
+    let result;
+    try {
+      result = await antiTamper.verifyAsync({ method: req.method, path: req.originalUrl, body }, req.get(SIGNATURE_HEADER));
+    } catch {
+      res.status(503).json({ error: 'signature verification unavailable' });
+      return;
+    }
     if (!result.valid) { res.status(401).json({ error: 'invalid signature', reason: result.reason }); return; }
     (req as any).rawBody ??= body;
     next();

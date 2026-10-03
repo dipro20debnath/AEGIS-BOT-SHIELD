@@ -1,0 +1,25 @@
+{
+  "name": "@aegis/edge-cloudflare",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloudflare Worker for AEGIS BOT SHIELD: token verification and rate limiting at the edge",
+  "main": "dist/worker.js",
+  "types": "dist/worker.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "lint": "eslint src --ext .ts",
+    "clean": "rm -rf dist",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@aegis/core": "^1.0.0",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.5.2",
+    "ts-jest": "^29.4.14",
+    "typescript": "^5.0.0"
+  },
+  "author": "dipro20debnath",
+  "license": "MIT"
+}

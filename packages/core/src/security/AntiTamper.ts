@@ -11,6 +11,7 @@
  */
 import { createHash, randomBytes } from 'crypto';
 import { hmacSign, hmacVerify, NonceCache } from '../utils/crypto.js';
+import type { AegisStore } from '../store/Store.js';
 
 export const SIGNATURE_HEADER = 'x-aegis-signature';
 
@@ -47,7 +48,11 @@ export function parseSignatureHeader(header: string): { t: number; n: string; s:
 export class AntiTamper {
   private nonces: NonceCache;
 
-  constructor(private secret: string, private maxSkewSeconds = 300) {
+  /**
+   * @param store shared nonce store (RedisStore when several servers verify);
+   *              used by verifyAsync. verify() always uses the in-process cache.
+   */
+  constructor(private secret: string, private maxSkewSeconds = 300, private store?: AegisStore) {
     if (!secret) throw new Error('AntiTamper requires a secret');
     this.nonces = new NonceCache(maxSkewSeconds * 2 * 1000);
   }
@@ -57,6 +62,23 @@ export class AntiTamper {
   }
 
   public verify(req: SignableRequest, header: string | undefined, now = Date.now()): VerifyResult {
+    const checked = this.check(req, header, now);
+    if ('reason' in checked) return checked;
+    // Checked last so an attacker cannot burn nonces with unsigned requests
+    if (this.nonces.hasBeenUsed(checked.nonce)) return { valid: false, reason: 'replay' };
+    return { valid: true };
+  }
+
+  /** Like verify(), with replay detection in the shared store when one was given. */
+  public async verifyAsync(req: SignableRequest, header: string | undefined, now = Date.now()): Promise<VerifyResult> {
+    if (!this.store) return this.verify(req, header, now);
+    const checked = this.check(req, header, now);
+    if ('reason' in checked) return checked;
+    const fresh = await this.store.claimOnce(`sig:${checked.nonce}`, this.maxSkewSeconds * 2 * 1000);
+    return fresh ? { valid: true } : { valid: false, reason: 'replay' };
+  }
+
+  private check(req: SignableRequest, header: string | undefined, now: number): { nonce: string } | { valid: false; reason: 'missing' | 'malformed' | 'expired' | 'bad_signature' } {
     if (!header) return { valid: false, reason: 'missing' };
     const parsed = parseSignatureHeader(header);
     if (!parsed) return { valid: false, reason: 'malformed' };
@@ -64,9 +86,7 @@ export class AntiTamper {
     if (!hmacVerify(canonicalString(req, parsed.t, parsed.n), parsed.s, this.secret)) {
       return { valid: false, reason: 'bad_signature' };
     }
-    // Checked last so an attacker cannot burn nonces with unsigned requests
-    if (this.nonces.hasBeenUsed(parsed.n)) return { valid: false, reason: 'replay' };
-    return { valid: true };
+    return { nonce: parsed.n };
   }
 
   public destroy(): void {
