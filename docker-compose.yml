@@ -1,43 +1,53 @@
-version: '3.8'
+# AEGIS BOT SHIELD: full stack for local testing and demos.
+#
+#   cp .env.example .env            # then set AEGIS_SECRET_KEY
+#   docker compose up --build
+#
+#   http://localhost:8000  FastAPI demo (reference server, ML in-process)   login demo / demo
+#   http://localhost:3000  Express demo (Node server, ML via the ml service) login admin / password
+#   http://localhost:8080  Dashboard (live stats of the Express server)
+#
+# The ml service is only reachable inside the compose network: its /train
+# endpoint has no authentication.
+name: aegis
+
+x-aegis-env: &aegis-env
+  AEGIS_SITE_KEY: ${AEGIS_SITE_KEY:-demo-site}
+  AEGIS_SECRET_KEY: ${AEGIS_SECRET_KEY:?set AEGIS_SECRET_KEY in .env (at least 16 random characters)}
+  AEGIS_MODE: ${AEGIS_MODE:-enforce}
 
 services:
-  aegis-core:
-    build:
-      context: .
-      dockerfile: Dockerfile
+  ml:
+    build: { context: ., target: ml }
+    image: aegis/ml:local
+    restart: unless-stopped
+
+  api-python:
+    build: { context: ., target: api-python }
+    image: aegis/api-python:local
     environment:
-      - NODE_ENV=production
-      - REDIS_URL=redis://redis:6379
-      - POSTGRES_URL=postgres://postgres:postgres@postgres:5432/aegis
-    depends_on:
-      - redis
-      - postgres
+      <<: *aegis-env
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  api-node:
+    build: { context: ., target: api-node }
+    image: aegis/api-node:local
+    environment:
+      <<: *aegis-env
+      AEGIS_ML_URL: http://ml:8001
     ports:
       - "3000:3000"
+    depends_on:
+      ml: { condition: service_healthy }
+    restart: unless-stopped
 
-  aegis-dashboard:
-    image: nginx:alpine
+  dashboard:
+    build: { context: ., target: dashboard }
+    image: aegis/dashboard:local
     ports:
       - "8080:80"
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: aegis
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-volumes:
-  redis_data:
-  postgres_data:
+    depends_on:
+      api-node: { condition: service_healthy }
+    restart: unless-stopped
