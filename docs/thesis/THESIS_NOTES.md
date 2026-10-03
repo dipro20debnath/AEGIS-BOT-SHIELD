@@ -716,6 +716,137 @@ API reference, architecture, ML guide):
   an npm organisation the student owns, otherwise rename the scope
   (docs/RELEASING.md).
 
+### 2.13 Phase F: production readiness (2026-10-03)
+
+**F1 Self pen-test with bots (`bots/`, results in `docs/thesis/results/phase_f/`).**
+
+*Method.*
+- Seven bot clients:
+  - python-requests: naive; header-forging with hand-written human-like telemetry; the same forger waiting 11 s;
+  - Scrapy;
+  - Selenium (headless Chrome);
+  - Puppeteer + stealth plugin;
+  - Playwright, in two modes: headless stealth, and headed under Xvfb with Bézier mouse paths, jitter, irregular typing and pauses.
+- 5 runs each against both demos in enforce mode, with the synthetic-data model.
+- Targets restarted and Redis flushed before each bot. All bots share one IP,
+  and per-IP velocity left by one bot would otherwise confound the next.
+- "Passed" = the login request finally returned 200.
+- A decision log (`AEGIS_RECORD_FILE`) gives each bot's telemetry score and signals.
+- These scripts double as the bot side of the November data collection.
+
+*Before → after (pass rate, Python / Node):*
+
+| Bot | Before | After | Why |
+|---|---|---|---|
+| naive requests, Scrapy, Selenium, Playwright-stealth | 0/5 / 0/5 | 0/5 / 0/5 | headers, threat patterns, `ua_known_bot`, headless and linear-mouse signals |
+| header-forger | **5/5** / 0/5 | 0/5 / 0/5 | new `telemetry.impossible_timing` (below) |
+| forger waiting 11 s (new) | – | **5/5 / 5/5** | its telemetry is internally consistent; only a model trained on real data could tell |
+| Puppeteer-stealth | **5/5** / 0/5* | **5/5 / 5/5** | score 48–49, just under the challenge threshold (50) |
+| Playwright human-like | 5/5 (all via PoW) / 0/5* | 5/5 / 5/5 (all via PoW) | challenged (score 62–76), solves the proof of work |
+
+\* Node "blocked" these only because of a false positive (finding 2), which
+also hit real browsers.
+
+*Findings and fixes:*
+1. **Forged telemetry with impossible timing.**
+   - The forger claimed 9.2 s of typing in a session it had opened moments earlier.
+   - Both servers now compare the claimed interaction time
+     (max of `kb_total_duration` and `mouse_pause_count × mouse_avg_pause_duration`)
+     with the session's age, and flag `telemetry.impossible_timing` (75) when it is
+     more than 1.1× the age + 2 s.
+   - Applied only when the session existed before this telemetry, so a first
+     telemetry without a cookie is not judged.
+   - Simple to evade by waiting (the "patient" bot), but it raises the cost
+     from zero to the claimed duration per login.
+2. **False positive in the Node header check.**
+   - `Accept: */*` was flagged on every request, but browsers send it on fetch/XHR (`Sec-Fetch-Dest: empty`).
+   - Every SDK telemetry call and every API call from a real browser got
+     `headers.accept_generic` (+value).
+   - It is now flagged only for navigations (dest absent, `document` or `iframe`).
+   - Lesson: the Node results "before" overstated detection. Any earlier Node
+     measurement with real browsers carried this bias.
+3. **What still passes is the honest result.**
+   - Real Chrome with a stealth plugin, or with human-like scripted input, gets through.
+   - The best layer against them is the proof of work, which costs time but does not stop a determined bot.
+   - With the synthetic-data model, the ML layer is no evidence either way.
+   - These are exactly the cases the real-data study must measure (RQ1/RQ2).
+
+**F2 Memory and latency profile (`loadtest/memory-profile.cjs`,
+`loadtest/memory_profile.py`; results in `phase_f/memory_profile.md`).**
+
+The Phase D observation (~720 MB RSS for Node after ~100k clients, §2.11
+finding 4) was traced to seven per-client maps:
+- the limiters and IP counters had only time-based cleanup, which never runs
+  out while an attacker keeps rotating IPs;
+- `IPAnalyzer.cleanup()` was never scheduled;
+- `SessionManager` scanned all sessions on each new client when full;
+- `SessionRecords` cleared all sessions at 100k.
+
+The cost was 2.9 KB per client, unbounded. That is a memory-exhaustion DoS via IP rotation (IPv6 makes rotation cheap).
+
+**First fix, rejected after measuring.** Evicting one key at a time with
+`map.keys().next()` was bounded but quadratic: V8's iterator skips deleted
+entries at the front of the table. At 400k clients the mean request time was
+0.52 ms instead of 0.09 ms, and a microbenchmark showed 24–100 µs per eviction.
+
+**Fix.** `BoundedMap`, a two-generation LRU with O(1) operations (as in quick-lru):
+- default 100,000 keys per map;
+- every key used within the last 50,000 insertions survives, so an active client keeps its rate-limit window.
+
+**Results.**
+- Node:
+  - 127 MB plateau from 100k to 400k clients (at most ~250 MB at the bound);
+  - mean 0.08 ms per request, flat;
+  - longest request 20 ms (GC).
+- Python:
+  - the in-memory store had no key limit, and the sessions were sorted on every eviction;
+  - both now use `OrderedDict` LRU with O(1) eviction;
+  - at 300k clients, the longest request fell from 526 ms (63 requests > 10 ms) to 106 ms (9);
+  - gc callbacks show that the remaining tail is CPython's gen-2 collection, which scales with live session objects;
+  - with Redis the longest was 13 ms, at +0.15 ms p50.
+  - This plausibly explains the high FastAPI p99 in §2.11 (finding 5), but it was not re-measured over HTTP.
+
+*Trade-off to state:* under a flood of more than ~50k new IPs between two
+requests of one client, that client's in-process rate window restarts. Exact
+limits under such load need Redis.
+
+**F3 Monitoring.**
+- Prometheus metrics with identical names in both servers (README, Monitoring):
+  - decisions by kind and verdict, signals, decision latency histogram;
+  - ML errors, store errors by operation;
+  - sessions, live-feed clients, process metrics.
+- `/aegis/ready` returns 503 while Redis is unreachable; `/aegis/health` is liveness only.
+- Signal labels are a bounded set of names, so there is no label-cardinality explosion.
+- Store errors are counted where the degraded paths already caught them (rate limit, replay, session get/set).
+- Python metrics are off by default (`metrics_path`) because they describe traffic.
+
+**F4 Kubernetes (`deploy/`, results in `phase_f/kubernetes.md`).**
+- Helm chart with:
+  - both API servers (2 replicas), ML, Redis, dashboard;
+  - startup/liveness/readiness probes;
+  - Secret with checksum restarts;
+  - optional HPA; PDBs, NetworkPolicies, Prometheus annotations or a ServiceMonitor;
+  - Ingress off by default;
+  - non-root, read-only, no-capability pods;
+  - a `helm test` smoke test.
+- Plain manifests are rendered from the chart, and CI checks they are in sync.
+- Tested on kind (Kubernetes 1.34):
+  - install, `helm test` on both servers;
+  - Redis outage: all API pods NotReady with no restarts, then automatic recovery;
+  - cross-replica token and session use.
+- `helm test` found that the Python image lacked `prometheus_client` (501), now fixed.
+- NetworkPolicy enforcement could **not** be verified: the sandbox kernel would
+  not let kindnet program nftables.
+- Getting kind to run in the sandbox took two workarounds, documented in deploy/README.md:
+  - negative `oom_score_adj` forbidden, found by bisecting an OCI spec with runc;
+  - no hugetlb cgroup mount.
+
+**F5 v1.0.0.**
+- Versions were already 1.0.0 in all packages and the OpenAPI document.
+- CHANGELOG has a 1.0.0 section.
+- Tagging and the GitHub release wait for the merge and the student's decision.
+- npm/PyPI publishing remains a separate, manual step (docs/RELEASING.md).
+
 ## 3. Contributions — what can honestly be claimed
 
 | Claim | Status |
@@ -871,7 +1002,7 @@ mean 1.27 ms · p50 1.24 ms · p95 1.66 ms · p99 2.77 ms (target < 5 ms ✔)
 
 - [ ] Ethics/IRB submission (needs supervisor signature) — planned Oct 21; drafts in `docs/thesis/irb/`
 - [ ] Data-collection website + logging endpoint; consent forms EN + BN
-- [ ] Bot scripts: requests/curl, Selenium, Puppeteer-stealth, Playwright + residential proxy, Scrapy
+- [x] Bot scripts: requests (3 modes), Scrapy, Selenium, Puppeteer-stealth, Playwright stealth + human-like (§2.13). Residential proxy not included (needs a paid proxy service)
 - [ ] Re-run §5 on real data; report 95% confidence intervals (bootstrap) for FPR and recall
 - [ ] Compare against baselines: rule-based, single XGBoost, RF, LR
 - [ ] Literature search for "novel" claims (§3)

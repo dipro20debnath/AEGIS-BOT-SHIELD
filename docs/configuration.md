@@ -97,6 +97,9 @@ Keyword arguments of `AegisFastAPIMiddleware`, `AegisFlaskMiddleware`,
 | `rate_limit` | `0` (off) | Requests per client IP per `rate_limit_window` before `rate_limit.exceeded` (score 100); telemetry gets 429 |
 | `rate_limit_window` | `60` | Seconds |
 | `endpoint_limits` | `{}` | Per-prefix limits, e.g. `{"/api/login": [5, 60]}` (5 per 60 s per IP) |
+| `health_path` | `"/aegis/health"` | Liveness endpoint answered by the middleware (`None` disables) |
+| `ready_path` | `"/aegis/ready"` | Readiness: 503 while the shared store is unreachable (`None` disables) |
+| `metrics_path` | `None` | Prometheus metrics, e.g. `"/aegis/metrics"`; needs the `[metrics]` extra. Off by default: protect it |
 | `logging_enabled` | `True` | *Reserved:* not read yet |
 
 Constructor-only arguments (not in `AegisConfig`):
@@ -120,6 +123,7 @@ Environment variables read by `get_config()`:
 | `AEGIS_TRUSTED_PROXIES` | `trusted_proxies` (comma-separated) |
 | `AEGIS_REDIS_URL` | `redis_url` |
 | `AEGIS_RATE_LIMIT` | `rate_limit` |
+| `AEGIS_METRICS_PATH` | `metrics_path` |
 | `ABUSEIPDB_API_KEY` | AbuseIPDB key when live feeds are on |
 
 ---
@@ -146,6 +150,7 @@ Environment variables read by `get_config()`:
 | `store` | in-process | Shared state, e.g. `await createRedisStore(url)` |
 | `sessionTtl` | `1800` | Session record lifetime after the last request, seconds |
 | `engine` | defaults | Extra detection-engine configuration ([below](#detection-engine-engine-option-aegiscore)) |
+| `processMetrics` | `true` | Include process metrics (CPU, memory, event loop, GC) in `/aegis/metrics` |
 
 Express adapter extras: `onDeny(req, res, decision)` (custom denial
 response), `onDecision(req, decision)` (called for every analysed request).
@@ -210,7 +215,7 @@ outage behaviour.
 
 | Function | Options |
 |---|---|
-| `aegisRoutes(aegis)` | Mounts `/aegis/health`, `stats`, `events`, `config`, `verify`, `graphql`, `openapi.json`, `docs`. No options; put it behind authentication. |
+| `aegisRoutes(aegis)` | Mounts `/aegis/health`, `ready`, `metrics`, `stats`, `events`, `config`, `verify`, `graphql`, `openapi.json`, `docs`. No options; put it behind authentication (keep `health`/`ready` reachable for probes). |
 | `aegisGraphQL(aegis, { introspection })` | `introspection` (default `true`). Fixed limits: 8 KB documents, 10 root fields, `limit` ≤ 500. |
 | `attachLiveFeed(server, aegis, options)` | `path` (`/aegis/live`), `authorize` (`(req) => boolean`), `allowedOrigins`, `flushMs` (250), `maxBatch` (200), `maxClients` (100), `heartbeatMs` (30000) |
 

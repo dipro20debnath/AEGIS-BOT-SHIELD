@@ -17,6 +17,18 @@ export function aegisRoutes(aegis: AegisNode) {
     res.json({ status: 'ok', timestamp: Date.now(), version: '1.0.0' });
   });
 
+  // Readiness for orchestrators (Kubernetes readinessProbe); /aegis/health is liveness
+  router.get('/aegis/ready', async (_req: Request, res: Response) => {
+    const result = await aegis.readiness();
+    res.status(result.ready ? 200 : 503).json(result);
+  });
+
+  // Prometheus metrics (aegis_* plus process metrics)
+  router.get('/aegis/metrics', async (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', aegis.metrics.contentType);
+    res.send(await aegis.metrics.text());
+  });
+
   router.get('/aegis/stats', (_req: Request, res: Response) => {
     res.json(aegis.stats.summary());
   });

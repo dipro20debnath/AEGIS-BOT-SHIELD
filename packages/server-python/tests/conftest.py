@@ -53,3 +53,19 @@ def telemetry_body(human: bool = True, site_key: str = SITE_KEY, **overrides) ->
 def base():
     from aegis_shield.middleware import AegisMiddlewareBase
     return AegisMiddlewareBase(SITE_KEY, SECRET, require_token_paths=["/checkout"])
+
+
+@pytest.fixture
+def human_pace(monkeypatch):
+    """A person spends time on the page before the SDK reports: the telemetry is scored
+    30 s after the session started (the fixture telemetry claims ~9.5 s of typing)."""
+    import time as _time
+
+    import aegis_shield.telemetry as telemetry_module
+
+    class _Clock:
+        @staticmethod
+        def time():
+            return _time.time() + 30
+
+    monkeypatch.setattr(telemetry_module, "time", _Clock)

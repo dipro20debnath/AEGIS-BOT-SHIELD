@@ -1,3 +1,4 @@
+import { BoundedMap } from '../../utils/bounded.js';
 import { Logger } from '../../utils/logger.js';
 
 interface WindowEntry {
@@ -14,7 +15,7 @@ interface WindowEntry {
  * Efficient memory: auto-prunes expired timestamps.
  */
 export class SlidingWindowLimiter {
-  private windows = new Map<string, WindowEntry>();
+  private windows: BoundedMap<string, WindowEntry>;
   private windowSizeMs: number;
   private maxRequests: number;
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
@@ -25,9 +26,12 @@ export class SlidingWindowLimiter {
     windowSizeMs: number;
     maxRequests: number;
     cleanupIntervalMs?: number;
+    /** Keys tracked at once; the least recently used is evicted (default 100,000) */
+    maxKeys?: number;
   }) {
     this.windowSizeMs = options.windowSizeMs;
     this.maxRequests = options.maxRequests;
+    this.windows = new BoundedMap(options.maxKeys);
     this.logger = new Logger('SlidingWindowLimiter');
     
     const cleanupMs = options.cleanupIntervalMs || Math.max(60_000, this.windowSizeMs * 2);
@@ -79,9 +83,10 @@ export class SlidingWindowLimiter {
     return entry.timestamps.filter(t => t > threshold).length;
   }
 
-  public getMetrics(): { totalKeys: number; totalBlocked: number } {
+  public getMetrics(): { totalKeys: number; totalBlocked: number; evictedKeys: number } {
     return {
       totalKeys: this.windows.size,
+      evictedKeys: this.windows.evicted,
       totalBlocked: this.totalBlocked
     };
   }

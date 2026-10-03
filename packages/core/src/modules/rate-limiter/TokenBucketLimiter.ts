@@ -1,3 +1,4 @@
+import { BoundedMap } from '../../utils/bounded.js';
 import { Logger } from '../../utils/logger.js';
 
 /** Token bucket entry for a single key */
@@ -30,7 +31,7 @@ interface Bucket {
  * ```
  */
 export class TokenBucketLimiter {
-  private buckets = new Map<string, Bucket>();
+  private buckets: BoundedMap<string, Bucket>;
   private capacity: number;
   private refillRate: number; // tokens per second
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
@@ -45,11 +46,14 @@ export class TokenBucketLimiter {
     refillRate: number;
     cleanupIntervalMs?: number;
     maxAge?: number;
+    /** Keys tracked at once; the least recently used is evicted (default 100,000) */
+    maxKeys?: number;
   }) {
     this.capacity = options.capacity;
     this.refillRate = options.refillRate;
     this.cleanupIntervalMs = options.cleanupIntervalMs || 60_000;
     this.maxAge = options.maxAge || 600_000; // 10 min default
+    this.buckets = new BoundedMap(options.maxKeys);
     this.logger = new Logger('TokenBucketLimiter');
     this.startCleanup();
   }
@@ -114,9 +118,10 @@ export class TokenBucketLimiter {
     this.totalBlocked = 0;
   }
 
-  public getMetrics(): { totalKeys: number; totalBlocked: number; totalAllowed: number } {
+  public getMetrics(): { totalKeys: number; totalBlocked: number; totalAllowed: number; evictedKeys: number } {
     return {
       totalKeys: this.buckets.size,
+      evictedKeys: this.buckets.evicted,
       totalBlocked: this.totalBlocked,
       totalAllowed: this.totalAllowed
     };

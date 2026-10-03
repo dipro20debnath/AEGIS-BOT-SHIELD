@@ -12,9 +12,10 @@
 import {
   DetectionEngine, AegisConfig, AegisRequest, BehavioralPayload, DetectionSignal,
   IPAnalyzer, SESSION_HEADER, generateToken, verifyToken, sha256, MemoryHardChallenger, MemoryHardOptions,
-  AegisStore, mergeConfig,
+  AegisStore, BoundedMap, mergeConfig,
 } from '@aegis/core';
 import { AegisStats } from './stats.js';
+import { AegisMetrics } from './metrics.js';
 
 export const TOKEN_HEADER = 'x-aegis-token';
 export const SESSION_COOKIE = 'aegis_sid';
@@ -53,6 +54,8 @@ export interface AegisNodeOptions {
   store?: AegisStore;
   /** Inactivity after which a session record expires, seconds (default 1800) */
   sessionTtl?: number;
+  /** Collect process metrics (CPU, memory, event loop, GC) in /aegis/metrics (default true) */
+  processMetrics?: boolean;
 }
 
 export interface AegisDecision {
@@ -88,6 +91,26 @@ export function noisyOr(scores: number[]): number {
   return 100 * (1 - scores.reduce((benign, s) => benign * (1 - Math.min(1, Math.max(0, s / 100))), 1));
 }
 
+/**
+ * Shortest time the reported behaviour can have taken: the typing span, or the
+ * mouse pauses alone (count x mean pause). Same rule as the Python server.
+ */
+export function claimedInteractionSeconds(features: Record<string, Record<string, number>>): number {
+  const typing = features.keyboard?.kb_total_duration ?? 0;
+  const pauses = (features.mouse?.mouse_pause_count ?? 0) * (features.mouse?.mouse_avg_pause_duration ?? 0) / 1000;
+  return Math.max(typing, pauses);
+}
+
+/**
+ * Score (75) when telemetry claims more interaction time than has passed since the
+ * session's first request; the SDK measures from page load, so a browser cannot.
+ * Only when the session existed before this telemetry (the page may come from a CDN).
+ */
+export function impossibleTiming(features: Record<string, Record<string, number>>, elapsedSeconds: number, sessionSeenBefore: boolean): number | null {
+  if (!sessionSeenBefore) return null;
+  return claimedInteractionSeconds(features) > elapsedSeconds * 1.1 + 2 ? 75 : null;
+}
+
 export function userAgentHash(userAgent: string): string {
   return sha256(userAgent).slice(0, 16);
 }
@@ -121,16 +144,33 @@ export interface SessionRecord { created: number; times: number[]; paths: string
  * the request is analysed with a fresh session instead of skipping analysis.
  */
 export class SessionRecords {
-  private local = new Map<string, SessionRecord>();
+  private local: BoundedMap<string, SessionRecord>;
 
-  constructor(private store?: AegisStore, private ttlMs = 1_800_000) {}
+  constructor(private store?: AegisStore, private ttlMs = 1_800_000, private onStoreError?: (operation: string) => void,
+    maxLocal = 100_000) {
+    this.local = new BoundedMap(maxLocal);
+  }
+
+  /** Records held in this process (0 with a shared store). */
+  localSize(): number {
+    return this.local.size;
+  }
 
   async get(id: string): Promise<SessionRecord | undefined> {
-    if (!this.store) return this.local.get(id);
+    if (!this.store) {
+      const record = this.local.get(id);
+      // Same inactivity expiry as the store's TTL (the size bound drops least recently used records).
+      if (record && Date.now() - (record.times[record.times.length - 1] ?? record.created) > this.ttlMs) {
+        this.local.delete(id);
+        return undefined;
+      }
+      return record;
+    }
     try {
       const raw = await this.store.get(`sess:${id}`);
       return raw ? JSON.parse(raw) as SessionRecord : undefined;
     } catch {
+      this.onStoreError?.('session_get');
       return undefined;
     }
   }
@@ -140,7 +180,6 @@ export class SessionRecords {
     if (existing) return existing;
     const created: SessionRecord = { created: now, times: [], paths: [], risk: [] };
     if (!this.store) {
-      if (this.local.size > 100_000) this.local.clear();
       this.local.set(id, created);
     }
     return created;
@@ -150,13 +189,14 @@ export class SessionRecords {
   async save(id: string, record: SessionRecord): Promise<void> {
     if (record.times.length > 500) record.times.splice(0, record.times.length - 500);
     if (record.risk.length > 100) record.risk.splice(0, record.risk.length - 100);
-    if (this.store) await this.store.set(`sess:${id}`, JSON.stringify(record), this.ttlMs).catch(() => undefined);
+    if (this.store) await this.store.set(`sess:${id}`, JSON.stringify(record), this.ttlMs).catch(() => this.onStoreError?.('session_set'));
   }
 }
 
 export class AegisNode {
-  readonly options: Required<Omit<AegisNodeOptions, 'mlUrl' | 'engine' | 'protectedPaths' | 'pow' | 'store'>> &
-    Pick<AegisNodeOptions, 'mlUrl' | 'engine' | 'protectedPaths' | 'pow' | 'store'>;
+  readonly options: Required<Omit<AegisNodeOptions, 'mlUrl' | 'engine' | 'protectedPaths' | 'pow' | 'store' | 'processMetrics'>> &
+    Pick<AegisNodeOptions, 'mlUrl' | 'engine' | 'protectedPaths' | 'pow' | 'store' | 'processMetrics'>;
+  readonly metrics: AegisMetrics;
   readonly engine: DetectionEngine;
   readonly challenger: MemoryHardChallenger;
   readonly stats = new AegisStats();
@@ -206,7 +246,29 @@ export class AegisNode {
     this.engine = new DetectionEngine(engineConfig);
     this.ready = this.engine.init();
     this.challenger = new MemoryHardChallenger(options.secretKey, { ...options.pow, store: options.store });
-    this.sessions = new SessionRecords(options.store, this.options.sessionTtl * 1000);
+    this.sessions = new SessionRecords(options.store, this.options.sessionTtl * 1000,
+      operation => this.metrics.storeErrors.inc({ operation }));
+    this.metrics = new AegisMetrics({ processMetrics: options.processMetrics, sessionCount: (): number => this.sessions.localSize() });
+  }
+
+  /**
+   * Readiness: the engine is initialised and, when configured, the shared store answers.
+   * The ML service is reported but not required (without it the rules decide alone).
+   */
+  async readiness(): Promise<{ ready: boolean; checks: Record<string, string> }> {
+    const checks: Record<string, string> = {};
+    await this.ready;
+    checks.engine = 'ok';
+    if (this.options.store) {
+      try { await this.options.store.get('ready-probe'); checks.store = 'ok'; } catch { checks.store = 'unreachable'; }
+    }
+    if (this.options.mlUrl) {
+      try {
+        const r = await fetch(`${this.options.mlUrl.replace(/\/$/, '')}/health`, { signal: AbortSignal.timeout(this.options.mlTimeoutMs) });
+        checks.ml = r.ok ? 'ok' : `http ${r.status}`;
+      } catch { checks.ml = 'unreachable (rules only)'; }
+    }
+    return { ready: checks.store !== 'unreachable', checks };
   }
 
   /**
@@ -224,6 +286,7 @@ export class AegisNode {
           if (count > l.max) exceeded.push(l.name);
         }));
     } catch {
+      this.metrics.storeErrors.inc({ operation: 'rate_limit' });
       return null;
     }
     return exceeded.length ? 'rate_limit.exceeded' : null;
@@ -269,12 +332,17 @@ export class AegisNode {
       return { status: 400, body: { error: 'invalid JSON' }, headers: noStore };
     }
     let result;
+    const stop = this.metrics.duration.startTimer({ kind: 'challenge' });
     try {
       result = await this.challenger.verify(String(data.challenge ?? ''), data.nonce);
     } catch {
       // Store unreachable: refuse rather than risk accepting a replayed solution
+      this.metrics.storeErrors.inc({ operation: 'replay' });
       return { status: 503, body: { error: 'challenge verification unavailable' }, headers: noStore };
+    } finally {
+      stop();
     }
+    this.metrics.decisions.inc({ kind: 'challenge', verdict: result.valid ? 'allow' : 'rejected' });
     if (!result.valid) {
       return { status: 403, body: { error: 'challenge failed', reason: result.reason }, headers: noStore };
     }
@@ -308,6 +376,7 @@ export class AegisNode {
 
   async handleTelemetry(req: RequestInfo): Promise<HandlerResponse> {
     await this.ready;
+    const stop = this.metrics.duration.startTimer({ kind: 'telemetry' });
     try {
       const payload = this.parseTelemetry(req.body);
       const [engineResult, limited] = await Promise.all([
@@ -324,6 +393,8 @@ export class AegisNode {
         scores.push(80 * payload.antiDetectScore);
         reasons.push('anti_detect');
       }
+      const timing = record ? impossibleTiming(payload.features, (Date.now() - record.created) / 1000, record.times.length > 1) : null;
+      if (timing) { scores.push(timing); reasons.push('telemetry.impossible_timing'); }
       const mlProbability = await this.mlScore(payload.features, req.ip, record);
       if (mlProbability !== null) {
         scores.push(mlProbability * 100);
@@ -346,6 +417,9 @@ export class AegisNode {
       }, this.options.secretKey);
 
       this.stats.record({ path: this.options.telemetryPath, verdict, score, reasons, ip: req.ip, telemetry: true });
+      stop();
+      this.metrics.decisions.inc({ kind: 'telemetry', verdict });
+      for (const signal of reasons) this.metrics.signals.inc({ signal });
       return {
         status: 200,
         body: { token, expiresIn: this.options.tokenTtl, verdict, score },
@@ -423,10 +497,11 @@ export class AegisNode {
         body: JSON.stringify({ client_id: 'aegis-server-node', behavioral_data: features }),
         signal: AbortSignal.timeout(this.options.mlTimeoutMs),
       });
-      if (!response.ok) return null;
+      if (!response.ok) { this.metrics.mlErrors.inc(); return null; }
       const result = await response.json() as { confidence_score?: number };
       return typeof result.confidence_score === 'number' ? result.confidence_score : null;
     } catch {
+      this.metrics.mlErrors.inc();
       return null;
     }
   }
@@ -440,6 +515,7 @@ export class AegisNode {
 
   async evaluate(req: RequestInfo): Promise<{ decision: AegisDecision; headers: Record<string, string> }> {
     await this.ready;
+    const stop = this.metrics.duration.startTimer({ kind: 'request' });
     const [engineResult, limited] = await Promise.all([
       this.engine.analyze(this.toEngineRequest(req)),
       this.checkSharedLimits(req),
@@ -491,6 +567,9 @@ export class AegisNode {
       await this.sessions.save(sessionId, record);
     }
     this.stats.record({ path: req.path, verdict, score, reasons, ip: req.ip, telemetry: false });
+    stop();
+    this.metrics.decisions.inc({ kind: 'request', verdict });
+    for (const signal of reasons) this.metrics.signals.inc({ signal });
     return { decision: { verdict, score, reasons, claims, signals: engineResult.signals, sessionToken: engineResult.sessionToken }, headers: cookieHeaders };
   }
 

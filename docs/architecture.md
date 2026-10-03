@@ -133,7 +133,8 @@ decision threshold tuned for a false-positive budget, served in-process
 
 ## Operator surfaces (Node)
 
-- **REST:** `/aegis/health`, `stats`, `events`, `config`, `verify`.
+- **REST:** `/aegis/health`, `ready`, `stats`, `events`, `config`, `verify`.
+- **Prometheus:** `/aegis/metrics` (both servers, same metric names).
 - **GraphQL:** `/aegis/graphql`, read-only.
 - **WebSocket:** `/aegis/live`, batched events.
 - **OpenAPI and Swagger UI:** `/aegis/openapi.json`, `/aegis/docs`.

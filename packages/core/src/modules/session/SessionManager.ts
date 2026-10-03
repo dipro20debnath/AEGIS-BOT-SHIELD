@@ -1,5 +1,6 @@
 import { SessionInfo, AegisVerdict, DetectionSignal } from '../../types/index.js';
 import { Logger } from '../../utils/logger.js';
+import { BoundedMap } from '../../utils/bounded.js';
 import * as crypto from 'crypto';
 
 /**
@@ -22,7 +23,7 @@ import * as crypto from 'crypto';
  * 6. Expire stale sessions
  */
 export class SessionManager {
-  private sessions: Map<string, SessionInfo> = new Map();
+  private sessions: BoundedMap<string, SessionInfo>;
   /** Recent request timestamps per session (for inter-request statistics) */
   private requestTimes: Map<string, number[]> = new Map();
   private secretKey: string;
@@ -44,6 +45,11 @@ export class SessionManager {
     this.secretKey = options.secretKey;
     this.maxSessionAge = options.maxSessionAgeMs || 30 * 60_000;
     this.maxSessions = options.maxSessions || 100_000;
+    // Least recently used sessions are dropped at the bound (O(1)); the periodic cleanup removes expired ones.
+    this.sessions = new BoundedMap(this.maxSessions, (id) => {
+      this.requestTimes.delete(id);
+      this.totalExpired++;
+    });
     this.logger = new Logger('SessionManager');
     this.startCleanup(options.cleanupIntervalMs || 60_000);
   }
@@ -100,9 +106,6 @@ export class SessionManager {
       reputation: 100,
     };
 
-    if (this.sessions.size >= this.maxSessions) {
-      this.cleanup();
-    }
 
     this.sessions.set(session.id, session);
     this.requestTimes.set(session.id, []);

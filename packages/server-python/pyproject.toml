@@ -37,6 +37,8 @@ flask = ["flask>=2.0"]
 fastapi = ["fastapi>=0.95.0", "starlette>=0.26.1"]
 # Shared state for several processes (AEGIS_REDIS_URL)
 redis = ["redis[hiredis]>=4.2"]
+# Prometheus metrics endpoint (metrics_path)
+metrics = ["prometheus_client>=0.17"]
 test = [
     "pytest>=7.0.0",
     "httpx>=0.24.0",
@@ -46,6 +48,7 @@ test = [
     "redis>=4.2",
     "jsonschema>=4.18",
     "openapi-spec-validator>=0.7",
+    "prometheus_client>=0.17",
 ]
 dev = [
     "aegis-server-python[test]",

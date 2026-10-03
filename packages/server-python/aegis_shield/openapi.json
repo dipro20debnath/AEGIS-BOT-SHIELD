@@ -265,10 +265,11 @@
     "/aegis/health": {
       "get": {
         "tags": [
+          "middleware",
           "status"
         ],
         "operationId": "health",
-        "summary": "Liveness",
+        "summary": "Liveness (both servers; Python: health_path)",
         "responses": {
           "200": {
             "description": "Up",
@@ -583,6 +584,71 @@
             "description": "HTML page",
             "content": {
               "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aegis/ready": {
+      "get": {
+        "tags": [
+          "middleware",
+          "status"
+        ],
+        "operationId": "ready",
+        "summary": "Readiness (both servers; Python: ready_path)",
+        "description": "503 while the shared store (Redis) is unreachable. The ML model is reported but not required: without it the rules decide alone.",
+        "responses": {
+          "200": {
+            "description": "Ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Readiness"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Readiness"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/aegis/metrics": {
+      "get": {
+        "tags": [
+          "status"
+        ],
+        "operationId": "metrics",
+        "summary": "Prometheus metrics (Node: aegisRoutes; Python: metrics_path, off by default)",
+        "description": "aegis_decisions_total{kind,verdict}, aegis_signals_total{signal}, aegis_decision_duration_seconds{kind}, aegis_ml_errors_total, aegis_store_errors_total{operation}, aegis_sessions, aegis_live_clients (Node), plus process metrics. Describes your traffic: protect it.",
+        "responses": {
+          "200": {
+            "description": "Prometheus text exposition format",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Python without prometheus_client",
+            "content": {
+              "text/plain": {
                 "schema": {
                   "type": "string"
                 }
@@ -1081,6 +1147,24 @@
                   "type": "string"
                 }
               }
+            }
+          }
+        }
+      },
+      "Readiness": {
+        "type": "object",
+        "required": [
+          "ready",
+          "checks"
+        ],
+        "properties": {
+          "ready": {
+            "type": "boolean"
+          },
+          "checks": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
             }
           }
         }

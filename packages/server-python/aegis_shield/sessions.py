@@ -13,6 +13,7 @@ import logging
 import secrets
 import threading
 import time
+from collections import OrderedDict
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Set
 
@@ -50,12 +51,16 @@ class Session:
 
 
 class SessionTracker:
-    def __init__(self, max_age: float = 1800, max_sessions: int = 100_000, store=None):
+    def __init__(self, max_age: float = 1800, max_sessions: int = 100_000, store=None, on_store_error=None):
         self.max_age = max_age
-        self.max_sessions = max_sessions
-        self._sessions: Dict[str, Session] = {}
+        self.max_sessions = max(1, max_sessions)
+        # Least recently used first: expired sessions and, at the cap, the
+        # oldest are dropped from the front in O(1) (no scan or sort, which
+        # paused requests for up to 75 ms at 100k sessions).
+        self._sessions: "OrderedDict[str, Session]" = OrderedDict()
         self._lock = threading.Lock()
         self.store = store
+        self.on_store_error = on_store_error
 
     def _load(self, session_id: str) -> Optional[Session]:
         # Store unreachable: continue with a fresh session rather than skipping the analysis
@@ -63,6 +68,8 @@ class SessionTracker:
             raw = self.store.get(f"sess:{session_id}")
         except Exception as exc:
             logger.warning("AEGIS session store unavailable: %s", exc)
+            if self.on_store_error:
+                self.on_store_error("session_get")
             return None
         return Session.from_json(raw) if raw else None
 
@@ -73,6 +80,8 @@ class SessionTracker:
                 self.store.set(f"sess:{session.id}", session.to_json(), self.max_age)
             except Exception as exc:
                 logger.warning("AEGIS session store unavailable: %s", exc)
+                if self.on_store_error:
+                    self.on_store_error("session_set")
 
     def get_or_create(self, session_id: Optional[str]) -> Session:
         now = time.time()
@@ -84,11 +93,14 @@ class SessionTracker:
             return session
         with self._lock:
             session = self._sessions.get(session_id) if session_id else None
-            if session is None or now - session.last_seen > self.max_age:
-                if len(self._sessions) >= self.max_sessions:
-                    self._evict(now)
-                session = Session(id=secrets.token_urlsafe(18), created=now, last_seen=now)
-                self._sessions[session.id] = session
+            if session is not None and now - session.last_seen <= self.max_age:
+                self._sessions.move_to_end(session.id)
+                return session
+            if session is not None:
+                del self._sessions[session.id]
+            self._evict(now)
+            session = Session(id=secrets.token_urlsafe(18), created=now, last_seen=now)
+            self._sessions[session.id] = session
             return session
 
     def get(self, session_id: str) -> Optional[Session]:
@@ -146,13 +158,16 @@ class SessionTracker:
         }
 
     def _evict(self, now: float) -> None:
-        expired = [sid for sid, s in self._sessions.items() if now - s.last_seen > self.max_age]
-        for sid in expired:
-            del self._sessions[sid]
-        if len(self._sessions) >= self.max_sessions:
-            oldest = sorted(self._sessions.values(), key=lambda s: s.last_seen)[: self.max_sessions // 10 or 1]
-            for s in oldest:
-                del self._sessions[s.id]
+        """Make room for one session: drop a few expired ones, then the least recently used beyond the cap."""
+        for _ in range(8):
+            if not self._sessions:
+                break
+            oldest = next(iter(self._sessions.values()))
+            if now - oldest.last_seen <= self.max_age:
+                break
+            self._sessions.popitem(last=False)
+        while len(self._sessions) >= self.max_sessions:
+            self._sessions.popitem(last=False)
 
     def __len__(self) -> int:
         return len(self._sessions)
