@@ -17,6 +17,7 @@
  * behavioural layer is for.
  */
 import { DetectionSignal } from '../../types/index.js';
+import { BoundedMap } from '../../utils/bounded.js';
 
 export type RequestKind = 'page' | 'asset' | 'api';
 
@@ -101,21 +102,19 @@ export function longestSequentialRun(paths: string[]): number {
 }
 
 export class BotBehaviorAnalyzer {
-  private sessions = new Map<string, RequestRecord[]>();
+  private sessions: BoundedMap<string, RequestRecord[]>;
   private historySize: number;
-  private maxSessions: number;
   private expectAssets: boolean;
 
   constructor(options: BotBehaviorOptions = {}) {
     this.historySize = options.historySize ?? 100;
-    this.maxSessions = options.maxSessions ?? 50_000;
+    this.sessions = new BoundedMap(options.maxSessions ?? 50_000);
     this.expectAssets = options.expectAssets ?? false;
   }
 
   /** Record a request and return signals for the session so far. */
   public observe(sessionId: string, req: SessionRequest): DetectionSignal[] {
     const history = this.sessions.get(sessionId) ?? [];
-    this.sessions.delete(sessionId); // re-insert: Map order doubles as LRU
     history.push({
       t: req.timestamp ?? Date.now(),
       path: req.path,
@@ -124,9 +123,6 @@ export class BotBehaviorAnalyzer {
     });
     if (history.length > this.historySize) history.shift();
     this.sessions.set(sessionId, history);
-    if (this.sessions.size > this.maxSessions) {
-      this.sessions.delete(this.sessions.keys().next().value as string);
-    }
     return this.analyze(sessionId);
   }
 

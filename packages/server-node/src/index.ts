@@ -10,6 +10,7 @@ export * from './routes.js';
 export * from './live.js';
 export * from './graphql.js';
 export * from './openapi.js';
+export * from './metrics.js';
 export * from './types.js';
 // Fastify adapter: import { aegisFastify } from '@aegis/server-node/dist/middleware/fastify'
 // (kept out of the main entry so fastify stays an optional dependency)

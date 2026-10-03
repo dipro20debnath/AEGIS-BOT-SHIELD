@@ -203,3 +203,60 @@ def test_store_outage_does_not_bypass_analysis():
     c = base.challenger.issue()
     body = json.dumps({"challenge": c["challenge"], "nonce": solve(c)}).encode()
     assert base.handle_challenge("POST", body, BROWSER_HEADERS, {}).status == 503
+
+
+def test_metrics_endpoint_and_probes():
+    base = AegisMiddlewareBase(SITE_KEY, SECRET, metrics_path="/aegis/metrics")
+    base.evaluate("GET", "/", "198.51.100.70", BROWSER_HEADERS, {})
+    base.evaluate("GET", "/", "198.51.100.71", {"user-agent": "curl/8.0"}, {})
+    base.handle_telemetry(telemetry_body(True), "198.51.100.72", BROWSER_HEADERS, {})
+    assert base.is_aegis_endpoint("GET", "/aegis/metrics")
+    r = base.handle_endpoint("GET", "/aegis/metrics", b"", "127.0.0.1", {}, {})
+    text = r.raw.decode()
+    assert r.status == 200 and r.content_type.startswith("text/plain")
+    assert 'aegis_decisions_total{kind="request",verdict="allow"} 1.0' in text
+    assert 'aegis_decisions_total{kind="telemetry",verdict="allow"} 1.0' in text
+    assert 'aegis_decision_duration_seconds_count{kind="request"} 2.0' in text
+    assert "aegis_sessions" in text
+
+    health = base.handle_endpoint("GET", "/aegis/health", b"", "127.0.0.1", {}, {})
+    assert health.status == 200 and health.body["status"] == "ok"
+    assert base.handle_endpoint("GET", "/aegis/ready", b"", "127.0.0.1", {}, {}).body["ready"] is True
+
+    down = AegisMiddlewareBase(SITE_KEY, SECRET, store=_DownStore(), metrics_path="/aegis/metrics")
+    ready = down.handle_endpoint("GET", "/aegis/ready", b"", "127.0.0.1", {}, {})
+    assert ready.status == 503 and ready.body["checks"]["store"] == "unreachable"
+    down.evaluate("GET", "/", "198.51.100.73", BROWSER_HEADERS, {"aegis_sid": "existing-session"})
+    assert 'aegis_store_errors_total{operation="session_get"}' in down.metrics.render()[2].decode()
+
+
+def test_metrics_endpoint_is_off_by_default():
+    base = AegisMiddlewareBase(SITE_KEY, SECRET)
+    assert not base.is_aegis_endpoint("GET", "/aegis/metrics")
+
+
+def test_fastapi_serves_metrics_as_text():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from aegis_shield import AegisFastAPIMiddleware
+
+    app = FastAPI()
+    app.add_middleware(AegisFastAPIMiddleware, site_key=SITE_KEY, secret_key=SECRET, metrics_path="/aegis/metrics")
+    res = TestClient(app).get("/aegis/metrics")
+    assert res.status_code == 200 and res.headers["content-type"].startswith("text/plain")
+    assert "aegis_decisions_total" in res.text
+
+
+def test_memory_store_is_bounded_under_ip_rotation():
+    store = MemoryStore(max_keys=100)
+    store.hit("rl:attacker", 60)
+    for i in range(1000):
+        store.hit(f"rl:rotating-{i}", 60)
+        store.claim_once(f"once:{i}", 60)
+        store.set(f"v:{i}", "x", 60)
+        if i % 20 == 0:
+            store.hit("rl:attacker", 60)
+    assert len(store._windows) <= 100 and len(store._once) <= 100 and len(store._values) <= 100
+    # the recently active key keeps its window
+    assert store.hit("rl:attacker", 60) == 52
+    assert store.get("v:999") == "x"

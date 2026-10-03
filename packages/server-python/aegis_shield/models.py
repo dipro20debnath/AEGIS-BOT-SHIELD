@@ -51,6 +51,11 @@ class AegisConfig(BaseModel):
     rate_limit_window: float = 60
     #: Stricter limits for path prefixes: {"/api/login": [5, 60]} = 5 requests per 60 s per IP
     endpoint_limits: Dict[str, List[float]] = {}
+    #: Liveness and readiness endpoints answered by the middleware (None disables)
+    health_path: Optional[str] = "/aegis/health"
+    ready_path: Optional[str] = "/aegis/ready"
+    #: Prometheus metrics endpoint (off by default: it describes your traffic; protect it)
+    metrics_path: Optional[str] = None
 
     @field_validator("secret_key")
     @classmethod

@@ -1,0 +1,59 @@
+{{- if .Values.ml.enabled }}
+{{- $name := include "aegis.name" (dict "root" . "component" "ml") }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "aegis.labels" (dict "root" . "component" "ml") | nindent 4 }}
+spec:
+  replicas: {{ .Values.ml.replicas }}
+  selector:
+    matchLabels:
+      {{- include "aegis.selectorLabels" (dict "root" . "component" "ml") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "aegis.selectorLabels" (dict "root" . "component" "ml") | nindent 8 }}
+    spec:
+      {{- include "aegis.podSpecCommon" . | nindent 6 }}
+      {{- include "aegis.podSecurity" (dict "root" . "uid" 10001) | nindent 6 }}
+      containers:
+        - name: ml
+          image: {{ include "aegis.image" (dict "root" . "component" "ml") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - { name: http, containerPort: 8001 }
+          startupProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 20
+            failureThreshold: 3
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.ml.resources | nindent 12 }}
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "aegis.labels" (dict "root" . "component" "ml") | nindent 4 }}
+spec:
+  selector:
+    {{- include "aegis.selectorLabels" (dict "root" . "component" "ml") | nindent 4 }}
+  ports:
+    - { name: http, port: 8001, targetPort: http }
+{{- end }}

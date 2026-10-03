@@ -24,7 +24,10 @@ FastAPI, `add_aegis_openapi(app)` adds the middleware endpoints to `/docs`.
 | `GET /aegis/challenge` | both servers | `{challenge, seed, n, r, bits, expiresAt}` |
 | `POST /aegis/challenge` | both servers | `{challenge, nonce}` → `{token, expiresIn, verdict}`; 403 `{error, reason}`; 503 if the shared store is down |
 | any protected path | both servers | denied: `403 {aegis: "block"|"challenge", telemetry?, challenge?}`, header `X-Aegis-Action` |
-| `GET /aegis/health`, `stats`, `events?limit=`, `config` | Node `aegisRoutes` | status API |
+| `GET /aegis/health` | both servers (Python: `health_path`) | liveness `{status: "ok"}` |
+| `GET /aegis/ready` | both servers (Python: `ready_path`) | readiness: 200, or 503 while the shared store is unreachable |
+| `GET /aegis/metrics` | Node `aegisRoutes`; Python with `metrics_path` | Prometheus text format (metric list in the README, Monitoring) |
+| `GET /aegis/stats`, `events?limit=`, `config` | Node `aegisRoutes` | status API |
 | `POST /aegis/verify` | Node `aegisRoutes` | `{token}` → 200 `{valid, score, verdict}` / 401 `{valid: false}` |
 | `GET, POST /aegis/graphql` | Node `aegisRoutes` | read-only GraphQL |
 | `GET /aegis/openapi.json`, `/aegis/docs` | Node `aegisRoutes` | this API's documentation |

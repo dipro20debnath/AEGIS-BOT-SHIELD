@@ -1,0 +1,19 @@
+AEGIS BOT SHIELD {{ .Chart.AppVersion }} is installed as release {{ .Release.Name }}.
+
+Try it from your machine:
+{{- if .Values.apiPython.enabled }}
+  kubectl port-forward svc/{{ include "aegis.name" (dict "root" . "component" "api-python") }} 8000:8000   # FastAPI demo, login demo / demo
+{{- end }}
+{{- if .Values.apiNode.enabled }}
+  kubectl port-forward svc/{{ include "aegis.name" (dict "root" . "component" "api-node") }} 3000:3000     # Express demo, login admin / password
+{{- end }}
+{{- if .Values.dashboard.enabled }}
+  kubectl port-forward svc/{{ include "aegis.name" (dict "root" . "component" "dashboard") }} 8080:8080   # dashboard
+{{- end }}
+
+Smoke test (probes, metrics, telemetry -> token):  helm test {{ .Release.Name }}
+Prometheus metrics: /aegis/metrics on ports 8000 and 3000{{ if .Values.metrics.podAnnotations }} (pods carry prometheus.io/* annotations){{ end }}.
+
+The status API under /aegis/ (stats, events, GraphQL, live feed, metrics) describes your
+traffic. It is reachable inside the cluster only; put authentication in front of it before
+exposing it through an ingress.

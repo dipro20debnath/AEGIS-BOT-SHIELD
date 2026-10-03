@@ -1,0 +1,124 @@
+# AEGIS BOT SHIELD: values for the demo stack (the same services as docker-compose.yml).
+#
+#   helm install aegis deploy/helm/aegis --set secret.secretKey=$(openssl rand -hex 32)
+#
+# Images are built from the repository's Dockerfile (one target per service)
+# and are not published to a registry: build and push them, or load them into
+# a local cluster (kind load docker-image ...). See deploy/README.md.
+
+image:
+  # <repository>/<service>:<tag>, e.g. aegis/api-node:1.0.0
+  repository: aegis
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# Shared by all servers: tokens issued by one replica verify in every other one.
+secret:
+  # Name of an existing Secret with the key AEGIS_SECRET_KEY (preferred in production)
+  existingSecret: ""
+  # Otherwise the chart creates one from this value (at least 16 random characters)
+  secretKey: ""
+
+siteKey: demo-site
+# monitor: score and log only; enforce: challenge and block
+mode: enforce
+
+redis:
+  # In-cluster Redis without persistence (state is short-lived: nonces, rate windows, sessions).
+  # Set enabled=false and externalUrl to use a managed Redis.
+  enabled: true
+  image: redis:7-alpine
+  maxMemory: 128mb
+  # Used when enabled=false; the database number is part of the URL (both servers then share it)
+  externalUrl: ""
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { memory: 192Mi }
+
+ml:
+  enabled: true
+  replicas: 1
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 768Mi }
+
+apiPython:
+  enabled: true
+  replicas: 2
+  # Redis database of this site (the two demo sites must not share rate-limit counters)
+  redisDb: 1
+  # Requests per client IP per minute (0 = off)
+  rateLimit: 0
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 768Mi }
+
+apiNode:
+  enabled: true
+  replicas: 2
+  redisDb: 0
+  # In-process state is bounded (~250 MB at the default bounds,
+  # docs/thesis/results/phase_f/memory_profile.md); with Redis most of it lives there.
+  resources:
+    requests: { cpu: 100m, memory: 192Mi }
+    limits: { memory: 512Mi }
+
+dashboard:
+  enabled: true
+  replicas: 1
+  resources:
+    requests: { cpu: 10m, memory: 16Mi }
+    limits: { memory: 64Mi }
+
+service:
+  type: ClusterIP
+
+# Horizontal Pod Autoscaler for the two API servers (needs metrics-server in the cluster)
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Both API servers serve Prometheus metrics at /aegis/metrics (ports 8000 and 3000)
+metrics:
+  # prometheus.io/* pod annotations (for Prometheus' kubernetes_sd pod discovery)
+  podAnnotations: true
+  # ServiceMonitor for the Prometheus Operator (needs its CRDs)
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    labels: {}
+
+# Only the API servers may reach Redis and the ML service (ML's /train has no authentication)
+networkPolicy:
+  enabled: true
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  # The status API under /aegis/ (stats, events, GraphQL, live feed, metrics) describes your
+  # traffic: expose the dashboard host only behind authentication.
+  hosts: []
+  #  - host: shop.example.com
+  #    service: api-python      # api-python | api-node | dashboard
+  #    path: /
+  tls: []
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile: { type: RuntimeDefault }
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities: { drop: [ALL] }
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

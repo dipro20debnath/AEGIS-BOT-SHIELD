@@ -1,0 +1,11 @@
+{
+  "name": "aegis-pentest-bots",
+  "private": true,
+  "description": "Bot clients for testing AEGIS against your own deployment (Phase F). Not part of the npm workspaces.",
+  "type": "module",
+  "dependencies": {
+    "puppeteer-core": "^25.12.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  }
+}

@@ -232,6 +232,9 @@ detection, 2 partially, 2 not at all. Earlier drafts of this document claimed
 7. **Start in `monitor` mode,** review `/aegis/events` and the dashboard, then switch to `enforce`.
 8. **Several instances:** configure Redis (`AEGIS_REDIS_URL` / `store`), or replay protection and limits are per instance.
 9. **Content Security Policy:** allow `'wasm-unsafe-eval'` if you want the fast PoW solver.
+10. **Probes and metrics:** use `/aegis/health` for liveness and `/aegis/ready` for readiness (it fails while Redis is down, so traffic moves to healthy instances). Scrape `/aegis/metrics` from inside the network only, and alert on `aegis_store_errors_total` and `aegis_ml_errors_total`.
+11. **Memory:** without Redis, each process keeps at most ~100,000 keys per per-client map (about 250 MB in Node). Size container limits for that; under heavy IP rotation, Redis gives exact rate limits.
+12. **Self-test before go-live:** run `bots/run_pentest.py` against a staging copy (never against sites you do not operate).
 
 ---
 

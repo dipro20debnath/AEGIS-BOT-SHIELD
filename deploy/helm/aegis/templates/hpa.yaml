@@ -1,0 +1,28 @@
+{{- if .Values.autoscaling.enabled }}
+{{- range $component := list "api-python" "api-node" }}
+{{- $values := ternary $.Values.apiPython $.Values.apiNode (eq $component "api-python") }}
+{{- if $values.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "aegis.name" (dict "root" $ "component" $component) }}
+  labels:
+    {{- include "aegis.labels" (dict "root" $ "component" $component) | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "aegis.name" (dict "root" $ "component" $component) }}
+  minReplicas: {{ $.Values.autoscaling.minReplicas }}
+  maxReplicas: {{ $.Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $.Values.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- end }}
+{{- end }}

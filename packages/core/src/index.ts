@@ -35,6 +35,7 @@ export { ThreatDatabase } from './modules/threat-intel/ThreatDatabase.js';
 // Utilities
 export { Logger } from './utils/logger.js';
 export * from './utils/crypto.js';
+export { BoundedMap, DEFAULT_MAX_KEYS } from './utils/bounded.js';
 
 // Security
 export { InputValidator } from './security/InputValidator.js';
