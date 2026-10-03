@@ -39,7 +39,10 @@ decides per request: **allow, monitor, challenge or block**.
 - [Edge: Cloudflare Worker](#edge-cloudflare-worker)
 - [ML engine](#ml-engine)
 - [Dashboard](#dashboard)
+- [Monitoring (Prometheus)](#monitoring-prometheus)
+- [Kubernetes](#kubernetes)
 - [Performance (load test)](#performance-load-test)
+- [Self pen-test with bots](#self-pen-test-with-bots)
 - [Testing](#testing)
 - [Privacy](#privacy)
 - [Limitations](#limitations)
@@ -405,6 +408,7 @@ Read by `get_config()`:
 | `AEGIS_TRUSTED_PROXIES` | Comma-separated IPs/CIDRs |
 | `AEGIS_REDIS_URL` | Shared state in Redis, e.g. `redis://localhost:6379/0` |
 | `AEGIS_RATE_LIMIT` | Requests per client IP per minute (0 = off) |
+| `AEGIS_METRICS_PATH` | Serve Prometheus metrics at this path, e.g. `/aegis/metrics` (off by default) |
 | `ABUSEIPDB_API_KEY` | Enables the AbuseIPDB feed when live feeds are on |
 
 ### Node (`AegisNode`) options
@@ -436,12 +440,14 @@ These are answered by the middleware itself:
 | `POST /aegis/telemetry` | SDK sends behaviour features and receives `{token, expiresIn, verdict, score}` |
 | `GET /aegis/challenge` | Issue a memory-hard challenge `{challenge, seed, n, r, bits, expiresAt}` |
 | `POST /aegis/challenge` | Verify `{challenge, nonce}` and receive a token |
+| `GET /aegis/health` | Liveness: the process answers (Python: `health_path`) |
+| `GET /aegis/ready` | Readiness: 503 while the shared store (Redis) is unreachable (Python: `ready_path`) |
+| `GET /aegis/metrics` | Prometheus metrics ([Monitoring](#monitoring-prometheus)); Python only with `metrics_path` set |
 
 Node status API (`aegisRoutes`), meant for the dashboard. **Put it behind authentication.**
 
 | Method and path | Purpose |
 |---|---|
-| `GET /aegis/health` | Liveness |
 | `GET /aegis/stats` | Counts per verdict, top reasons (since process start) |
 | `GET /aegis/events?limit=100` | Recent decisions (IPs truncated to /24 or /48) |
 | `GET /aegis/config` | Active configuration (no secrets) |
@@ -687,6 +693,54 @@ Limits: 8 KB documents, 10 root fields per operation (aliases count),
 
 ---
 
+## Monitoring (Prometheus)
+
+Both servers export the same metrics at `/aegis/metrics`:
+- Node: always, through `aegisRoutes`, with [prom-client](https://github.com/siimon/prom-client).
+- Python: when `metrics_path="/aegis/metrics"` (or `AEGIS_METRICS_PATH`) is set. Needs
+  `pip install "aegis-server-python[metrics]"` (prometheus_client).
+
+| Metric | Labels | Meaning |
+|---|---|---|
+| `aegis_decisions_total` | `kind` (request, telemetry, challenge), `verdict` | Decisions made |
+| `aegis_signals_total` | `signal` | Signals behind decisions (a bounded set of names) |
+| `aegis_decision_duration_seconds` | `kind` | Time AEGIS spent per decision (histogram) |
+| `aegis_ml_errors_total` | – | ML service or model failures (scoring continued without ML) |
+| `aegis_store_errors_total` | `operation` | Redis failures (analysis degraded, never skipped) |
+| `aegis_sessions` | – | Session records held in the process (0 with Redis) |
+| `aegis_live_clients` | – | WebSocket live-feed connections (Node) |
+
+Plus process metrics (Node: `aegis_node_*`, Python: `process_*`). Useful alerts:
+- `rate(aegis_store_errors_total[5m]) > 0`: Redis trouble, rate limits and replay protection are degraded.
+- `rate(aegis_ml_errors_total[5m]) > 0`: scores without ML.
+- A sudden rise in `aegis_decisions_total{verdict="block"}`: an attack, or a false-positive wave after a change.
+
+The metrics describe your traffic, so do not expose them publicly.
+
+---
+
+## Kubernetes
+
+A Helm chart for the full stack is in [`deploy/helm/aegis`](deploy/helm/aegis):
+- both API servers, the ML service, Redis and the dashboard;
+- probes on `/aegis/health` and `/aegis/ready`;
+- Prometheus annotations or a ServiceMonitor;
+- optional HPA, PodDisruptionBudgets and NetworkPolicies;
+- non-root, read-only pods.
+
+It is tested on a kind cluster with `helm test`. Plain manifests are rendered
+from it into `deploy/kubernetes/aegis.yaml`.
+
+```bash
+for t in api-python api-node ml dashboard; do docker build --target $t -t aegis/$t:1.0.0 .; done
+helm install aegis deploy/helm/aegis --set secret.secretKey=$(openssl rand -hex 32)
+helm test aegis --logs
+```
+
+Details, the values and kind notes: [`deploy/README.md`](deploy/README.md).
+
+---
+
 ## Performance (load test)
 
 ```bash
@@ -717,6 +771,43 @@ runs. Full table: [`docs/thesis/results/phase_d/load_test.md`](docs/thesis/resul
   throughput is meaningful).
 - **Telemetry with ML:** 936 req/s (Node → ML service over HTTP) and 458 req/s
   (Python, model in-process), unloaded p50 1.9 ms and 2.4 ms.
+- **Memory is bounded:**
+  - In-process per-client state (rate windows, IP counters, sessions) holds at most 100,000 keys per map, with least-recently-used eviction in O(1).
+  - A Node process stays under ~250 MB of AEGIS state with any number of distinct clients (measured up to 400,000).
+  - Before Phase F the state grew without limit, at 2.9 KB per client.
+  - Python's longest pause fell from 526 ms to 106 ms. What remains is CPython's garbage collector; with Redis the longest pause was 13 ms.
+  - Details: [`docs/thesis/results/phase_f/memory_profile.md`](docs/thesis/results/phase_f/memory_profile.md).
+
+---
+
+## Self pen-test with bots
+
+[`bots/`](bots/) has bot clients of increasing skill, for testing **your own** deployment:
+- python-requests (naive, header-forging, and patient);
+- Scrapy;
+- Selenium;
+- Puppeteer with the stealth plugin;
+- Playwright: headless stealth, and a headed "human-like" mode with Bézier mouse paths.
+
+`python bots/run_pentest.py` runs them all against both demo servers and writes a report.
+
+Result against the demos in enforce mode (5 runs each, 2026-10-03,
+[`docs/thesis/results/phase_f/pentest_after.md`](docs/thesis/results/phase_f/pentest_after.md)).
+
+**Stopped:** naive requests, Scrapy, Selenium and Playwright-stealth, by both servers.
+
+**Got through:**
+
+| Bot | How | Gap | Status |
+|---|---|---|---|
+| Header-forging requests | Copied headers and hand-written telemetry | Claimed interaction time longer than the session's age | Now blocked (`telemetry.impossible_timing`) |
+| Same bot, waiting 11 s | Waits long enough for the claimed time to be plausible | Hand-written telemetry cannot be told from real telemetry without the ML model trained on real data | Still logs in |
+| Puppeteer-stealth | Real Chrome, stealth plugin | Scored 48–49, just under the challenge threshold of 50. Uniform typing was noticed, but not enough | Still logs in |
+| Human-like Playwright | Real Chrome, human-like input | Scored 62–76, so challenged | Still logs in, but only after solving the proof of work |
+
+These are the gaps the planned real-data study is meant to measure. The pen
+test also found a false positive in the Node server: `Accept: */*` on fetch/XHR
+calls was flagged. It is fixed.
 
 ---
 
@@ -813,9 +904,9 @@ option tables must list every option, and every relative link must resolve.
 ## Roadmap and thesis documents
 
 - **[docs/thesis/PROJECT_PLAN.md](docs/thesis/PROJECT_PLAN.md):** phase plan and
-  current status. Done: Phases A–E. Next: production readiness (Phase F: bot
-  scripts for self-testing, profiling, Prometheus, Kubernetes, v1.0.0), then the
-  data-collection website.
+  current status. Done: Phases A–F (F: self pen-test with bots, memory
+  profiling and bounds, Prometheus metrics and probes, Helm chart tested on
+  kind, v1.0.0 preparation). Next: the data-collection website (Phase G).
 - **[docs/thesis/THESIS_NOTES.md](docs/thesis/THESIS_NOTES.md):** every design
   decision, measurement, bug and limitation, with reasons.
 - **[docs/thesis/irb/](docs/thesis/irb/):** study protocol, consent forms

@@ -25,6 +25,7 @@ from .session_patterns import session_signals
 from .models import AegisConfig, AegisResult
 from .sessions import SESSION_COOKIE, Session, SessionTracker
 from .store import Store, create_redis_store
+from .metrics import Metrics
 from .telemetry import TelemetryError, TelemetryService, decide, user_agent_hash
 from .verifier import generate_token
 from .utils import get_client_ip
@@ -40,6 +41,9 @@ class HandlerResponse:
     status: int
     body: Dict[str, Any]
     headers: Dict[str, str]
+    #: Non-JSON body (Prometheus metrics); adapters send it as is with content_type
+    raw: Optional[bytes] = None
+    content_type: str = "application/json"
 
 
 class AegisMiddlewareBase:
@@ -55,11 +59,13 @@ class AegisMiddlewareBase:
             self.store = create_redis_store(self.config.redis_url)
         self.verifier = TokenVerifier(secret_key, max_token_age=self.config.token_ttl, store=self.store)
         self.analyzer = RequestAnalyzer(self.config.verify_search_engines)
-        self.sessions = SessionTracker(store=self.store)
+        self.metrics = Metrics(session_count=lambda: 0 if self.store is not None else len(self.sessions))
+        self.sessions = SessionTracker(store=self.store, on_store_error=self.metrics.store_error)
         if self.config.rate_limit or self.config.endpoint_limits:
             from .store import MemoryStore
             self._limit_store: Store = self.store or MemoryStore()
         self.scorer = scorer or make_scorer(self.config.ml_model_path, self.config.ml_url)
+        self.scorer.on_error = self.metrics.ml_error
         self.reputation: Optional[IPReputation] = reputation
         if self.reputation is None and self.config.live_feeds:
             self.reputation = IPReputation(self.config.feeds, cache_dir=self.config.feed_cache_dir,
@@ -84,6 +90,7 @@ class AegisMiddlewareBase:
                     exceeded = f"endpoint {prefix}"
         except Exception as exc:
             logger.warning("AEGIS rate-limit store unavailable: %s", exc)
+            self.metrics.store_error("rate_limit")
             return None
         return exceeded
 
@@ -110,12 +117,40 @@ class AegisMiddlewareBase:
         return method.upper() == "POST" and path == self.config.telemetry_path
 
     def is_aegis_endpoint(self, method: str, path: str) -> bool:
-        """Requests the middleware answers itself: telemetry and the proof-of-work challenge."""
+        """Requests the middleware answers itself: telemetry, the proof-of-work challenge,
+        and the health, readiness and (if enabled) metrics endpoints."""
+        if method.upper() == "GET" and path in self._status_paths():
+            return True
         return self.is_telemetry_request(method, path) or (
             path == self.config.challenge_path and method.upper() in ("GET", "POST"))
 
+    def _status_paths(self):
+        return {p for p in (self.config.health_path, self.config.ready_path, self.config.metrics_path) if p}
+
+    def readiness(self) -> Dict[str, Any]:
+        """Ready when the shared store (if configured) answers; the ML model is reported, not required."""
+        checks = {"middleware": "ok"}
+        if self.store is not None:
+            try:
+                self.store.get("ready-probe")
+                checks["store"] = "ok"
+            except Exception:
+                checks["store"] = "unreachable"
+        if self.config.ml_model_path or self.config.ml_url:
+            checks["ml"] = "ok" if getattr(self.scorer, "available", False) else "unavailable (rules only)"
+        return {"ready": checks.get("store") != "unreachable", "checks": checks}
+
     def handle_endpoint(self, method: str, path: str, body: bytes, remote_addr: str, headers: Dict[str, str],
                         cookies: Dict[str, str]) -> HandlerResponse:
+        if method.upper() == "GET" and path in self._status_paths():
+            if path == self.config.health_path:
+                return HandlerResponse(200, {"status": "ok", "timestamp": time.time() * 1000, "version": "1.0.0"},
+                                       {"Cache-Control": "no-store"})
+            if path == self.config.ready_path:
+                result = self.readiness()
+                return HandlerResponse(200 if result["ready"] else 503, result, {"Cache-Control": "no-store"})
+            status, content_type, text = self.metrics.render()
+            return HandlerResponse(status, {}, {"Cache-Control": "no-store"}, raw=text, content_type=content_type)
         if path == self.config.challenge_path:
             return self.handle_challenge(method, body, headers, cookies)
         return self.handle_telemetry(body, remote_addr, headers, cookies)
@@ -129,6 +164,7 @@ class AegisMiddlewareBase:
         no_store = {**cookie_headers, "Cache-Control": "no-store"}
         if method.upper() == "GET":
             return HandlerResponse(200, self.challenger.issue(), no_store)
+        start = time.perf_counter()
         try:
             data = json.loads(body or b"{}")
             ok, reason = self.challenger.verify(data.get("challenge"), data.get("nonce"))
@@ -136,7 +172,9 @@ class AegisMiddlewareBase:
             ok, reason = False, "malformed"
         except Exception:  # shared store unreachable: refuse rather than risk accepting a replay
             logger.exception("AEGIS challenge verification failed")
+            self.metrics.store_error("replay")
             return HandlerResponse(503, {"error": "challenge verification unavailable"}, no_store)
+        self.metrics.decision("challenge", "allow" if ok else "rejected", seconds=time.perf_counter() - start)
         if not ok:
             return HandlerResponse(403, {"error": "challenge failed", "reason": reason}, no_store)
         ua = next((v for k, v in headers.items() if k.lower() == "user-agent"), "")
@@ -161,7 +199,10 @@ class AegisMiddlewareBase:
             self.sessions.save(session)
             return HandlerResponse(429, {"error": "rate limit exceeded"}, {**cookie_headers, "Retry-After": "60"})
         try:
-            result, _ = self.telemetry.process(body, ip, headers, session)
+            start = time.perf_counter()
+            result, signals = self.telemetry.process(body, ip, headers, session)
+            self.metrics.decision("telemetry", result["verdict"], (name for name, _ in signals),
+                                  time.perf_counter() - start)
             return HandlerResponse(200, result, {**cookie_headers, "Cache-Control": "no-store"})
         except TelemetryError as exc:
             self.sessions.save(session)
@@ -179,6 +220,7 @@ class AegisMiddlewareBase:
         `query` is the raw query string; it and the path are checked for injection
         payloads. Request bodies are not read here (that would consume the stream).
         """
+        start = time.perf_counter()
         session, cookie_headers = self._session(cookies)
         try:
             # Stored once per request (record_risk for denied requests, record_response otherwise)
@@ -235,6 +277,7 @@ class AegisMiddlewareBase:
             result = AegisResult(action=action, score=score, reason=",".join(reasons), payload=claims,
                                  is_bot=action == "block", session_id=session.id)
             result._session = session  # record_response reuses it instead of reloading from the store
+            self.metrics.decision("request", action, reasons, time.perf_counter() - start)
             return result, cookie_headers
         except Exception as exc:
             logger.exception("AEGIS request analysis failed")
@@ -287,6 +330,9 @@ class AegisDjangoMiddleware(AegisMiddlewareBase):
 
         if self.is_aegis_endpoint(request.method, path):
             r = self.handle_endpoint(request.method, path, request.body, remote, headers, request.COOKIES)
+            if r.raw is not None:
+                from django.http import HttpResponse
+                return self._to_django(HttpResponse(r.raw, status=r.status, content_type=r.content_type), r.headers)
             return self._to_django(JsonResponse(r.body, status=r.status), r.headers)
         if not self._should_protect(path):
             return self.get_response(request)
@@ -334,6 +380,9 @@ class AegisFlaskMiddleware(AegisMiddlewareBase):
             r = self.handle_endpoint(request.method, request.path, request.get_data(), remote, headers,
                                      request.cookies)
             g.aegis_headers = r.headers
+            if r.raw is not None:
+                from flask import Response
+                return Response(r.raw, status=r.status, content_type=r.content_type)
             return jsonify(r.body), r.status
         if not self._should_protect(request.path):
             return None
@@ -384,6 +433,10 @@ class AegisFastAPIMiddleware:
         if self.base.is_aegis_endpoint(method, path):
             body = await request.body()
             r = self.base.handle_endpoint(method, path, body, remote, headers, request.cookies)
+            if r.raw is not None:
+                from starlette.responses import Response
+                return await Response(r.raw, status_code=r.status, headers=r.headers,
+                                      media_type=r.content_type)(scope, receive, send)
             return await JSONResponse(r.body, status_code=r.status, headers=r.headers)(scope, receive, send)
         if not self.base._should_protect(path):
             return await self.app(scope, receive, send)

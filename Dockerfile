@@ -54,12 +54,12 @@ HEALTHCHECK --interval=15s --timeout=3s --retries=5 CMD wget -qO- http://127.0.0
 CMD ["node", "examples/express-integration/server.js"]
 
 # ---------------------------------------------------------------------------
-# dashboard: static Vite build behind nginx, /aegis proxied to api-node
+# dashboard: static Vite build behind nginx (unprivileged, port 8080), /aegis proxied to api-node
 # ---------------------------------------------------------------------------
-FROM nginx:1.29-alpine AS dashboard
+FROM nginxinc/nginx-unprivileged:1.29-alpine AS dashboard
 COPY docker/dashboard.nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=js-build /app/packages/dashboard/dist /usr/share/nginx/html
-EXPOSE 80
+EXPOSE 8080
 
 # ---------------------------------------------------------------------------
 # Python base: ml-engine + aegis_shield
@@ -71,7 +71,7 @@ COPY packages/ml-engine packages/ml-engine
 COPY packages/server-python packages/server-python
 RUN --mount=type=secret,id=extra_ca,required=false \
     if [ -f /run/secrets/extra_ca ]; then export PIP_CERT=/run/secrets/extra_ca; fi; \
-    pip install "./packages/ml-engine[server]" "./packages/server-python[redis]" \
+    pip install "./packages/ml-engine[server]" "./packages/server-python[redis,metrics]" \
  && useradd --create-home --uid 10001 aegis
 # Synthetic-data model (pipeline demo only; retrain on real data for real use)
 COPY e2e/train_model.py /app/train_model.py

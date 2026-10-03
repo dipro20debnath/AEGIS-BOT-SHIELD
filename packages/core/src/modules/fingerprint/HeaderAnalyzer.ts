@@ -112,7 +112,10 @@ export class HeaderAnalyzer {
 
   private analyzeAcceptHeaders(headers: Record<string, string>): DetectionSignal | null {
     const accept = headers['accept'] || '';
-    if (accept === '*/*') {
+    // Browsers send "*/*" for fetch/XHR and subresources (Sec-Fetch-Dest: empty, script, …);
+    // only a navigation (document) or a client without Fetch Metadata is suspicious.
+    const dest = headers['sec-fetch-dest'];
+    if (accept === '*/*' && (!dest || dest === 'document' || dest === 'iframe')) {
       return {
         category: 'protocol',
         type: 'headers.accept_generic',
