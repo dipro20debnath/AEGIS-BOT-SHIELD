@@ -166,7 +166,7 @@ export class GeoIPResolver {
         timezone: data.timezone,
         isHosting: data.hosting
       };
-    } catch (e) {
+    } catch {
       return null;
     }
   }

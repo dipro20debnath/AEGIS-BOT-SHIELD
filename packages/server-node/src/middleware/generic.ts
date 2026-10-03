@@ -44,7 +44,7 @@ export function aegisGeneric(options: AegisNodeOptions, shared?: AegisNode) {
         return;
       }
       next();
-    } catch (error) {
+    } catch {
       next();
     }
   };
