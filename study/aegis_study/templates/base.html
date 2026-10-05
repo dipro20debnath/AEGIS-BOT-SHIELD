@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ t('site_title') }}</title>
+  <link rel="stylesheet" href="/static/study.css">
+</head>
+{# Behaviour is recorded only after consent, i.e. only when there is a study session #}
+<body {% if session %}data-site-key="{{ site_key }}"{% endif %}>
+{% if panel %}
+<div class="task" data-study="task-panel" data-task="{{ panel.current or 'done' }}">
+  <div class="inner">
+    {% if panel.current %}
+      <div class="text"><strong>{{ t('task') }} {{ panel.index }}/{{ panel.total }}:</strong> {{ panel.text|safe }}</div>
+      <form method="post" action="/study/skip" data-confirm="{{ t('skip_confirm') }}">
+        <input type="hidden" name="task" value="{{ panel.current }}">
+        <button class="small secondary" data-study="skip">{{ t('skip') }}</button>
+      </form>
+    {% else %}
+      <div class="text">{{ t('all_done') }}</div>
+      <a class="btn small" href="/study/finish" data-study="finish">{{ t('finish') }}</a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% block shopbar %}{% endblock %}
+<main>
+{% block content %}{% endblock %}
+</main>
+{% if session %}
+<script src="/sdk/aegis.min.js"></script>
+<script src="/static/study.js"></script>
+{% if raw %}<script src="/static/recorder.js"></script>{% endif %}
+{% endif %}
+</body>
+</html>

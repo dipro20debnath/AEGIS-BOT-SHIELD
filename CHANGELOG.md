@@ -3,11 +3,33 @@
 All notable changes. Versions follow [Semantic Versioning](https://semver.org/);
 nothing has been published to npm or PyPI yet (see [docs/RELEASING.md](docs/RELEASING.md)).
 
-## [1.0.0] — prepared, not yet tagged
+## [Unreleased]
 
-The first complete version: everything below, Phases A–F. The tag and the GitHub
-release are made by the maintainer after this is merged; publishing to npm/PyPI
-is a separate step ([docs/RELEASING.md](docs/RELEASING.md)).
+### Phase G: data-collection study site
+- `study/`: test shop for the thesis data collection.
+  - Consent in Bangla and English, rendered from the IRB documents.
+  - Optional survey, then six tasks with per-session random targets and server-side completion checks.
+  - Closing survey.
+  - AEGIS in monitor mode; SQLite storage.
+- Opt-in raw event recorder: pointer, keys as category only, scroll, focus, visibility.
+  It shares one page-view id with the SDK telemetry.
+- Researcher CLI: codes, stats, check, export (CSV/Parquet, raw JSONL, manifest), withdraw, backup.
+- `replayFeatures` in the js-sdk and `study/tools/replay_features.mjs`: recompute
+  features from raw events with the SDK's collectors.
+- End-to-end test: live keyboard features equal the replayed ones for every page view.
+- Bots for the study flow: `bots/study_bot.mjs` (Playwright/Puppeteer; fast, stealth,
+  human-like) and `bots/http_study_bot.py` (naive, forger).
+- Deployment: `study` Docker target, `deploy/study/` with Caddy (automatic HTTPS, no access logs).
+- SDK: `streamId` option. Servers: `secure_cookies` / `secureCookies` (Secure flag on `aegis_sid`).
+- IRB drafts updated:
+  - protocol (tasks, optional raw tier, storage, unlabelled traffic);
+  - consent EN/BN (optional item);
+  - data dictionary generated from the code.
+
+## [1.0.0] — 2026-10-05
+
+The first complete version: everything below, Phases A–F. Not published to
+npm/PyPI ([docs/RELEASING.md](docs/RELEASING.md)).
 
 ### Phase F: production readiness
 - **Self pen-test.** `bots/` has seven bot clients (python-requests in three

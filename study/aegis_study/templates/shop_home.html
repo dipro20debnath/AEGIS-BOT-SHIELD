@@ -1,0 +1,7 @@
+{% extends "shop_base.html" %}
+{% block content %}
+<h1>AEGIS Shop</h1>
+<div class="grid">
+  {% for p in products %}{% include "_product_card.html" %}{% endfor %}
+</div>
+{% endblock %}

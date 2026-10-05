@@ -25,6 +25,13 @@ describe('aegisExpress', () => {
     const res = await request(app).get('/products').set(BROWSER_HEADERS);
     expect(res.status).toBe(200);
     expect(res.headers['set-cookie'][0]).toMatch(/^aegis_sid=.+HttpOnly/);
+    expect(res.headers['set-cookie'][0]).not.toMatch(/Secure/);
+  });
+
+  it('marks the session cookie Secure with secureCookies (HTTPS sites)', async () => {
+    const { app } = make({ secureCookies: true });
+    const res = await request(app).get('/products').set(BROWSER_HEADERS);
+    expect(res.headers['set-cookie'][0]).toMatch(/^aegis_sid=.+; Secure$/);
   });
 
   it('challenges a token-required path without a token', async () => {
