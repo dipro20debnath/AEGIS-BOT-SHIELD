@@ -64,9 +64,12 @@ jobs:
       - if: matrix.python-version == '3.12'
         run: pip install torch --index-url https://download.pytorch.org/whl/cpu
       - run: pytest packages/ml-engine/tests packages/server-python/tests -v -rs
+      # Data-collection study site (separate run: its tests have their own conftest)
+      - run: pip install jinja2 python-multipart
+      - run: pytest study/tests -v -rs
 
   e2e:
-    name: End-to-end (Chromium -> SDK -> Python server -> ML)
+    name: End-to-end (Chromium -> SDK -> Python server -> ML; study site)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -81,7 +84,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       # non-editable on purpose: catches packaging mistakes (missing subpackages) that -e hides
-      - run: pip install ./packages/ml-engine ./packages/server-python fastapi uvicorn
+      - run: pip install ./packages/ml-engine ./packages/server-python fastapi uvicorn jinja2 python-multipart
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 

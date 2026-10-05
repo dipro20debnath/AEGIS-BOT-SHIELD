@@ -24,6 +24,8 @@ class AegisConfig(BaseModel):
     ml_url: Optional[str] = None
     #: Proxies (IPs or CIDRs) whose X-Forwarded-For is trusted
     trusted_proxies: List[str] = []
+    #: Add the Secure flag to the aegis_sid cookie (set it when the site is served over HTTPS)
+    secure_cookies: bool = False
     #: Confirm Googlebot/Bingbot claims with reverse DNS (blocking lookups)
     verify_search_engines: bool = False
     max_telemetry_bytes: int = 64 * 1024

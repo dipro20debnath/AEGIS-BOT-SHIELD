@@ -1,0 +1,14 @@
+{% extends "shop_base.html" %}
+{% block content %}
+<form class="card" method="post" action="/shop/review/{{ product.id }}">
+  <h1>{{ t('review_title') }}: {{ product.name }}</h1>
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+  <label for="text">{{ t('your_review') }}</label>
+  <textarea id="text" name="text" autocomplete="off"></textarea>
+  <label>{{ t('stars') }}</label>
+  <div class="starpick">
+    {% for n in range(1, 6) %}<label><input type="radio" name="rating" value="{{ n }}"> {{ n }}★</label>{% endfor %}
+  </div>
+  <p><button data-study="submit-review">{{ t('submit') }}</button></p>
+</form>
+{% endblock %}

@@ -111,7 +111,8 @@ class AegisMiddlewareBase:
         session = self.sessions.get_or_create(sid)
         if session.id == sid:
             return session, {}
-        return session, {"Set-Cookie": f"{SESSION_COOKIE}={session.id}; Path=/; HttpOnly; SameSite=Lax"}
+        secure = "; Secure" if self.config.secure_cookies else ""
+        return session, {"Set-Cookie": f"{SESSION_COOKIE}={session.id}; Path=/; HttpOnly; SameSite=Lax{secure}"}
 
     def is_telemetry_request(self, method: str, path: str) -> bool:
         return method.upper() == "POST" and path == self.config.telemetry_path
@@ -352,7 +353,8 @@ class AegisDjangoMiddleware(AegisMiddlewareBase):
         for name, value in headers.items():
             if name == "Set-Cookie":
                 sid = value.split(";", 1)[0].split("=", 1)[1]
-                response.set_cookie(SESSION_COOKIE, sid, httponly=True, samesite="Lax")
+                response.set_cookie(SESSION_COOKIE, sid, httponly=True, samesite="Lax",
+                                    secure=value.endswith("; Secure"))
             else:
                 response[name] = value
         return response

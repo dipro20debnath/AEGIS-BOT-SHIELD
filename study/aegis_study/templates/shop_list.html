@@ -1,0 +1,8 @@
+{% extends "shop_base.html" %}
+{% block content %}
+<h1>{{ title }}</h1>
+{% if not products %}<p>{{ empty }}</p>{% endif %}
+<div class="grid">
+  {% for p in products %}{% include "_product_card.html" %}{% endfor %}
+</div>
+{% endblock %}

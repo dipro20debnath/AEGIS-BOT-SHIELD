@@ -1,0 +1,6 @@
+<div class="product">
+  <a href="/shop/product/{{ p.id }}" data-study="product-{{ p.id }}"><div class="img">{{ categories[p.category] }}</div></a>
+  <a href="/shop/product/{{ p.id }}" data-study="product-title">{{ p.name }}</a>
+  <span class="price">৳ {{ "{:,}".format(p.price) }}</span>
+  <span class="stars">★ {{ "%.1f"|format(p.rating) }}</span>
+</div>

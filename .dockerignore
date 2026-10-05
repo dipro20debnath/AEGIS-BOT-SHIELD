@@ -11,6 +11,13 @@ venv
 **/*.pkl
 # trained models are rebuilt inside the image; source packages named "models" must stay
 docs/thesis/irb
+# the study site shows the information sheets approved by the ethics committee
+!docs/thesis/irb/consent_en.md
+!docs/thesis/irb/consent_bn.md
+# study data never goes into an image
+**/*.db
+**/*.db-wal
+**/*.db-shm
 docs/*.pdf
 *.docx
 *.pdf

@@ -1,0 +1,37 @@
+# Study site on one VPS: study app (AEGIS in monitor mode) behind Caddy (HTTPS).
+#
+#   cd deploy/study
+#   cp .env.example .env        # set STUDY_DOMAIN and AEGIS_SECRET_KEY
+#   docker compose up -d --build
+#
+# See deploy/study/README.md for the full checklist.
+name: aegis-study
+
+services:
+  study:
+    build: { context: ../.., target: study }
+    image: aegis/study:local
+    environment:
+      AEGIS_SECRET_KEY: ${AEGIS_SECRET_KEY:?set AEGIS_SECRET_KEY in .env (at least 32 random characters)}
+      STUDY_RAW_EVENTS: ${STUDY_RAW_EVENTS:-true}
+    volumes:
+      - study-data:/data
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      STUDY_DOMAIN: ${STUDY_DOMAIN:?set STUDY_DOMAIN in .env, e.g. study.example.com}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      study: { condition: service_healthy }
+    restart: unless-stopped
+
+volumes:
+  study-data:
+  caddy-data:

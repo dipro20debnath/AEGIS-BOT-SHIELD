@@ -1,0 +1,16 @@
+# HTTPS in front of the study site. Caddy gets and renews a Let's Encrypt
+# certificate for STUDY_DOMAIN automatically (ports 80 and 443 must be open).
+# No access log is configured: IP addresses are not written anywhere (protocol §7).
+{$STUDY_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy study:8000
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		# same-origin: telemetry needs the Referer of study pages, nothing leaves the site
+		Referrer-Policy "same-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		-Server
+	}
+}
