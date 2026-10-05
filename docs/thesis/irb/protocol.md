@@ -172,4 +172,23 @@ from automated abuse.
 - `consent_en.md` — information sheet and consent form (English)
 - `consent_bn.md` — information sheet and consent form (Bangla)
 - `data_dictionary.md` — complete list of data fields (generated from the software)
-- Screenshots of the study website (consent page, a task page) **[add before submission]**
+- `screenshots/` — screenshots of the study website, all pages in order ([`screenshots/README.md`](screenshots/README.md) shows them on one page for printing):
+
+| # | File | Shows |
+|---|------|-------|
+| 1 | [`01_landing.png`](screenshots/01_landing.png) | Start page: purpose in one sentence, language choice (Bangla / English) |
+| 2 | [`02_consent_bn.png`](screenshots/02_consent_bn.png) | Information sheet in Bangla (shown word for word from `consent_bn.md`), the four required consent boxes, the optional raw-timing box and the study code field. The yellow DRAFT notice appears until the placeholders are filled in |
+| 3 | [`03_consent_en.png`](screenshots/03_consent_en.png) | The same page in English (`consent_en.md`) |
+| 4 | [`04_survey_before.png`](screenshots/04_survey_before.png) | Survey before the tasks: fixed options, every question optional ("Prefer not to say") |
+| 5 | [`05_task1_login.png`](screenshots/05_task1_login.png) | Task 1: the dark bar at the top shows the task and the dummy username and password; every task has a "Skip this task" button |
+| 6 | [`06_task2_search.png`](screenshots/06_task2_search.png) | Task 2: search results |
+| 7 | [`07_task3_compare.png`](screenshots/07_task3_compare.png) | Task 3: a category list, where the participant compares prices and ratings |
+| 8 | [`08_task4_cart.png`](screenshots/08_task4_cart.png) | Task 4: the cart, with quantity and remove buttons |
+| 9 | [`09_task5_checkout.png`](screenshots/09_task5_checkout.png) | Task 5: checkout form with the invented delivery details to copy from the task bar; no payment fields |
+| 10 | [`10_task6_review.png`](screenshots/10_task6_review.png) | Task 6: writing a short review and choosing stars |
+| 11 | [`11_survey_after.png`](screenshots/11_survey_after.png) | Closing survey (autofill, automation tools, assistive tools, interruptions, difficulty), all optional |
+| 12 | [`12_done.png`](screenshots/12_done.png) | Thank-you page repeating the study code, which is needed to withdraw |
+| 13 | [`13_phone_consent_bn.png`](screenshots/13_phone_consent_bn.png) | Consent page on a phone |
+| 14 | [`14_phone_task1_login.png`](screenshots/14_phone_task1_login.png) | A task page on a phone |
+
+The consent pages carry a yellow DRAFT notice until the placeholders in the information sheets are filled in. Re-take the screenshots afterwards with `node docs/thesis/irb/screenshots/capture.mjs`.
