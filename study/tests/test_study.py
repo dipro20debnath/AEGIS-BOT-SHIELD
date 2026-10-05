@@ -63,6 +63,7 @@ def test_tampered_session_cookie_is_not_a_study_session(app, db):
     client = new_client(app)
     enrol(client, code)
     value = client.cookies.get("study_sid")
+    client.cookies.clear()  # replace, not add: httpx would otherwise keep the valid cookie too
     client.cookies.set("study_sid", value[:-1] + ("0" if value[-1] != "0" else "1"))
     assert client.get("/shop", follow_redirects=False).headers["location"] == "/?expired=1"
 
