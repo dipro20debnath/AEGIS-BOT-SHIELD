@@ -17,6 +17,11 @@ not operate. They are also the bot side of the planned data collection
 | `playwright_bot.mjs --mode stealth` | T3 | Headless Chromium, Chrome user agent, automation flag hidden, straight mouse lines |
 | `playwright_bot.mjs --mode human` | T4-like | Headed Chromium under Xvfb, Bézier mouse paths with jitter, irregular typing, scrolling, pauses |
 
+For the **data-collection study site** (`study/`), `study_bot.mjs` (Playwright or
+Puppeteer; modes fast, stealth, human) and `http_study_bot.py` (naive, forger) go
+through the full consent, survey and six-task flow with a bot study code. See
+[study/README.md](../study/README.md#bot-sessions).
+
 ## Setup
 
 ```bash

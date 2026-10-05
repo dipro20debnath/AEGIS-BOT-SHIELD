@@ -43,6 +43,7 @@ decides per request: **allow, monitor, challenge or block**.
 - [Kubernetes](#kubernetes)
 - [Performance (load test)](#performance-load-test)
 - [Self pen-test with bots](#self-pen-test-with-bots)
+- [Data-collection study](#data-collection-study)
 - [Testing](#testing)
 - [Privacy](#privacy)
 - [Limitations](#limitations)
@@ -122,7 +123,10 @@ never blocks, so you can see what it would do before you enforce it.
 | `packages/dashboard` | React + Vite dashboard: live stats from the Node status API, ML results. |
 | `contracts/` | `features.json`: the 50-feature contract shared by the SDK, servers and ML engine. `openapi.json`: the HTTP API of both servers. Tests in TS and Python enforce both. |
 | `examples/` | Runnable demos: `fastapi-integration`, `python-flask`, `express-integration`, `html-basic`. |
-| `e2e/` | Playwright end-to-end tests: real Chromium → SDK → Python server → ML. |
+| `study/` | **Data-collection study site** (Phase G): test shop with consent (Bangla/English), survey, six tasks, opt-in raw event recording, dataset export, withdrawal. See [study/README.md](study/README.md). |
+| `bots/` | Bot clients for self pen-tests and for the bot side of the study. |
+| `deploy/` | Helm chart and Kubernetes manifests; `deploy/study/`: the study site on a VPS with HTTPS. |
+| `e2e/` | Playwright end-to-end tests: real Chromium → SDK → Python server → ML, and the full study flow. |
 | `loadtest/` | Load generator and scenarios (throughput, p50/p95/p99, memory). |
 | `docs/thesis/` | Thesis notes, project plan, IRB drafts, experiment results. |
 
@@ -811,6 +815,31 @@ calls was flagged. It is fixed.
 
 ---
 
+## Data-collection study
+
+The labelled human/bot dataset for the thesis comes from [`study/`](study/README.md),
+a small test shop. The participant's steps:
+1. Consent, in Bangla or English.
+2. A short optional survey.
+3. Six tasks: log in with shown dummy credentials, search, compare products,
+   edit the cart, copy delivery details into a checkout form, write a review.
+4. A closing survey.
+
+What is recorded:
+- **Always:** AEGIS records the 50 live features (snapshots every 15 s), request
+  metadata without header values, and what it *would* have decided. It runs in
+  monitor mode and never blocks participants.
+- **With a separate opt-in:** raw event timings. Keys are recorded as a category
+  only, never which key or text, so features can be recomputed later with the
+  SDK's own code.
+
+Bots run the same flow (`bots/study_bot.mjs`, `bots/http_study_bot.py`) with
+their own codes. The export is analysis-ready: participant-grouped, with a
+schema README and checksums. Server setup: [`deploy/study/README.md`](deploy/study/README.md).
+The IRB data dictionary is generated from the code.
+
+---
+
 ## Testing
 
 ---
@@ -906,7 +935,8 @@ option tables must list every option, and every relative link must resolve.
 - **[docs/thesis/PROJECT_PLAN.md](docs/thesis/PROJECT_PLAN.md):** phase plan and
   current status. Done: Phases A–F (F: self pen-test with bots, memory
   profiling and bounds, Prometheus metrics and probes, Helm chart tested on
-  kind, v1.0.0 preparation). Next: the data-collection website (Phase G).
+  kind, v1.0.0 preparation) and G (data-collection study site). Next: ethics
+  approval, then data collection on a VPS and the real-data experiments.
 - **[docs/thesis/THESIS_NOTES.md](docs/thesis/THESIS_NOTES.md):** every design
   decision, measurement, bug and limitation, with reasons.
 - **[docs/thesis/irb/](docs/thesis/irb/):** study protocol, consent forms

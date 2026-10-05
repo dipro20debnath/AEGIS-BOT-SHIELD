@@ -19,7 +19,7 @@
 | D | Redis, WebSocket, GraphQL, Cloudflare Worker edge, load tests | Done (PR #9, merged) |
 | E | OpenAPI contract + Swagger UI, security whitepaper, reference docs, npm/PyPI readiness | Done (THESIS_NOTES §2.12) |
 | F | Self pen-test bots, memory bounds, Prometheus + probes, Helm chart tested on kind, v1.0.0 prepared | Done (THESIS_NOTES §2.13); tag/release after merge, with the student's permission |
-| G | Data-collection website | **Next** |
+| G | Data-collection website (`study/`): consent, survey, six tasks, raw events (opt-in), export, bots, HTTPS deployment | Done (THESIS_NOTES §2.14); deploy on a VPS after IRB approval |
 
 Tests after Phase F: core 154, js-sdk 46, server-node 59, edge-cloudflare 13,
 server-python 107, ml-engine 40, e2e 5; lint 0 errors; `npm run release:check` passes;

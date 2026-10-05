@@ -24,6 +24,11 @@ export interface AegisClientConfig {
   autoChallenge?: boolean;
   /** Send a final telemetry report with sendBeacon when the page is hidden */
   beaconOnExit?: boolean;
+  /**
+   * Id of this page view's telemetry stream (default: random). Set it to join
+   * telemetry with other per-page data, e.g. the study site's raw events.
+   */
+  streamId?: string;
   debug?: boolean;
 }
 

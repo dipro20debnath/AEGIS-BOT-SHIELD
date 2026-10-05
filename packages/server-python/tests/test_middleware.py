@@ -187,3 +187,12 @@ def _urlpatterns():
 
 
 urlpatterns = _urlpatterns()
+
+
+def test_secure_cookies_flag():
+    base = AegisMiddlewareBase(SITE_KEY, SECRET)
+    _, headers = base._session({})
+    assert "Secure" not in headers["Set-Cookie"]
+    secure = AegisMiddlewareBase(SITE_KEY, SECRET, secure_cookies=True)
+    _, headers = secure._session({})
+    assert headers["Set-Cookie"].endswith("; Secure")

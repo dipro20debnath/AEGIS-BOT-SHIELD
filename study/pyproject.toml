@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aegis-study"
+version = "1.0.0"
+description = "AEGIS BOT SHIELD data-collection study site (not published)"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Dipro Debnath"}]
+dependencies = [
+    "aegis-server-python[fastapi]",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "uvicorn>=0.30",
+]
+
+[project.optional-dependencies]
+parquet = ["pandas>=2.0", "pyarrow>=14"]
+test = ["pytest>=7.0", "httpx>=0.24"]
+
+[tool.setuptools]
+packages = ["aegis_study"]
+
+[tool.setuptools.package-data]
+aegis_study = ["templates/*.html", "static/*", "dataset_README.md"]

@@ -54,6 +54,7 @@ Script tag (`dist/aegis.min.js`, global `Aegis`):
 | `detectAntiDetect` | `true` | Anti-detect consistency checks (includes a WebGPU adapter probe) |
 | `autoChallenge` | `true` | On a 403 `challenge` response to `fetch`, solve the proof of work and retry once |
 | `beaconOnExit` | `false` | Send a final report with `sendBeacon` when the page is hidden |
+| `streamId` | random per page | Id of this page view's telemetry stream; set it to join telemetry with other per-page data (the study site does, with its raw events) |
 | `debug` | `false` | Log events to the console |
 
 The proof-of-work solver uses WebAssembly when the page's CSP allows
@@ -84,6 +85,7 @@ Keyword arguments of `AegisFastAPIMiddleware`, `AegisFlaskMiddleware`,
 | `ml_model_path` | `None` | Trained `BotClassifier` pickle, loaded in-process |
 | `ml_url` | `None` | ML service base URL (`POST {ml_url}/predict`, 0.5 s timeout) |
 | `trusted_proxies` | `[]` | IPs/CIDRs whose `X-Forwarded-For` is trusted |
+| `secure_cookies` | `False` | Add `Secure` to the `aegis_sid` cookie; set it when the site is served over HTTPS |
 | `verify_search_engines` | `False` | Confirm Googlebot/Bingbot claims by reverse DNS (blocking lookups) |
 | `max_telemetry_bytes` | `65536` | Larger bodies get 413 |
 | `input_validation` | `True` | XSS/SQLi/CRLF/path-traversal/prototype-pollution checks on path and query |
@@ -121,6 +123,7 @@ Environment variables read by `get_config()`:
 | `AEGIS_FAIL_OPEN` | `fail_open` (`true`/`false`) |
 | `AEGIS_ML_MODEL_PATH`, `AEGIS_ML_URL` | `ml_model_path`, `ml_url` |
 | `AEGIS_TRUSTED_PROXIES` | `trusted_proxies` (comma-separated) |
+| `AEGIS_SECURE_COOKIES` | `secure_cookies` (`true`/`false`) |
 | `AEGIS_REDIS_URL` | `redis_url` |
 | `AEGIS_RATE_LIMIT` | `rate_limit` |
 | `AEGIS_METRICS_PATH` | `metrics_path` |
@@ -149,6 +152,7 @@ Environment variables read by `get_config()`:
 | `pow` | `{ n: 4096, r: 8, bits: 4, ttlSeconds: 120 }` | Proof-of-work cost |
 | `store` | in-process | Shared state, e.g. `await createRedisStore(url)` |
 | `sessionTtl` | `1800` | Session record lifetime after the last request, seconds |
+| `secureCookies` | `false` | Add `Secure` to the `aegis_sid` cookie; set it when the site is served over HTTPS |
 | `engine` | defaults | Extra detection-engine configuration ([below](#detection-engine-engine-option-aegiscore)) |
 | `processMetrics` | `true` | Include process metrics (CPU, memory, event loop, GC) in `/aegis/metrics` |
 

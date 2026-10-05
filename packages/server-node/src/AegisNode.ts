@@ -54,6 +54,8 @@ export interface AegisNodeOptions {
   store?: AegisStore;
   /** Inactivity after which a session record expires, seconds (default 1800) */
   sessionTtl?: number;
+  /** Add the Secure flag to the aegis_sid cookie; set it when the site is served over HTTPS (default false) */
+  secureCookies?: boolean;
   /** Collect process metrics (CPU, memory, event loop, GC) in /aegis/metrics (default true) */
   processMetrics?: boolean;
 }
@@ -221,6 +223,7 @@ export class AegisNode {
       mlTimeoutMs: 500,
       maxTelemetryBytes: 64 * 1024,
       sessionTtl: 1800,
+      secureCookies: false,
       ...options,
     };
     const engineConfig: Partial<AegisConfig> = {
@@ -617,7 +620,7 @@ export class AegisNode {
 
     const current = (req.cookies ?? parseCookies(header(req.headers, 'cookie')))[SESSION_COOKIE];
     const cookieHeaders: Record<string, string> = current === sessionToken ? {} : {
-      'Set-Cookie': `${SESSION_COOKIE}=${encodeURIComponent(sessionToken)}; Path=/; HttpOnly; SameSite=Lax`,
+      'Set-Cookie': `${SESSION_COOKIE}=${encodeURIComponent(sessionToken)}; Path=/; HttpOnly; SameSite=Lax${this.options.secureCookies ? '; Secure' : ''}`,
     };
     return { sessionId, cookieHeaders, record };
   }

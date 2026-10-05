@@ -15,3 +15,4 @@ export * from './collectors/ScrollCollector';
 export * from './collectors/TouchCollector';
 export * from './fingerprint/DeviceFingerprinter';
 export * from './fingerprint/WebGPUFingerprinter';
+export * from './replay';

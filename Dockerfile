@@ -98,3 +98,27 @@ USER aegis
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=3s --retries=5 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"
 CMD ["uvicorn", "main:app", "--app-dir", "examples/fastapi-integration", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+
+# ---------------------------------------------------------------------------
+# study: data-collection study site (study/, Phase G), AEGIS in monitor mode.
+# Serve it behind HTTPS (deploy/study/: Caddy). Data lives in the /data volume.
+# ---------------------------------------------------------------------------
+FROM python-base AS study
+ENV STUDY_DB=/data/study.db STUDY_SECURE_COOKIES=true AEGIS_ML_MODEL_PATH=/app/models/bot_classifier.pkl \
+    AEGIS_SITE_KEY=aegis-study
+COPY --from=js-build /app/packages/js-sdk/dist packages/js-sdk/dist
+COPY contracts contracts
+COPY docs/thesis/irb/consent_en.md docs/thesis/irb/consent_bn.md docs/thesis/irb/
+COPY study study
+RUN --mount=type=secret,id=extra_ca,required=false \
+    if [ -f /run/secrets/extra_ca ]; then export PIP_CERT=/run/secrets/extra_ca; fi; \
+    pip install "jinja2>=3.1" "python-multipart>=0.0.9" \
+ && mkdir -p /data && chown aegis:aegis /data
+# Run from the source tree: the app finds the SDK, contracts and consent texts relative to it
+WORKDIR /app/study
+USER aegis
+VOLUME /data
+EXPOSE 8000
+HEALTHCHECK --interval=15s --timeout=3s --retries=5 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"
+# One worker: the shop keeps carts in memory and SQLite wants a single writer
+CMD ["uvicorn", "aegis_study.app:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
