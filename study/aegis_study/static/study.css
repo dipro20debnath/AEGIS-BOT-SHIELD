@@ -1,0 +1,45 @@
+:root { --ink: #1d2430; --muted: #5b6676; --line: #d9dee6; --bg: #f6f7f9; --card: #fff; --accent: #0b6e4f;
+        --accent-ink: #fff; --warn: #8a5300; --warn-bg: #fff4e0; --err: #a4161a; --err-bg: #fdecec; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", "Noto Sans Bengali", "Hind Siliguri", sans-serif;
+       color: var(--ink); background: var(--bg); }
+a { color: var(--accent); }
+main { max-width: 960px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 1.5rem; margin: .5rem 0 1rem; } h2 { font-size: 1.15rem; margin: 1.25rem 0 .5rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+.btn, button { display: inline-block; font: inherit; border: 0; border-radius: 8px; padding: 10px 16px;
+               background: var(--accent); color: var(--accent-ink); cursor: pointer; text-decoration: none; }
+.btn.secondary, button.secondary { background: #e7ebf0; color: var(--ink); }
+.btn.small, button.small { padding: 6px 10px; font-size: .9rem; }
+input[type=text], input[type=password], input[type=number], input[type=search], select, textarea {
+  font: inherit; padding: 9px 10px; border: 1px solid #b9c1cc; border-radius: 8px; width: 100%; background: #fff; }
+textarea { min-height: 90px; }
+label { display: block; margin: 10px 0 4px; font-weight: 600; }
+.check { display: flex; gap: 10px; align-items: flex-start; font-weight: 400; margin: 8px 0; }
+.check input { margin-top: 5px; flex: none; width: 18px; height: 18px; }
+.error { background: var(--err-bg); color: var(--err); padding: 10px 12px; border-radius: 8px; margin: 10px 0; }
+.warning { background: var(--warn-bg); color: var(--warn); padding: 10px 12px; border-radius: 8px; margin: 10px 0; }
+.notice { background: #e8f5ef; color: #0b5a40; padding: 10px 12px; border-radius: 8px; margin: 10px 0; }
+.muted { color: var(--muted); font-size: .92rem; }
+.task { position: sticky; top: 0; z-index: 5; background: #10243e; color: #fff; padding: 10px 16px; }
+.task .inner { max-width: 960px; margin: 0 auto; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.task .text { flex: 1 1 320px; } .task b { color: #ffd166; }
+.shopbar { background: #fff; border-bottom: 1px solid var(--line); }
+.shopbar .inner { max-width: 960px; margin: 0 auto; padding: 10px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.shopbar .logo { font-weight: 800; color: var(--ink); text-decoration: none; }
+.shopbar form { display: flex; gap: 6px; flex: 1 1 260px; }
+.cats { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 12px; }
+.cats a { background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; text-decoration: none; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.product { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.product .img { height: 90px; border-radius: 8px; background: linear-gradient(135deg, #dfe7f1, #f3f6fa);
+                display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: .85rem; }
+.price { font-weight: 700; } .stars { color: #b26a00; }
+table { width: 100%; border-collapse: collapse; } td, th { padding: 8px; border-bottom: 1px solid var(--line); text-align: left; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 600px) { .row { grid-template-columns: 1fr; } main { padding: 12px; } }
+.radio { display: flex; gap: 16px; flex-wrap: wrap; } .radio label { font-weight: 400; display: flex; gap: 6px; align-items: center; }
+.question { margin: 14px 0; } .question .opts { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.question .opts label { font-weight: 400; display: flex; gap: 6px; align-items: center; margin: 0; }
+.lang a { margin-right: 12px; }
+.starpick { display: flex; gap: 10px; } .starpick label { font-weight: 400; display: flex; gap: 4px; align-items: center; }

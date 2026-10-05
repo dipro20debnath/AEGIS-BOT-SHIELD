@@ -1,0 +1,12 @@
+{% extends "shop_base.html" %}
+{% block content %}
+<form class="card" method="post" action="/shop/login" style="max-width:420px">
+  <h1>{{ t('login_title') }}</h1>
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+  <label for="username">{{ t('username') }}</label>
+  <input type="text" id="username" name="username" autocomplete="off" autocapitalize="none" spellcheck="false">
+  <label for="password">{{ t('password') }}</label>
+  <input type="password" id="password" name="password" autocomplete="off">
+  <p><button data-study="login">{{ t('login') }}</button></p>
+</form>
+{% endblock %}

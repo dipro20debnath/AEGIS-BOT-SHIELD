@@ -1,0 +1,32 @@
+{% extends "shop_base.html" %}
+{% block content %}
+<form class="card" method="post" action="/shop/checkout">
+  <h1>{{ t('checkout') }}</h1>
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+  <div class="row">
+    <div><label for="name">{{ t('full_name') }}</label>
+      <input type="text" id="name" name="name" value="{{ form.get('name', '') }}" autocomplete="off"></div>
+    <div><label for="phone">{{ t('phone') }}</label>
+      <input type="text" id="phone" name="phone" value="{{ form.get('phone', '') }}" inputmode="tel" autocomplete="off"></div>
+  </div>
+  <label for="address">{{ t('address') }}</label>
+  <input type="text" id="address" name="address" value="{{ form.get('address', '') }}" autocomplete="off">
+  <div class="row">
+    <div><label for="city">{{ t('city') }}</label>
+      <select id="city" name="city">
+        <option value=""></option>
+        {% for c in cities %}<option value="{{ c }}" {% if form.get('city') == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+      </select></div>
+    <div><label for="postcode">{{ t('postcode') }}</label>
+      <input type="text" id="postcode" name="postcode" value="{{ form.get('postcode', '') }}" inputmode="numeric" autocomplete="off"></div>
+  </div>
+  <label>{{ t('delivery') }}</label>
+  <div class="radio">
+    <label><input type="radio" name="option" value="standard" {% if form.get('option') == 'standard' %}checked{% endif %}> {{ t('standard') }}</label>
+    <label><input type="radio" name="option" value="express" {% if form.get('option') == 'express' %}checked{% endif %}> {{ t('express') }}</label>
+  </div>
+  <label for="note">{{ t('note') }}</label>
+  <textarea id="note" name="note" autocomplete="off">{{ form.get('note', '') }}</textarea>
+  <p><button data-study="place-order">{{ t('place_order') }}</button></p>
+</form>
+{% endblock %}

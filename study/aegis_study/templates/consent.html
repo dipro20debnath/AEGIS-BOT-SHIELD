@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>{{ t('consent_title') }}</h1>
+  {% if doc.draft %}<p class="warning">{{ t('draft_warning') }}</p>{% endif %}
+  <div class="doc">{{ doc.html|safe }}</div>
+</div>
+<form class="card" method="post" action="/start">
+  <input type="hidden" name="lang" value="{{ lang }}">
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+  <label class="check"><input type="checkbox" name="c_read" value="1" required> {{ t('consent_read') }}</label>
+  <label class="check"><input type="checkbox" name="c_aggregate" value="1" required> {{ t('consent_aggregate') }}</label>
+  <label class="check"><input type="checkbox" name="c_withdraw" value="1" required> {{ t('consent_withdraw') }}</label>
+  <label class="check"><input type="checkbox" name="c_age" value="1" required> {{ t('consent_age') }}</label>
+  {% if raw_offered %}
+  <h2>{{ t('consent_raw_title') }}</h2>
+  <label class="check"><input type="checkbox" name="c_raw" value="1"> {{ t('consent_raw') }}</label>
+  {% endif %}
+  <label for="code">{{ t('code_label') }}</label>
+  <input type="text" id="code" name="code" value="{{ code or '' }}" placeholder="{{ t('code_hint') }}"
+         autocomplete="off" autocapitalize="characters" required>
+  <p><button data-study="start">{{ t('start') }}</button></p>
+</form>
+{% endblock %}

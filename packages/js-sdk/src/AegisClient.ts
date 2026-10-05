@@ -35,7 +35,7 @@ export class AegisClient {
   private antiDetectResult: AntiDetectResult | null = null;
   private challengeInFlight: Promise<boolean> | null = null;
   private device: DeviceSignals = { hasWebGL: false, hasCanvas: false, pluginCount: 0 };
-  private streamId = randomId();
+  private streamId: string;
   private inFlight: Promise<string> | null = null;
   private lastResponse: TelemetryResponse | null = null;
   /** fetch as it was before the interceptor wrapped it */
@@ -61,6 +61,7 @@ export class AegisClient {
       telemetryPath: config.telemetryPath ?? '/aegis/telemetry',
       challengePath: config.challengePath ?? '/aegis/challenge',
     };
+    this.streamId = config.streamId || randomId();
     this.nativeFetch = window.fetch.bind(window);
     this.requestInterceptor = new RequestInterceptor(this, {
       allowedOrigins: this.config.allowedOrigins,

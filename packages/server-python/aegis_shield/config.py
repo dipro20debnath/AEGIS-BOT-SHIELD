@@ -22,6 +22,8 @@ def get_config() -> Dict[str, Any]:
         config["redis_url"] = os.environ["AEGIS_REDIS_URL"]
     if os.getenv("AEGIS_RATE_LIMIT"):
         config["rate_limit"] = int(os.environ["AEGIS_RATE_LIMIT"])
+    if os.getenv("AEGIS_SECURE_COOKIES"):
+        config["secure_cookies"] = os.environ["AEGIS_SECURE_COOKIES"].lower() == "true"
     if os.getenv("AEGIS_METRICS_PATH"):
         config["metrics_path"] = os.environ["AEGIS_METRICS_PATH"]
     return config

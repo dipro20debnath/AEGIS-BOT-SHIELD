@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>{{ t('landing_title') }}</h1>
+  {% if expired %}<p class="warning">{{ t('not_in_study') }}</p>{% endif %}
+  <p>{{ t('landing_body') }}</p>
+  <p class="lang"><strong>{{ t('choose_lang') }}:</strong>
+    <a class="btn" href="/consent?lang=bn" data-study="lang-bn">বাংলা</a>
+    <a class="btn secondary" href="/consent?lang=en" data-study="lang-en">English</a></p>
+</div>
+{% endblock %}

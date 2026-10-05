@@ -847,6 +847,109 @@ limits under such load need Redis.
 - Tagging and the GitHub release wait for the merge and the student's decision.
 - npm/PyPI publishing remains a separate, manual step (docs/RELEASING.md).
 
+### 2.14 Phase G: data-collection study site (2026-10-05)
+
+`study/` is a test shop. Volunteers and the researcher's bots use it while
+AEGIS records. Deployment: `deploy/study/` (Docker + Caddy HTTPS).
+
+**Design decisions (for the methodology chapter):**
+
+1. **Controlled tasks, not free browsing.**
+   - Six fixed tasks: login, search, compare, cart, checkout, review.
+   - Every session gets random targets (credentials, product, category, address).
+   - Labels are certain, and humans and bots do the same things. Otherwise a
+     classifier could learn *what* was done instead of *how*.
+   - The tasks cover:
+     - every feature group;
+     - **copy typing** (credentials, address);
+     - **free composition** (delivery note, review). Keystroke dynamics differ between the two.
+   - Completion is checked on the server. Typed text is compared, then discarded.
+2. **Two data tiers.**
+   - Every participant: the live 50-feature aggregates.
+   - With a **separate optional consent**: raw event timings.
+     - Pointer samples, including coalesced ones.
+     - Key down/up with a category and a press number only. No key identity, no text.
+     - Scroll, wheel, focus, visibility, viewport.
+   - Why raw events matter: aggregates alone cannot be repaired if an extractor
+     bug is found later, cannot be re-windowed, and cannot test the Phase C
+     sequence models on real data. Standard behavioural-biometrics datasets keep
+     raw events (CMU keystroke benchmark, Killourhy & Maxion 2009; Balabit mouse
+     dynamics 2016).
+   - The extra re-identification risk is why this tier is opt-in and
+     content-free (protocol §6). The IRB drafts were changed accordingly before
+     submission.
+3. **Exact join, verified end to end.**
+   - The SDK has a new `streamId` option, and the study page uses the same
+     page-view id for SDK telemetry and raw batches.
+   - `replayFeatures` (js-sdk) recomputes features from raw events with the
+     SDK's own collectors. There is no second implementation that could drift.
+   - The e2e test runs a scripted participant in Chromium, exports, replays, and
+     asserts that live keyboard features equal the replayed ones for **every**
+     page view. It found a real gap on the way: telemetry and raw events
+     originally had different page-view ids and could only be joined by
+     route + time, ambiguously for routes visited twice. Fixed with the shared id.
+4. **Time-resolved telemetry.** Reports are sent 3 s after load, then every
+   15 s, then on exit; reports per page view are cumulative (`is_final` marks
+   the last). With `replay_features.mjs --at 5,10,30` this supports "detection
+   after N seconds" analyses.
+5. **Request metadata without values:** header names and order, presence
+   flags, route patterns, AEGIS request scores. Network/protocol features stay
+   possible without storing header values, IPs or query strings.
+6. **Monitor mode.** AEGIS never blocks or challenges participants. Every
+   participant gets the same task conditions, and the dataset still contains
+   the verdicts AEGIS *would* have given (current-system baseline, false-positive
+   estimate).
+7. **Label quality.**
+   - Invitation-only codes keep crawlers and scanners on a public server out of
+     the labelled data. They are exported separately as unlabelled.
+   - The closing survey flags possible human-side noise: autofill and password
+     managers (they affect paste and input-type features), automation tools,
+     assistive tools, interruptions.
+   - Bots use the same flow with per-run codes (`B-…`, tool and config stored).
+     Each bot run is its own group.
+8. **Evaluation rule.** Train/test splits **by participant** (`GroupKFold` on
+   `participant`, a salted hash of the code). Page views of one person are
+   correlated, so a row split would overstate accuracy. Report results with and
+   without sessions flagged in the closing survey.
+
+**Pilot with bots on the study site (local, synthetic-data model, monitor
+mode; median live score of final page reports):**
+
+| Bot | Median score |
+|---|---|
+| Playwright fast | 99.8 |
+| Puppeteer fast | 99.1 |
+| Playwright stealth | 92.2 |
+| Puppeteer stealth | 82.0 |
+| requests forger (hand-written telemetry) | 75.0 |
+| Playwright human-like (Bézier mouse, typos corrected) | 61.0 |
+
+This is one run per bot type, a functional check only, not a result. The
+human-like bot sits in the challenge band, where real humans may also fall.
+That overlap is what the real data must quantify.
+
+**Privacy checks in tests (`study/tests`):**
+- nothing is recorded before consent;
+- raw endpoint refused without opt-in;
+- **no typed text anywhere in the database**: the whole DB, decompressed, is
+  searched for strings typed into search, notes, reviews and a wrong password;
+- the raw user agent is never stored;
+- withdrawal deletes every row of a code and compacts the file;
+- the data dictionary is regenerated from the code and must match the committed
+  file;
+- the website's consent checkboxes must equal the consent documents word for word.
+
+**Also changed:** `secure_cookies` (Python) / `secureCookies` (Node) adds
+`Secure` to `aegis_sid` for HTTPS sites (the study enables it).
+
+**Limitations to state:**
+- convenience sample (students and acquaintances);
+- copy-typing tasks show the text on screen;
+- one test site;
+- English text entry only (Bangla input is recorded only as IME composition events);
+- the bots represent the listed tools and settings only;
+- a human-like scripted bot is not a professional bot farm.
+
 ## 3. Contributions — what can honestly be claimed
 
 | Claim | Status |
@@ -1001,7 +1104,7 @@ mean 1.27 ms · p50 1.24 ms · p95 1.66 ms · p99 2.77 ms (target < 5 ms ✔)
 ## 6. Open TODOs for the thesis
 
 - [ ] Ethics/IRB submission (needs supervisor signature) — planned Oct 21; drafts in `docs/thesis/irb/`
-- [ ] Data-collection website + logging endpoint; consent forms EN + BN
+- [x] Data-collection website + logging endpoint; consent forms EN + BN (§2.14, `study/`)
 - [x] Bot scripts: requests (3 modes), Scrapy, Selenium, Puppeteer-stealth, Playwright stealth + human-like (§2.13). Residential proxy not included (needs a paid proxy service)
 - [ ] Re-run §5 on real data; report 95% confidence intervals (bootstrap) for FPR and recall
 - [ ] Compare against baselines: rule-based, single XGBoost, RF, LR
