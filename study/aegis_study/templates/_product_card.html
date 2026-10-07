@@ -1,6 +1,8 @@
+{# One product as a list row. Price comes before rating in the markup (study bots read them in this order). #}
 <div class="product">
-  <a href="/shop/product/{{ p.id }}" data-study="product-{{ p.id }}"><div class="img">{{ categories[p.category] }}</div></a>
-  <a href="/shop/product/{{ p.id }}" data-study="product-title">{{ p.name }}</a>
+  <a class="thumb" href="/shop/product/{{ p.id }}" data-study="product-{{ p.id }}" tabindex="-1" aria-hidden="true">{{ p.name[0] }}</a>
+  <a class="name" href="/shop/product/{{ p.id }}" data-study="product-title">{{ p.name }}</a>
   <span class="price">৳ {{ "{:,}".format(p.price) }}</span>
   <span class="stars">★ {{ "%.1f"|format(p.rating) }}</span>
+  <span class="cat">{{ p.reviews }}</span>
 </div>

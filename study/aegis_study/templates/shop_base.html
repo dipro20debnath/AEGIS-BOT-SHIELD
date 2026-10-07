@@ -2,17 +2,19 @@
 {% block shopbar %}
 <div class="shopbar">
   <div class="inner">
-    <a class="logo" href="/shop" data-study="logo">AEGIS Shop</a>
+    <a class="logo" href="/shop" data-study="logo">AEGIS <span>Shop</span></a>
     <form method="get" action="/shop/search" role="search">
       <input type="search" name="q" placeholder="{{ t('search_placeholder') }}" aria-label="{{ t('search') }}">
       <button class="small" data-study="search">{{ t('search') }}</button>
     </form>
-    <a href="/shop/cart" data-study="cart">{{ t('cart') }} ({{ cart_count }})</a>
-    {% if logged_in %}<span class="muted">{{ t('logged_in_as', user=params.username) }}</span>
-    {% else %}<a href="/shop/login" data-study="login-link">{{ t('login') }}</a>{% endif %}
+    <div class="links">
+      <a href="/shop/cart" data-study="cart">{{ icon.cart() }}{{ t('cart') }} <span class="count">({{ cart_count }})</span></a>
+      {% if logged_in %}<span class="muted">{{ t('logged_in_as', user=params.username) }}</span>
+      {% else %}<a href="/shop/login" data-study="login-link">{{ icon.user() }}{{ t('login') }}</a>{% endif %}
+    </div>
   </div>
 </div>
-<div style="max-width:960px;margin:0 auto;padding:8px 16px 0" class="cats">
-  {% for key, name in categories.items() %}<a href="/shop/category/{{ key }}" data-study="cat-{{ key }}">{{ name }}</a>{% endfor %}
-</div>
+<nav class="cats" aria-label="{{ t('categories') }}">
+  {% for key, name in categories.items() %}<a href="/shop/category/{{ key }}" data-study="cat-{{ key }}"{% if active_category == key %} class="on" aria-current="page"{% endif %}>{{ name }}</a>{% endfor %}
+</nav>
 {% endblock %}
