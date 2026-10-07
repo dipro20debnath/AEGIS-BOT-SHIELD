@@ -1,24 +1,37 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="card">
-  <h1>{{ t('consent_title') }}</h1>
-  {% if doc.draft %}<p class="warning">{{ t('draft_warning') }}</p>{% endif %}
-  <div class="doc">{{ doc.html|safe }}</div>
+<div class="split">
+  <div>
+    <h1 class="rise">{{ t('consent_title') }}</h1>
+    <p class="lead rise" style="--d:1">{{ t('consent_lead') }}</p>
+    {% if doc.draft %}<p class="warning">{{ icon.alert() }}{{ t('draft_warning') }}</p>{% endif %}
+    <div class="doc rise" style="--d:2">{{ doc.html|safe }}</div>
+
+    <hr class="rule">
+    <form class="consent-form" method="post" action="/start">
+      <input type="hidden" name="lang" value="{{ lang }}">
+      {% if error %}<p class="error" role="alert">{{ icon.alert() }}{{ error }}</p>{% endif %}
+      {% for key in ('read', 'aggregate', 'withdraw', 'age') %}
+      <label class="check"><input type="checkbox" name="c_{{ key }}" value="1" required>{{ icon.tickbox() }}<span>{{ t('consent_' ~ key) }}<span class="req">{{ t('consent_required') }}</span></span></label>
+      {% endfor %}
+      {% if raw_offered %}
+      <h2>{{ t('consent_raw_title') }}</h2>
+      <label class="check"><input type="checkbox" name="c_raw" value="1">{{ icon.tickbox() }}<span>{{ t('consent_raw') }}</span></label>
+      {% endif %}
+      <div class="code-field">
+        <label for="code">{{ t('code_label') }}</label>
+        <input type="text" id="code" name="code" value="{{ code or '' }}" placeholder="{{ t('code_hint') }}"
+               autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+      </div>
+      <div class="actions"><button class="primary" data-study="start">{{ t('start') }}{{ icon.arrow() }}</button></div>
+    </form>
+  </div>
+  <aside class="rail rise" style="--d:3">
+    <p class="rail-title">{{ t('landing_how') }}</p>
+    <ul class="rail-list">
+      {% for i in range(1, 5) %}<li>{{ icon.check() }}<span>{{ t('landing_how_' ~ i) }}</span></li>{% endfor %}
+    </ul>
+    <p class="muted rail-note">{{ t('landing_body') }}</p>
+  </aside>
 </div>
-<form class="card" method="post" action="/start">
-  <input type="hidden" name="lang" value="{{ lang }}">
-  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
-  <label class="check"><input type="checkbox" name="c_read" value="1" required> {{ t('consent_read') }}</label>
-  <label class="check"><input type="checkbox" name="c_aggregate" value="1" required> {{ t('consent_aggregate') }}</label>
-  <label class="check"><input type="checkbox" name="c_withdraw" value="1" required> {{ t('consent_withdraw') }}</label>
-  <label class="check"><input type="checkbox" name="c_age" value="1" required> {{ t('consent_age') }}</label>
-  {% if raw_offered %}
-  <h2>{{ t('consent_raw_title') }}</h2>
-  <label class="check"><input type="checkbox" name="c_raw" value="1"> {{ t('consent_raw') }}</label>
-  {% endif %}
-  <label for="code">{{ t('code_label') }}</label>
-  <input type="text" id="code" name="code" value="{{ code or '' }}" placeholder="{{ t('code_hint') }}"
-         autocomplete="off" autocapitalize="characters" required>
-  <p><button data-study="start">{{ t('start') }}</button></p>
-</form>
 {% endblock %}
