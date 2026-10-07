@@ -67,8 +67,8 @@ fallback after a named font is the bare generic keyword (`sans-serif`, `monospac
 - Never `fonts.googleapis.com` or any other font CDN: the study protocol promises that no
   third party receives participants' IP addresses.
 - **Dashboard:** `import '@fontsource-variable/anek-bangla'` (etc.) in `src/index.tsx`.
-- **Study site:** copy the needed `.woff2` files from those packages into
-  `study/aegis_study/static/fonts/`, then declare them with `@font-face` in `study.css`.
+- **Study site (done 2026-10-07):** the needed `.woff2` files are copied from those packages into
+  `study/aegis_study/static/fonts/` (with `OFL.txt`) and declared with `@font-face` in `study.css`.
 - Load only the `bengali` and `latin` subsets, with `font-display: swap`.
 
 **Bangla text:**
@@ -250,7 +250,9 @@ The `Theme` object, `lightTheme`/`darkTheme` and `cardStyle()` are being replace
 |---|---|---|
 | Page skeleton (`<html lang>`, task bar, SDK and recorder scripts) | `templates/base.html` | Every page `{% extends "base.html" %}`. The SDK/recorder script block stays exactly where it is |
 | Shop chrome (logo, search, cart, categories) | `templates/shop_base.html` | Every shop page extends it |
-| Product item | `templates/_product_card.html` (`{% include %}`) | The one product markup. Restyle it, keep it the only one |
+| Product item | `templates/_product_card.html` (`{% include %}`), inside `_product_list.html` (column heads) | The one product markup: a list row (thumb, name, price, rating, reviews). Price stays before rating in the markup |
+| Icons | `templates/_icons.html` (`{% import %}` as `icon`) | Inline SVG macros: shield, check, arrow, alert, cart, user, tick box |
+| Journey steps | `base.html` masthead (`step`, `steps` from `render()` in `app.py`) | Five steps: consent, questions, tasks, last questions, done |
 | Shared CSS | `static/study.css` | `.btn`, `.check`, `.error`, `.warning`, `.notice`, `.muted`, `.task`, `.shopbar`, `.cats`, `.product`, `.row`, `.radio`, `.question`, `.starpick`. Extend these; do not add page-local `<style>` |
 | All text | `i18n.py` (`TEXT["bn"]`, `TEXT["en"]`) | No literal UI strings in templates: every string exists in both languages |
 
@@ -304,7 +306,15 @@ Run `npm run test:e2e` and `pytest study/tests` after every study-site change.
   (see the table in §3).
 - **Focus:** a visible 2 px `--color-accent` outline with a 2 px offset on every focusable element;
   never `outline: none` without a replacement.
-- **Motion:** honour `prefers-reduced-motion`. No animation on the study site's task pages (§10).
+- **Motion:** honour `prefers-reduced-motion` (everything stops; the IRB screenshots are taken that way).
+  - Study site, pages outside the shop (landing, consent, questions, done): short entrance animations
+    (`.rise`, 0.8 s, staggered) on **text and decoration only**, and the animated drawing in the landing hero.
+  - **Never animate a control** (button, link, input, tick box, choice): a moving target changes pointing
+    data, and scripts that measure a target before moving to it miss it.
+  - Task pages (the shop): only motion that never moves a target: the progress segments filling in the task
+    bar and the short "task done" tick.
+  - **No cross-page View Transitions:** clicks during the ~0.35 s transition are lost (seen with Puppeteer,
+    and fast participants would be affected the same way).
 - **Labels:** every input has a visible `<label>`, and error messages are announced
   (`role="alert"`, already used).
 - **Charts** follow the dataviz method used for the dashboard so far:
@@ -329,6 +339,10 @@ The study site is a **measurement instrument**: layout changes change the behavi
 3. **No randomised or A/B layout,** no animations that move targets, no lazy loading that shifts content
    while someone is pointing.
 4. Identical layout for humans and bots: never style based on detection results.
+5. **No layout shift after the `load` event.** All fonts are preloaded in `base.html`, so text does not
+   reflow under the pointer when a font arrives.
+6. The layout version is `UI_VERSION` in `study/aegis_study/app.py`; it is stored in every session's params
+   and exported as `sessions.csv:ui_version`. Change it with every visual change.
 
 ---
 

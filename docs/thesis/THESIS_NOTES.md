@@ -950,6 +950,38 @@ That overlap is what the real data must quantify.
 - the bots represent the listed tools and settings only;
 - a human-like scripted bot is not a professional bot farm.
 
+### 2.15 Study site redesign (2026-10-07)
+
+The participant pages were redesigned following `DESIGN.md`:
+- a five-step journey indicator: consent, questions, tasks, last questions, done;
+- a task bar with six progress segments;
+- task targets as non-selectable chips, plus a "type it yourself" hint (discourages copy-paste);
+- products as an aligned list (price and rating in columns), which suits the compare task;
+- large tick-box rows and tappable answer chips (48 px);
+- self-hosted fonts.
+
+The layout version (`UI_VERSION = "2026-10-07"`) is stored with every session and exported as
+`sessions.csv:ui_version`, so any later layout change can be separated in the analysis.
+
+**Measurement problems found while testing the new design (method-relevant):**
+1. **Cross-page View Transitions lost clicks.** During the ~0.35 s fade the page does not receive
+   input. Puppeteer's tick-box clicks were silently dropped. Fast humans would be affected in the
+   same way, so transitions were removed.
+2. **Entrance animations on controls** moved buttons after the human-like bot had measured them,
+   and the click missed. Entrance animation is now limited to text and decoration; no control animates.
+3. **Font swap reflowed the page after load:** the heading wrapped differently, so the buttons moved
+   under the pointer. All fonts are now preloaded, so the layout is final at the `load` event.
+4. **Human-like bot bug (existed before the redesign):** in the cart task the bot selected the old
+   quantity with Ctrl+A, then clicked the field again before typing. The click cleared the selection,
+   so it typed "13" instead of "3". The cart task had never been completed in human mode. Fixed in
+   `bots/study_bot.mjs`.
+
+**Check after the redesign:**
+- Playwright and Puppeteer bots in fast, stealth and human modes, and the requests bots in naive and
+  forger modes: 8 of 8 runs completed all six tasks.
+- `pytest study/tests`: 19 passed. `e2e/study-flow.test.mjs`: passed.
+- Screenshots regenerated: `docs/thesis/irb/screenshots/`.
+
 ## 3. Contributions — what can honestly be claimed
 
 | Claim | Status |

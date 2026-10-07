@@ -1,0 +1,4 @@
+<div class="plist">
+  <div class="plist-head"><span></span><span>{{ t('col_product') }}</span><span class="r">{{ t('col_price') }}</span><span class="r">{{ t('rating') }}</span><span>{{ t('reviews') }}</span></div>
+  {% for p in products %}{% include "_product_card.html" %}{% endfor %}
+</div>

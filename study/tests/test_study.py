@@ -7,6 +7,7 @@ import sqlite3
 from conftest import CONSENT, SECRET, UA, enrol, new_client
 
 from aegis_study import i18n, tasks
+from aegis_study import app as app_module
 from aegis_study.__main__ import main as cli
 from aegis_study.export import export, participant_id
 from aegis_study.util import header_shape, parse_user_agent, route_of, sign, unsign
@@ -121,6 +122,18 @@ def test_all_tasks_complete_and_telemetry_is_linked(client, db):
     assert record["verdict"] in ("allow", "challenge", "block")
 
 
+def test_task_bar_shows_progress_and_the_finished_task(client, db):
+    enrol(client, db.create_codes("human", 1)[0])
+    p = params_of(db)
+    page = client.get("/shop/login").text
+    assert page.count('class="seg ') == 6 and 'class="seg current"' in page
+    assert 'aria-current="step"' in page  # journey step "tasks"
+    client.post("/shop/login", data={"username": p["username"], "password": p["password"]})
+    page = client.get("/shop").text
+    assert 'data-task="search"' in page and 'class="seg done"' in page
+    assert 'class="tick"' in page  # the login was finished seconds ago
+
+
 def test_wrong_answers_are_attempts_and_skip_moves_on(client, db):
     enrol(client, db.create_codes("human", 1)[0])
     p = params_of(db)
@@ -172,6 +185,7 @@ def test_export_tables_labels_and_groups(app, db, tmp_path):
     sessions = list(csv.DictReader(open(tmp_path / "out" / "sessions.csv")))
     assert {s["label"] for s in sessions} == {"human", "bot"}
     assert all(s["tasks_completed"] == "6" for s in sessions)
+    assert {s["ui_version"] for s in sessions} == {app_module.UI_VERSION}  # layout version of each session
     assert {s["participant"] for s in sessions} == {participant_id(human, SECRET), participant_id(bot, SECRET)}
     assert human not in open(tmp_path / "out" / "sessions.csv").read()  # codes are not exported
     telemetry = list(csv.DictReader(open(tmp_path / "out" / "telemetry.csv")))

@@ -1,30 +1,60 @@
+{% import "_icons.html" as icon %}
 <!doctype html>
 <html lang="{{ lang }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
   <title>{{ t('site_title') }}</title>
+  {# All fonts are preloaded, so the page has its final layout by the load event and nothing
+     shifts under the pointer when a font arrives (DESIGN.md §10). About 410 kB, cached after the first page. #}
+  {% for f in ('anek-bangla-bengali-wght', 'anek-bangla-latin-wght', 'hind-siliguri-bengali-400', 'hind-siliguri-latin-400',
+               'hind-siliguri-bengali-600', 'hind-siliguri-latin-600', 'jetbrains-mono-latin-wght') %}
+  <link rel="preload" href="/static/fonts/{{ f }}-normal.woff2" as="font" type="font/woff2" crossorigin>
+  {% endfor %}
   <link rel="stylesheet" href="/static/study.css">
 </head>
 {# Behaviour is recorded only after consent, i.e. only when there is a study session #}
 <body {% if session %}data-site-key="{{ site_key }}"{% endif %}>
+<header class="masthead">
+  <div class="wrap">
+    <a class="brand" href="{{ '/shop' if step == 3 else '/' }}" data-study="brand">{{ icon.shield() }}AEGIS</a>
+    <ol class="steps" aria-label="{{ t('step_of', n=step, total=steps|length) }}">
+      {% for s in steps %}<li class="{{ 'done' if loop.index < step else ('now' if loop.index == step else '') }}"{% if loop.index == step %} aria-current="step"{% endif %}>{{ s }}</li>{% endfor %}
+    </ol>
+    <div class="steps-compact" aria-hidden="true">
+      <span class="meta">{{ step }}/{{ steps|length }}</span>
+      <span class="bars">{% for s in steps %}<i class="{{ 'on' if loop.index < step else ('now' if loop.index == step else '') }}"></i>{% endfor %}</span>
+      <span>{{ steps[step - 1] }}</span>
+    </div>
+  </div>
+</header>
 {% if panel %}
 <div class="task" data-study="task-panel" data-task="{{ panel.current or 'done' }}">
   <div class="inner">
     {% if panel.current %}
-      <div class="text"><strong>{{ t('task') }} {{ panel.index }}/{{ panel.total }}:</strong> {{ panel.text|safe }}</div>
-      <form method="post" action="/study/skip" data-confirm="{{ t('skip_confirm') }}">
-        <input type="hidden" name="task" value="{{ panel.current }}">
-        <button class="small secondary" data-study="skip">{{ t('skip') }}</button>
-      </form>
+      <div class="text"><strong>{{ t('task') }} {{ panel.index }}/{{ panel.total }}:</strong> {{ panel.text|safe }}
+        {% if panel.current in ('login', 'search', 'checkout', 'review') %}<span class="hint">{{ t('type_hint') }}</span>{% endif %}</div>
+      <div class="side">
+        {% if panel.just_done %}<span class="tick" role="status">{{ icon.check() }}{{ t('task_done_tick') }}</span>{% endif %}
+        <span class="segs" aria-hidden="true">{% for s in panel.segments %}<span class="seg {{ s.state }}"></span>{% endfor %}</span>
+        <form method="post" action="/study/skip" data-confirm="{{ t('skip_confirm') }}">
+          <input type="hidden" name="task" value="{{ panel.current }}">
+          <button class="small secondary" data-study="skip">{{ t('skip') }}</button>
+        </form>
+      </div>
     {% else %}
       <div class="text">{{ t('all_done') }}</div>
-      <a class="btn small" href="/study/finish" data-study="finish">{{ t('finish') }}</a>
+      <div class="side">
+        <span class="segs" aria-hidden="true">{% for s in panel.segments %}<span class="seg {{ s.state }}"></span>{% endfor %}</span>
+        <a class="btn small primary" href="/study/finish" data-study="finish">{{ t('finish') }}{{ icon.arrow() }}</a>
+      </div>
     {% endif %}
   </div>
 </div>
 {% endif %}
 {% block shopbar %}{% endblock %}
+{% block hero %}{% endblock %}
 <main>
 {% block content %}{% endblock %}
 </main>

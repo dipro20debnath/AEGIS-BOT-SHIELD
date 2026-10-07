@@ -94,6 +94,7 @@ def export(db: Database, out_dir: str, secret: str, parquet: bool = True) -> Dic
             "bot_tool": code["bot_tool"] if code else None,
             "bot_config": json.loads(code["bot_config"]) if code and code["bot_config"] else None,
             "session_no": s["session_no"], "lang": s["lang"], "consent_version": s["consent_version"],
+            "ui_version": json.loads(s["params"]).get("ui_version"),
             "raw_consent": s["raw_consent"], "status": s["status"],
             "duration_s": round(s["finished"] - s["started"], 1) if s["finished"] else None,
             "ua_family": s["ua_family"], "ua_major": s["ua_major"], "os_family": s["os_family"],

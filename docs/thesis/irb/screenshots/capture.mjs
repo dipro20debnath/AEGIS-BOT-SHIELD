@@ -6,7 +6,8 @@
  *
  * Starts the study site on a temporary database, walks through it as a
  * participant (Bangla, plus the English consent page and two phone-size
- * views) and writes PNG files next to this script. Re-run it after filling in
+ * views) and writes PNG files next to this script. Pages are captured with reduced
+ * motion, so entrance animations are already finished. Re-run it after filling in
  * the information sheets, so the committee sees the final text.
  */
 import { spawn, execFileSync } from 'node:child_process';
@@ -40,7 +41,7 @@ try {
   };
 
   // Desktop, Bangla: the whole participant flow
-  const desktop = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const desktop = await browser.newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: 'reduce' });
   const page = await desktop.newPage();
   await page.goto(BASE + '/');
   await shot(page, '01_landing');
@@ -94,12 +95,12 @@ try {
   await shot(page, '12_done');
 
   // English information sheet
-  const en = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
+  const en = await (await browser.newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: 'reduce' })).newPage();
   await en.goto(BASE + '/consent?lang=en');
   await shot(en, '03_consent_en', true);
 
   // Phone size: consent and a task page
-  const phone = await (await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })).newPage();
+  const phone = await (await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' })).newPage();
   await phone.goto(BASE + '/consent?lang=bn');
   await shot(phone, '13_phone_consent_bn');
   for (const box of ['c_read', 'c_aggregate', 'c_withdraw', 'c_age']) await phone.check(`input[name=${box}]`);

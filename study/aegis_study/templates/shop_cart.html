@@ -1,16 +1,16 @@
 {% extends "shop_base.html" %}
 {% block content %}
-<div class="card">
-  <h1>{{ t('cart') }}</h1>
-  {% if not items %}<p>{{ t('cart_empty') }}</p>{% else %}
+<h1>{{ t('cart') }}</h1>
+{% if not items %}<p>{{ t('cart_empty') }}</p>{% else %}
+<div class="split">
   <table>
     {% for p, qty in items %}
     <tr>
-      <td><a href="/shop/product/{{ p.id }}">{{ p.name }}</a><br><span class="muted">৳ {{ "{:,}".format(p.price) }}</span></td>
+      <td><a href="/shop/product/{{ p.id }}">{{ p.name }}</a><br><span class="price muted">৳ {{ "{:,}".format(p.price) }}</span></td>
       <td>
-        <form method="post" action="/shop/cart/update" style="display:flex;gap:6px;align-items:center">
+        <form method="post" action="/shop/cart/update" class="qty">
           <input type="hidden" name="product_id" value="{{ p.id }}">
-          <input type="number" name="quantity" value="{{ qty }}" min="0" max="20" style="width:80px" aria-label="{{ t('quantity') }}">
+          <input type="number" name="quantity" value="{{ qty }}" min="0" max="20" aria-label="{{ t('quantity') }}">
           <button class="small secondary" data-study="update-qty">{{ t('update') }}</button>
         </form>
       </td>
@@ -23,8 +23,10 @@
     </tr>
     {% endfor %}
   </table>
-  <p><strong>{{ t('total') }}: ৳ {{ "{:,}".format(total) }}</strong></p>
-  <a class="btn" href="/shop/checkout" data-study="checkout">{{ t('checkout') }}</a>
-  {% endif %}
+  <aside class="rail">
+    <div class="total"><span>{{ t('total') }}</span><span class="price">৳ {{ "{:,}".format(total) }}</span></div>
+    <div class="actions"><a class="btn primary" href="/shop/checkout" data-study="checkout">{{ t('checkout') }}{{ icon.arrow() }}</a></div>
+  </aside>
 </div>
+{% endif %}
 {% endblock %}
