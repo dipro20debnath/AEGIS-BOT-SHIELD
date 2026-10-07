@@ -24,4 +24,4 @@ test = ["pytest>=7.0", "httpx>=0.24"]
 packages = ["aegis_study"]
 
 [tool.setuptools.package-data]
-aegis_study = ["templates/*.html", "static/*", "dataset_README.md"]
+aegis_study = ["templates/*.html", "static/*", "static/fonts/*", "dataset_README.md"]
