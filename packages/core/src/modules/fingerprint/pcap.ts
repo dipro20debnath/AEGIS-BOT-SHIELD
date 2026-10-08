@@ -15,10 +15,19 @@ export interface UdpDatagram {
 
 const LINKTYPE = { NULL: 0, ETHERNET: 1, RAW: 101, LINUX_SLL: 113, IPV4: 228, IPV6: 229, LINUX_SLL2: 276 } as const;
 
+/** RFC 5952 text form: the longest run of two or more zero groups (the first, on a tie) becomes "::". */
 function ipv6String(b: Buffer): string {
   const groups: string[] = [];
   for (let i = 0; i < 16; i += 2) groups.push(b.readUInt16BE(i).toString(16));
-  return groups.join(':').replace(/(^|:)0(:0)+(:|$)/, '::').replace(/:{3,}/, '::');
+  let best = -1, bestLen = 1;
+  for (let i = 0; i < 8; i++) {
+    let j = i;
+    while (j < 8 && groups[j] === '0') j++;
+    if (j - i > bestLen) { best = i; bestLen = j - i; }
+    i = Math.max(i, j);
+  }
+  if (best < 0) return groups.join(':');
+  return `${groups.slice(0, best).join(':')}::${groups.slice(best + bestLen).join(':')}`;
 }
 
 /** Parses an IP packet and returns its UDP datagram, if any. */
@@ -29,6 +38,7 @@ function udpFromIp(ip: Buffer, timestamp: number): UdpDatagram | null {
   if (version === 4) {
     if (ip.length < 20) return null;
     const ihl = (ip[0] & 0x0f) * 4;
+    if (ihl < 20) return null;
     if ((ip.readUInt16BE(6) & 0x3fff) !== 0) return null; // fragment
     proto = ip[9];
     src = Array.from(ip.subarray(12, 16)).join('.');
