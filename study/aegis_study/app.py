@@ -31,6 +31,9 @@ from .config import StudyConfig
 from .db import Database, normalize_code
 from .util import header_shape, parse_user_agent, route_of, sign, unsign
 
+#: Version of the participant-facing layout, stored with every session (DESIGN.md §10)
+UI_VERSION = "2026-10-07"
+
 COOKIE = "study_sid"
 LANG_COOKIE = "study_lang"
 HERE = os.path.dirname(__file__)
@@ -201,7 +204,18 @@ def create_app(config: Optional[StudyConfig] = None) -> FastAPI:
             panel = task_panel(session, lang)
         params = json.loads(session["params"]) if session is not None else {}
         logged_in = session is not None and tasks.progress(study.db.task_events(session["id"]))["login"] == "done"
+        # Position in the participant's journey, for the step indicator
+        if name in ("landing.html", "consent.html"):
+            step = 1
+        elif name == "survey.html":
+            step = 2 if ctx.get("phase") == "pre" else 4
+        elif name == "done.html":
+            step = 5
+        else:
+            step = 3
         return templates.TemplateResponse(request, name, {
+            "step": step,
+            "steps": [i18n.t(lang, f"step_{k}") for k in ("consent", "questions", "tasks", "last", "done")],
             "lang": lang,
             "t": lambda key, **v: i18n.t(lang, key, **v),
             "session": session,
@@ -217,10 +231,16 @@ def create_app(config: Optional[StudyConfig] = None) -> FastAPI:
 
     def task_panel(session, lang: str) -> Dict[str, Any]:
         params = json.loads(session["params"])
-        state = tasks.progress(study.db.task_events(session["id"]))
+        events = study.db.task_events(session["id"])
+        state = tasks.progress(events)
         current = next((tk for tk in tasks.TASKS if state[tk] == "open"), None)
+        # A task finished in the last few seconds gets a short "done" tick in the bar
+        finished = [e for e in events if e["event"] in ("complete", "skip")]
+        just_done = finished[-1]["task"] if finished and time.time() - finished[-1]["at"] < 6 else None
+        segments = [{"task": tk, "state": "current" if tk == current else state[tk]} for tk in tasks.TASKS]
         if current is None:
-            return {"current": None, "index": len(tasks.TASKS), "total": len(tasks.TASKS), "text": ""}
+            return {"current": None, "index": len(tasks.TASKS), "total": len(tasks.TASKS), "text": "",
+                    "segments": segments, "just_done": just_done}
         d = params["delivery"]
         values = {
             "username": params["username"], "password": params["password"],
@@ -232,7 +252,7 @@ def create_app(config: Optional[StudyConfig] = None) -> FastAPI:
             "product": tasks.BY_ID[params["compare_target"]].name,
         }
         return {"current": current, "index": tasks.TASKS.index(current) + 1, "total": len(tasks.TASKS),
-                "text": i18n.t(lang, f"t_{current}", **values)}
+                "text": i18n.t(lang, f"t_{current}", **values), "segments": segments, "just_done": just_done}
 
     def cart_of(session) -> Dict[int, int]:
         raw = study.cart.get(session["id"]) if session is not None else None
@@ -296,7 +316,7 @@ def create_app(config: Optional[StudyConfig] = None) -> FastAPI:
         ua = parse_user_agent(request.headers.get("user-agent", ""))
         session_id = study.db.create_session(
             code_row["code"], lang, config.consent_version, bool(c_raw) and config.raw_events_enabled,
-            tasks.new_params(), ua)
+            {**tasks.new_params(), "ui_version": UI_VERSION}, ua)
         response = RedirectResponse("/survey/pre", status_code=303)
         response.set_cookie(COOKIE, sign(session_id, config.secret_key), httponly=True, samesite="lax",
                             secure=config.secure_cookies, max_age=6 * 3600)
@@ -430,7 +450,7 @@ def create_app(config: Optional[StudyConfig] = None) -> FastAPI:
         if name not in tasks.CATEGORIES:
             return Response(status_code=404)
         return render(request, "shop_list.html", session, products=tasks.products_in(name),
-                      title=tasks.CATEGORIES[name], empty="")
+                      title=tasks.CATEGORIES[name], empty="", active_category=name)
 
     @app.get("/shop/product/{product_id}", response_class=HTMLResponse)
     def product(request: Request, product_id: int):

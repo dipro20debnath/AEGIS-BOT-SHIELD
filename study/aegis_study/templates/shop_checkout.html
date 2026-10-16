@@ -1,8 +1,8 @@
 {% extends "shop_base.html" %}
 {% block content %}
-<form class="card" method="post" action="/shop/checkout">
+<form class="narrow" method="post" action="/shop/checkout">
   <h1>{{ t('checkout') }}</h1>
-  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+  {% if error %}<p class="error" role="alert">{{ icon.alert() }}{{ error }}</p>{% endif %}
   <div class="row">
     <div><label for="name">{{ t('full_name') }}</label>
       <input type="text" id="name" name="name" value="{{ form.get('name', '') }}" autocomplete="off"></div>
@@ -22,11 +22,11 @@
   </div>
   <label>{{ t('delivery') }}</label>
   <div class="radio">
-    <label><input type="radio" name="option" value="standard" {% if form.get('option') == 'standard' %}checked{% endif %}> {{ t('standard') }}</label>
-    <label><input type="radio" name="option" value="express" {% if form.get('option') == 'express' %}checked{% endif %}> {{ t('express') }}</label>
+    <label><input type="radio" name="option" value="standard" {% if form.get('option') == 'standard' %}checked{% endif %}><span>{{ t('standard') }}</span></label>
+    <label><input type="radio" name="option" value="express" {% if form.get('option') == 'express' %}checked{% endif %}><span>{{ t('express') }}</span></label>
   </div>
   <label for="note">{{ t('note') }}</label>
   <textarea id="note" name="note" autocomplete="off">{{ form.get('note', '') }}</textarea>
-  <p><button data-study="place-order">{{ t('place_order') }}</button></p>
+  <div class="actions"><button class="primary" data-study="place-order">{{ t('place_order') }}</button></div>
 </form>
 {% endblock %}

@@ -1,11 +1,46 @@
 {% extends "base.html" %}
+{% set bn = lang == 'bn' %}
+{% block hero %}
+<section class="hero">
+  <svg class="hero-art" viewBox="0 0 1200 640" preserveAspectRatio="xMaxYMid slice" aria-hidden="true">
+    <g class="grid">
+      {% for x in range(0, 1201, 48) %}<line x1="{{ x }}" y1="0" x2="{{ x }}" y2="640"/>{% endfor %}
+      {% for y in range(0, 641, 48) %}<line x1="0" y1="{{ y }}" x2="1200" y2="{{ y }}"/>{% endfor %}
+    </g>
+    <rect class="scan" x="672" y="0" width="528" height="2"/>
+    <path class="trace" d="M700 520 C 760 470, 790 380, 860 360 S 960 300, 1010 250"/>
+    <path class="trace" d="M720 140 L 800 140 L 840 190 L 930 190"/>
+    <g transform="translate(888 112) scale(9)">
+      <path class="shield ghost" d="M12 2.5 4 5.5v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10v-6z" transform="translate(1.2 1.2)"/>
+      <path class="shield" d="M12 2.5 4 5.5v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10v-6z" style="stroke-width:.22;stroke-dasharray:80;stroke-dashoffset:80"/>
+      <path class="shield" d="m8.5 12 2.4 2.4 4.6-4.8" style="stroke-width:.4;stroke-dasharray:16;stroke-dashoffset:16;animation-delay:1.6s"/>
+    </g>
+    <circle class="node" cx="700" cy="520" r="5"/><circle class="node alt" cx="930" cy="190" r="5"/>
+    <circle class="node" cx="1010" cy="250" r="4"/><circle class="node alt" cx="720" cy="140" r="4"/>
+  </svg>
+  <div class="wrap">
+    <p class="kicker rise">{{ t('landing_kicker') }}</p>
+    <h1 class="rise" style="--d:1">{{ t('landing_title') }}</h1>
+    {% if expired %}<p class="warning rise" style="--d:2">{{ icon.alert() }}{{ t('not_in_study') }}</p>{% endif %}
+    <p class="rise" style="--d:2">{{ t('landing_body') }}</p>
+    <p class="lang-label">{{ t('choose_lang') }}</p>
+    <div class="actions">
+      <a class="btn primary" href="/consent?lang=bn" data-study="lang-bn" lang="bn">বাংলা{{ icon.arrow() }}</a>
+      <a class="btn secondary" href="/consent?lang=en" data-study="lang-en" lang="en">English{{ icon.arrow() }}</a>
+    </div>
+    <div class="stats rise" style="--d:4">
+      <div><span class="n">{{ '১০–১৫' if bn else '10–15' }}</span><span class="l">{{ t('landing_minutes') }}</span></div>
+      <div><span class="n">{{ '৬' if bn else '6' }}</span><span class="l">{{ t('landing_tasks') }}</span></div>
+      <div><span class="n">{{ '০' if bn else '0' }}</span><span class="l">{{ t('landing_anon') }}</span></div>
+    </div>
+  </div>
+</section>
+{% endblock %}
 {% block content %}
-<div class="card">
-  <h1>{{ t('landing_title') }}</h1>
-  {% if expired %}<p class="warning">{{ t('not_in_study') }}</p>{% endif %}
-  <p>{{ t('landing_body') }}</p>
-  <p class="lang"><strong>{{ t('choose_lang') }}:</strong>
-    <a class="btn" href="/consent?lang=bn" data-study="lang-bn">বাংলা</a>
-    <a class="btn secondary" href="/consent?lang=en" data-study="lang-en">English</a></p>
-</div>
+<section class="how">
+  <h2 class="rise" style="--d:5">{{ t('landing_how') }}</h2>
+  <ol>
+    {% for i in range(1, 5) %}<li class="rise" style="--d:{{ 5 + i }}">{{ t('landing_how_' ~ i) }}</li>{% endfor %}
+  </ol>
+</section>
 {% endblock %}

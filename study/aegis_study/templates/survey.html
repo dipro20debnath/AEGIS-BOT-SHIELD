@@ -1,19 +1,19 @@
 {% extends "base.html" %}
 {% block content %}
-<form class="card" method="post" action="/survey/{{ phase }}">
-  <h1>{{ t('survey_pre_title' if phase == 'pre' else 'survey_post_title') }}</h1>
-  <p class="muted">{{ t('survey_optional') }}</p>
+<form class="consent-form" method="post" action="/survey/{{ phase }}">
+  <h1 class="rise">{{ t('survey_pre_title' if phase == 'pre' else 'survey_post_title') }}</h1>
+  <p class="lead rise" style="--d:1">{{ t('survey_optional') }}</p>
   {% for key, text, options in questions %}
-  <fieldset class="question" style="border:0;padding:0">
-    <legend><strong>{{ text }}</strong></legend>
-    <div class="opts">
+  <fieldset class="question">
+    <legend>{{ text }}</legend>
+    <div class="chips">
       {% for value, label in options %}
-      <label><input type="radio" name="{{ key }}" value="{{ value }}"> {{ label }}</label>
+      <label class="chip"><input type="radio" name="{{ key }}" value="{{ value }}"><span>{{ label }}</span></label>
       {% endfor %}
-      <label><input type="radio" name="{{ key }}" value="no_answer"> {{ t('prefer_not') }}</label>
+      <label class="chip quiet"><input type="radio" name="{{ key }}" value="no_answer"><span>{{ t('prefer_not') }}</span></label>
     </div>
   </fieldset>
   {% endfor %}
-  <p><button data-study="survey-next">{{ t('next') }}</button></p>
+  <div class="actions"><button class="primary" data-study="survey-next">{{ t('next') }}{{ icon.arrow() }}</button></div>
 </form>
 {% endblock %}

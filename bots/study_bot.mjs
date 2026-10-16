@@ -101,8 +101,8 @@ async function session(code, seed) {
     if (navigates) await nav(go); else await go();
   }
 
-  async function type(sel, text) {
-    await click(sel);
+  async function type(sel, text, focused = false) {
+    if (!focused) await click(sel);   // focused: the field already has focus and a selection to type over
     if (mode === 'fast') { await page.keyboard.type(text); return; }
     if (mode === 'stealth') { await page.keyboard.type(text, { delay: 35 }); return; }
     for (const ch of text) {
@@ -172,7 +172,7 @@ async function session(code, seed) {
         } else {                  // scripts usually clear the field directly
           await page.evaluate((s) => { document.querySelector(s).value = ''; }, qtySel);
         }
-        await type(qtySel, quantity);
+        await type(qtySel, quantity, mode === 'human');
         await click(`tr:nth-child(${keep.i + 1}) [data-study=update-qty]`, true);
         const decoyRow = (await page.evaluate((d) => [...document.querySelectorAll('tr')].findIndex(tr => tr.textContent.includes(d)), decoy));
         if (decoyRow >= 0) await click(`tr:nth-child(${decoyRow + 1}) [data-study=remove]`, true);
