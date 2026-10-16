@@ -2,25 +2,44 @@
 {% set bn = lang == 'bn' %}
 {% block hero %}
 <section class="hero">
+  {# What the study measures, drawn: a person's pointer path is curved and uneven, a script's is straight
+     and constant. Decoration only (aria-hidden); the moving dots stop under reduced motion. #}
   <svg class="hero-art" viewBox="0 0 1200 640" preserveAspectRatio="xMaxYMid slice" aria-hidden="true">
     <g class="grid">
       {% for x in range(0, 1201, 48) %}<line x1="{{ x }}" y1="0" x2="{{ x }}" y2="640"/>{% endfor %}
       {% for y in range(0, 641, 48) %}<line x1="0" y1="{{ y }}" x2="1200" y2="{{ y }}"/>{% endfor %}
     </g>
     <rect class="scan" x="672" y="0" width="528" height="2"/>
-    <path class="trace" d="M700 520 C 760 470, 790 380, 860 360 S 960 300, 1010 250"/>
-    <path class="trace" d="M720 140 L 800 140 L 840 190 L 930 190"/>
-    <g transform="translate(888 112) scale(9)">
-      <path class="shield ghost" d="M12 2.5 4 5.5v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10v-6z" transform="translate(1.2 1.2)"/>
-      <path class="shield" d="M12 2.5 4 5.5v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10v-6z" style="stroke-width:.22;stroke-dasharray:80;stroke-dashoffset:80"/>
-      <path class="shield" d="m8.5 12 2.4 2.4 4.6-4.8" style="stroke-width:.4;stroke-dasharray:16;stroke-dashoffset:16;animation-delay:1.6s"/>
+    <g class="panel">
+      <path class="frame" d="M696 104h24M696 104v24M1160 104h-24M1160 104v24M696 536h24M696 536v-24M1160 536h-24M1160 536v-24"/>
+      <text class="panel-label" x="720" y="96">POINTER TRACE · LIVE</text>
+      <circle class="rec" cx="706" cy="92" r="4"/>
     </g>
-    <circle class="node" cx="700" cy="520" r="5"/><circle class="node alt" cx="930" cy="190" r="5"/>
-    <circle class="node" cx="1010" cy="250" r="4"/><circle class="node alt" cx="720" cy="140" r="4"/>
+    <path id="p-human" class="path human" d="M740 470 C 772 452, 790 404, 832 392 S 880 396, 904 352 S 932 286, 986 280 S 1040 238, 1060 204 S 1090 168, 1112 160"/>
+    <path id="p-bot" class="path bot" d="M740 500 L 1112 214"/>
+    <circle class="end" cx="1112" cy="160" r="5"/><rect class="end bot" x="1107" y="209" width="10" height="10"/>
+    <circle class="click" cx="1112" cy="160" r="0">
+      <animate attributeName="r" values="0;0;22" keyTimes="0;0.74;1" dur="4.8s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0;0.9;0" keyTimes="0;0.74;1" dur="4.8s" repeatCount="indefinite"/>
+    </circle>
+    <circle class="mover human" r="7">
+      <animateMotion dur="4.8s" repeatCount="indefinite" calcMode="spline" keyPoints="0;1;1" keyTimes="0;0.74;1"
+                     keySplines="0.42 0 0.2 1;0 0 1 1"><mpath href="#p-human"/></animateMotion>
+    </circle>
+    <rect class="mover bot" x="-6" y="-6" width="12" height="12">
+      <animateMotion dur="4.8s" repeatCount="indefinite" calcMode="linear" keyPoints="0;1;1" keyTimes="0;0.42;1"><mpath href="#p-bot"/></animateMotion>
+    </rect>
+    <text class="tag human" x="728" y="476" text-anchor="end">{{ t('hero_human') }}</text>
+    <text class="tag bot" x="728" y="506" text-anchor="end">{{ t('hero_bot') }}</text>
+    <g class="legend">
+      <text class="legend-text human" x="720" y="566">{{ t('hero_human_hint') }}</text>
+      <text class="legend-text bot" x="720" y="592">{{ t('hero_bot_hint') }}</text>
+    </g>
   </svg>
   <div class="wrap">
     <p class="kicker rise">{{ t('landing_kicker') }}</p>
-    <h1 class="rise" style="--d:1">{{ t('landing_title') }}</h1>
+    {# Words appear one after another (text only; nothing that can be clicked moves) #}
+    <h1 class="words">{% for w in t('landing_title').split(' ') %}<span class="w" style="--i:{{ loop.index }}">{{ w }}</span> {% endfor %}</h1>
     {% if expired %}<p class="warning rise" style="--d:2">{{ icon.alert() }}{{ t('not_in_study') }}</p>{% endif %}
     <p class="rise" style="--d:2">{{ t('landing_body' if self_tickets else 'landing_body_invited') }}</p>
     <p class="lang-label">{{ t('choose_lang') }}</p>
@@ -28,19 +47,19 @@
       <a class="btn primary" href="/consent?lang=bn" data-study="lang-bn" lang="bn">বাংলা{{ icon.arrow() }}</a>
       <a class="btn secondary" href="/consent?lang=en" data-study="lang-en" lang="en">English{{ icon.arrow() }}</a>
     </div>
-    <div class="stats rise" style="--d:4">
-      <div><span class="n">{{ '১০–১৫' if bn else '10–15' }}</span><span class="l">{{ t('landing_minutes') }}</span></div>
-      <div><span class="n">{{ '৬' if bn else '6' }}</span><span class="l">{{ t('landing_tasks') }}</span></div>
-      <div><span class="n">{{ '০' if bn else '0' }}</span><span class="l">{{ t('landing_anon') }}</span></div>
+    <div class="stats">
+      <div class="stat"><span class="n">{{ '১০–১৫' if bn else '10–15' }}</span><span class="l">{{ t('landing_minutes') }}</span></div>
+      <div class="stat"><span class="n">{{ '৬' if bn else '6' }}</span><span class="l">{{ t('landing_tasks') }}</span></div>
+      <div class="stat"><span class="n">{{ '০' if bn else '0' }}</span><span class="l">{{ t('landing_anon') }}</span></div>
     </div>
   </div>
 </section>
 {% endblock %}
 {% block content %}
 <section class="how">
-  <h2 class="rise" style="--d:5">{{ t('landing_how') }}</h2>
+  <h2 class="reveal">{{ t('landing_how') }}</h2>
   <ol>
-    {% for i in range(1, 5) %}<li class="rise" style="--d:{{ 5 + i }}">{{ t('landing_how_' ~ i) }}</li>{% endfor %}
+    {% for i in range(1, 5) %}<li class="reveal" style="--i:{{ i }}">{{ t('landing_how_' ~ i) }}</li>{% endfor %}
   </ol>
 </section>
 {% endblock %}
