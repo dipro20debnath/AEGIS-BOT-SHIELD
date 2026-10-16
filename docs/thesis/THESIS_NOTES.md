@@ -982,6 +982,27 @@ The layout version (`UI_VERSION = "2026-10-07"`) is stored with every session an
 - `pytest study/tests`: 19 passed. `e2e/study-flow.test.mjs`: passed.
 - Screenshots regenerated: `docs/thesis/irb/screenshots/`.
 
+### 2.16 Self-made tickets on the consent page (2026-10-16)
+
+Participants without a code from the researcher can now press "Make my ticket" on the consent page.
+They get a random human code (`H-…`), shown large and filled in, and are asked to keep it for
+withdrawal. Ticked boxes are kept, and reloading shows the same ticket (signed cookie). Codes now
+carry `source` (`researcher` | `self`), exported as `sessions.csv:code_source`. `UI_VERSION` is
+`2026-10-16`.
+
+**Trade-off (state in the method chapter).** A self-made ticket is not invitation-checked, so
+anyone who reaches the site can be recorded as "human", including a bot operator. Mitigations:
+- share the link only with invited people;
+- at most 3 tickets per connection per hour and 300 per day (the address is kept in memory only);
+- **report every result twice: all human sessions, and researcher-issued codes only**;
+- it can be switched off with `STUDY_SELF_TICKETS=false`.
+
+The detection score must not be used to clean these labels, because that would be circular.
+
+Tests: `pytest study/tests` 23 passed. The e2e test passed, with a new browser test of the ticket
+flow on a phone viewport. Bots: Playwright fast and human, Puppeteer stealth, and the requests forger
+all completed 6/6.
+
 ## 3. Contributions — what can honestly be claimed
 
 | Claim | Status |

@@ -11,6 +11,11 @@ Server setup is in [`deploy/study/README.md`](../deploy/study/README.md).
 1. **Language and consent** (Bangla or English).
    - The information sheet shown is `docs/thesis/irb/consent_<lang>.md`.
    - Four required checkboxes, one **optional** checkbox for raw event timings, and the study code.
+   - **Ticket:** a participant without a code from the researcher presses "Make my ticket" and gets
+     a random human code (`H-…`), shown large and filled in. It is stored with `source = self`, so the
+     analysis can be repeated on researcher-issued codes only. Limits: 3 tickets per connection per
+     hour, 300 per day (`STUDY_TICKETS_PER_CLIENT`, `STUDY_TICKETS_PER_DAY`). Switch off with
+     `STUDY_SELF_TICKETS=false` to accept researcher codes only.
    - **Nothing behavioural is recorded before consent:** the SDK and the recorder load only after it.
 2. **Short survey** (optional answers): age group, device, pointing device, browser use, keyboard language, hand.
 3. **Six tasks in the shop.** A bar at the top always shows the current task, and every task can be skipped.
@@ -47,7 +52,7 @@ page view and request gets the score AEGIS *would* have given.
 | No key identities, no typed text, no IP, no raw user agent | Re-identification and privacy risk stay low; content is never needed for timing features |
 | Live telemetry snapshots every 15 s, final one on leaving a page | Shows how early a bot can be detected, not only at the end |
 | Request metadata (header *names* and order, route, timing) | Network/protocol features for the server-side model, without header values |
-| Study codes, invitation only | Unknown visitors (scanners, crawlers on a public server) cannot enter the labelled data; they are kept apart as "unlabelled" |
+| Study codes: handed out, or a self-made ticket | Without any code, unknown visitors (scanners, crawlers on a public server) cannot enter the labelled data; they are kept apart as "unlabelled". Self-made tickets make joining easy but are not invitation-checked, so their source is stored and results are also reported on handed-out codes only |
 | One code per participant, several sessions allowed | Within-person repeat sessions (e.g. computer and phone) |
 | Survey items on autofill, automation, assistive tools, interruptions | Identify possible label noise and atypical humans, so results can be reported with and without them |
 | Same flow for bots, several tools and modes, one code per bot run | Bots differ in tool and skill level (T1–T4). Per-run codes make each bot run its own group in cross-validation |

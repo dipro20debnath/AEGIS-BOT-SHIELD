@@ -43,9 +43,16 @@ The study runs on a dedicated test website (the "study shop", source code in
 `study/` of the project repository), on a lab computer or the participant's
 own computer or phone.
 
-1. The researcher gives the participant a **study code** (random, e.g.
-   `H-7KQ2M9XA`). The name ↔ code list is kept only by the researcher, on paper
-   or in an encrypted file, never on the study server.
+1. Every participant uses a **study code** (random, e.g. `H-7KQ2M9XA`), in one
+   of two ways:
+   - **Handed out by the researcher.** The name ↔ code list is kept only by the
+     researcher, on paper or in an encrypted file, never on the study server.
+   - **A ticket the participant makes** with one button on the consent page.
+     The site shows it in large type, fills it in, and asks the participant to
+     write it down or photograph it: it is needed for withdrawal. Nobody,
+     including the researcher, can link a self-made ticket to a name.
+   Both kinds work the same way. Which kind was used is stored with the code,
+   so results can be reported for researcher-issued codes alone (see below).
 2. On the website the participant chooses Bangla or English. They then read the
    information sheet (`consent_bn.md` / `consent_en.md`, shown word for word)
    and give consent by ticking four required boxes. One **optional** box covers
@@ -89,6 +96,17 @@ this test website only, using separate bot codes:
 No third-party website is targeted. Requests from unknown visitors of the
 public test website (e.g. web crawlers) carry no study code. They are stored
 without any link to a participant and analysed separately.
+
+**Self-made tickets and label quality.** A self-made ticket is not checked
+against an invitation list, so anyone who reaches the website could make one
+and be recorded as "human". To keep this rare:
+- the website address is shared only with invited people;
+- one connection can make at most 3 tickets per hour, and at most 300 tickets
+  per day are accepted in total (the address is used only in memory for this
+  limit, never stored);
+- the analysis is repeated on researcher-issued codes only.
+Self-made tickets can be switched off (`STUDY_SELF_TICKETS=false`), in which case
+only researcher-issued codes are accepted.
 
 ## 5. Data collected
 
@@ -134,8 +152,8 @@ researcher requests **[expedited/exempt]** review if the committee's rules allow
 
 ## 7. Confidentiality and storage
 
-- **Kept apart from the data:** the code key list (name ↔ study code) and any
-  signed paper forms. They are kept by the researcher in a locked place or an
+- **Kept apart from the data:** the code key list (name ↔ study code, only for
+  researcher-issued codes) and any signed paper forms. They are kept by the researcher in a locked place or an
   encrypted file.
 - **Study server:**
   - The data are stored in a database on the study server, hosted at
@@ -177,7 +195,7 @@ from automated abuse.
 | # | File | Shows |
 |---|------|-------|
 | 1 | [`01_landing.png`](screenshots/01_landing.png) | Start page: purpose in one sentence, language choice (Bangla / English) |
-| 2 | [`02_consent_bn.png`](screenshots/02_consent_bn.png) | Information sheet in Bangla (shown word for word from `consent_bn.md`), the four required consent boxes, the optional raw-timing box and the study code field. The yellow DRAFT notice appears until the placeholders are filled in |
+| 2 | [`02_consent_bn.png`](screenshots/02_consent_bn.png) | Information sheet in Bangla (shown word for word from `consent_bn.md`), the four required consent boxes, the optional raw-timing box, the "make my ticket" button and the study code field. The yellow DRAFT notice appears until the placeholders are filled in |
 | 3 | [`03_consent_en.png`](screenshots/03_consent_en.png) | The same page in English (`consent_en.md`) |
 | 4 | [`04_survey_before.png`](screenshots/04_survey_before.png) | Survey before the tasks: fixed options, every question optional ("Prefer not to say") |
 | 5 | [`05_task1_login.png`](screenshots/05_task1_login.png) | Task 1: the dark bar at the top shows the task and the dummy username and password; every task has a "Skip this task" button |
@@ -190,5 +208,6 @@ from automated abuse.
 | 12 | [`12_done.png`](screenshots/12_done.png) | Thank-you page repeating the study code, which is needed to withdraw |
 | 13 | [`13_phone_consent_bn.png`](screenshots/13_phone_consent_bn.png) | Consent page on a phone |
 | 14 | [`14_phone_task1_login.png`](screenshots/14_phone_task1_login.png) | A task page on a phone |
+| 15 | [`15_phone_ticket_bn.png`](screenshots/15_phone_ticket_bn.png) | A participant without a code made their own ticket: shown large, filled in, with the note to keep it for withdrawal |
 
 The consent pages carry a yellow DRAFT notice until the placeholders in the information sheets are filled in. Re-take the screenshots afterwards with `node docs/thesis/irb/screenshots/capture.mjs`.

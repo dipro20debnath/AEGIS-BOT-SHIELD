@@ -32,10 +32,13 @@ from .db import Database, normalize_code
 from .util import header_shape, parse_user_agent, route_of, sign, unsign
 
 #: Version of the participant-facing layout, stored with every session (DESIGN.md §10)
-UI_VERSION = "2026-10-07"
+UI_VERSION = "2026-10-16"
 
 COOKIE = "study_sid"
 LANG_COOKIE = "study_lang"
+#: The participant's self-made ticket, so reloading the consent page shows the same one
+TICKET_COOKIE = "study_ticket"
+CONSENT_BOXES = ("c_read", "c_aggregate", "c_withdraw", "c_age", "c_raw")
 HERE = os.path.dirname(__file__)
 
 _session_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("study_session", default=None)
@@ -106,6 +109,7 @@ class Study:
         self.config = config
         self.db = Database(config.db_path)
         self._attempts: Dict[str, Deque[float]] = defaultdict(deque)
+        self._tickets: Dict[str, Deque[float]] = defaultdict(deque)
         #: The shop's only in-memory state: session id -> {product id: quantity}. Run one worker.
         self.cart: Dict[str, Dict[int, int]] = {}
 
@@ -146,6 +150,23 @@ class Study:
 
     def failed_attempt(self, client: str) -> None:
         self._attempts[client].append(time.time())
+
+    # -- self-made tickets ---------------------------------------------------------
+
+    def make_ticket(self, client: str) -> Optional[str]:
+        """A new human study code made by the participant; None when a limit is reached.
+
+        The client address is used only for the in-memory hourly limit, never stored."""
+        window = self._tickets[client]
+        now = time.time()
+        while window and now - window[0] > 3600:
+            window.popleft()
+        if len(window) >= self.config.tickets_per_client:
+            return None
+        if self.db.self_codes_since(now - 86400) >= self.config.tickets_per_day:
+            return None
+        window.append(now)
+        return self.db.create_codes("human", 1, source="self")[0]
 
     # -- tasks -------------------------------------------------------------------
 
@@ -226,6 +247,7 @@ def create_app(config: Optional[StudyConfig] = None) -> FastAPI:
             "categories": tasks.CATEGORIES,
             "cart_count": sum(cart_of(session).values()) if session is not None else 0,
             "logged_in": logged_in,
+            "self_tickets": config.self_tickets,
             **ctx,
         }, status_code=status)
 
@@ -286,12 +308,42 @@ def create_app(config: Optional[StudyConfig] = None) -> FastAPI:
     def landing(request: Request):
         return render(request, "landing.html", expired=bool(request.query_params.get("expired")))
 
+    def ticket_of(request: Request) -> Optional[str]:
+        """The self-made ticket remembered for this browser, if it still exists."""
+        value = unsign(request.cookies.get(TICKET_COOKIE), config.secret_key)
+        code = value[len("ticket:"):] if value and value.startswith("ticket:") else None
+        return code if code and study.db.get_code(code) is not None else None
+
+    def consent_page(request: Request, lang: str, status: int = 200, error: Optional[str] = None,
+                     code: str = "", checked=(), ticket: Optional[str] = None) -> HTMLResponse:
+        return render(request, "consent.html", doc=i18n.consent_html(lang), error=error,
+                      raw_offered=config.raw_events_enabled, status=status, code=code or ticket or "",
+                      checked=set(checked), ticket=ticket)
+
     @app.get("/consent", response_class=HTMLResponse)
     def consent(request: Request):
         lang = lang_of(request)
-        response = render(request, "consent.html", doc=i18n.consent_html(lang), error=None,
-                          raw_offered=config.raw_events_enabled)
+        ticket = ticket_of(request) if config.self_tickets else None
+        response = consent_page(request, lang, ticket=ticket)
         response.set_cookie(LANG_COOKIE, lang, samesite="lax", secure=config.secure_cookies)
+        return response
+
+    @app.post("/ticket", response_class=HTMLResponse)
+    async def ticket(request: Request):
+        """Make (or show again) the participant's own human ticket, keeping the ticked boxes."""
+        if not config.self_tickets:
+            return Response(status_code=404)
+        form = await request.form()
+        lang = form.get("lang") if form.get("lang") in i18n.LANGS else lang_of(request)
+        checked = [box for box in CONSENT_BOXES if form.get(box)]
+        code = ticket_of(request)
+        if code is None:
+            code = study.make_ticket(request.client.host if request.client else "")
+            if code is None:
+                return consent_page(request, lang, status=429, error=i18n.t(lang, "ticket_limit"), checked=checked)
+        response = consent_page(request, lang, checked=checked, ticket=code)
+        response.set_cookie(TICKET_COOKIE, sign(f"ticket:{code}", config.secret_key), httponly=True,
+                            samesite="lax", secure=config.secure_cookies, max_age=6 * 3600)
         return response
 
     @app.post("/start")
@@ -302,8 +354,11 @@ def create_app(config: Optional[StudyConfig] = None) -> FastAPI:
         client = request.client.host if request.client else ""
 
         def again(error_key: str, status: int):
-            return render(request, "consent.html", doc=i18n.consent_html(lang), error=i18n.t(lang, error_key),
-                          raw_offered=config.raw_events_enabled, status=status, code=code)
+            boxes = {"c_read": c_read, "c_aggregate": c_aggregate, "c_withdraw": c_withdraw, "c_age": c_age,
+                     "c_raw": c_raw}
+            return consent_page(request, lang, status=status, error=i18n.t(lang, error_key), code=code,
+                                checked=[k for k, v in boxes.items() if v],
+                                ticket=ticket_of(request) if config.self_tickets else None)
 
         if not all((c_read, c_aggregate, c_withdraw, c_age)):
             return again("consent_missing", 400)
