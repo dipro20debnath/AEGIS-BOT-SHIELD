@@ -307,8 +307,12 @@ Run `npm run test:e2e` and `pytest study/tests` after every study-site change.
 - **Focus:** a visible 2 px `--color-accent` outline with a 2 px offset on every focusable element;
   never `outline: none` without a replacement.
 - **Motion:** honour `prefers-reduced-motion` (everything stops; the IRB screenshots are taken that way).
-  - Study site, pages outside the shop (landing, consent, questions, done): short entrance animations
-    (`.rise`, 0.8 s, staggered) on **text and decoration only**, and the animated drawing in the landing hero.
+  - Study site, pages outside the shop (`body.in-flow`: landing, consent, questions, done): animation on
+    **text and decoration only**:
+    - entrance animations (`.rise`, headline word by word, `.reveal` on scroll where supported);
+    - the landing hero's pointer-trace drawing (a person's curved path vs a script's straight one);
+    - the journey steps ticking in, the ticket "printing", the done page's shield, halo and burst;
+    - after a tick or a choice, a ring spreads from the box (feedback; the target does not move).
   - **Never animate a control** (button, link, input, tick box, choice): a moving target changes pointing
     data, and scripts that measure a target before moving to it miss it.
   - Task pages (the shop): only motion that never moves a target: the progress segments filling in the task

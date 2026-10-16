@@ -270,21 +270,37 @@ td a { color: var(--color-dominant); font-weight: 600; }
 .hero-art { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .hero-art .grid line { stroke: var(--color-line-dark); stroke-width: 1; }
 .hero-art .scan { fill: var(--color-accent); opacity: .5; animation: scan 6s linear infinite; }
-.hero-art .shield { fill: none; stroke: var(--color-accent); stroke-width: 2; stroke-dasharray: 1200; stroke-dashoffset: 1200;
-                    animation: draw 2.4s var(--ease-out) .3s forwards; }
-.hero-art .shield.ghost { stroke: var(--color-line-dark); stroke-dashoffset: 0; animation: none; }
-.hero-art .node { fill: var(--color-accent); animation: blink 3s ease-in-out infinite; }
-.hero-art .node.alt { fill: var(--color-status-monitor); animation-delay: 1.4s; }
-.hero-art .trace { fill: none; stroke: rgba(34, 195, 214, .55); stroke-width: 1.5; stroke-dasharray: 6 10;
-                   animation: dash 2.8s linear infinite; }
+.hero-art .frame { fill: none; stroke: var(--color-accent); stroke-width: 2; opacity: .8; }
+.hero-art .panel-label { font: 700 12px var(--font-mono); letter-spacing: .12em; fill: rgba(246, 244, 238, 0.6); }
+.hero-art .rec { fill: var(--color-accent); animation: blink 1.6s ease-in-out infinite; }
+.hero-art .path { fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;
+                  stroke-dasharray: 900; stroke-dashoffset: 900; animation: draw 1.8s var(--ease-out) .5s forwards; }
+.hero-art .path.human { stroke: var(--color-accent); }
+.hero-art .path.bot { stroke: rgba(246, 244, 238, 0.5); stroke-width: 2; animation-delay: .8s; }
+.hero-art .end { fill: none; stroke: var(--color-accent); stroke-width: 2; }
+.hero-art .end.bot { stroke: rgba(246, 244, 238, 0.6); }
+.hero-art .click { fill: none; stroke: var(--color-accent); stroke-width: 2; }
+.hero-art .mover.human { fill: var(--color-accent); }
+.hero-art .mover.bot { fill: var(--color-paper); }
+.hero-art .mover, .hero-art .click { opacity: 0; animation: fade-in .4s ease-out 2.2s forwards; }
+.hero-art .tag { font: 600 16px var(--font-body); }
+.hero-art .tag.human { fill: var(--color-accent); }
+.hero-art .tag.bot, .hero-art .legend-text { fill: rgba(246, 244, 238, 0.7); }
+.hero-art .legend-text { font: 400 16px var(--font-body); }
+.hero-art .legend-text.human { fill: var(--color-accent); }
+.hero-art .tag, .hero-art .legend { opacity: 0; animation: fade-in .6s ease-out 1.6s forwards; }
+@keyframes fade-in { to { opacity: 1; } }
 @keyframes scan { from { transform: translateY(-10%); } to { transform: translateY(110%); } }
 @keyframes draw { to { stroke-dashoffset: 0; } }
 @keyframes blink { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
 @keyframes dash { to { stroke-dashoffset: -64; } }
-@media (max-width: 899px) { .hero-art { opacity: .35; } .hero .wrap { padding-top: var(--space-8); } }
+@media (max-width: 899px) { .hero-art { opacity: .35; } .hero-art .legend, .hero-art .tag { display: none; }
+                            .hero .wrap { padding-top: var(--space-8); } }
 
-.stats { display: grid; grid-template-columns: repeat(3, minmax(0, auto)); justify-content: start; gap: var(--space-6);
-         margin-top: var(--space-8); padding-top: var(--space-3); border-top: 1px solid var(--color-line-dark); }
+.stats { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, auto)); justify-content: start;
+         gap: var(--space-6); margin-top: var(--space-8); padding-top: var(--space-3); }
+.stats::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: var(--color-line-dark);
+                 transform-origin: left; }
 .stats .n { display: block; font: 800 48px/1.15 var(--font-display); color: var(--color-paper); }
 .stats .n .light { font-weight: 200; }
 .stats .l { color: rgba(246, 244, 238, 0.72); }
@@ -334,7 +350,8 @@ td a { color: var(--color-dominant); font-weight: 600; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0s !important;
                            animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
-  .hero-art .scan { display: none; }
+  .hero-art .scan, .hero-art .mover, .hero-art .click { display: none; }
+  .reveal { animation: none !important; }
 }
 
 /* landing details */
@@ -354,3 +371,64 @@ td a { color: var(--color-dominant); font-weight: 600; }
 .ticket-note { display: flex; gap: var(--space-1); align-items: flex-start; }
 .ticket-note svg { margin-top: 5px; color: var(--color-status-monitor); }
 .ticket-actions { margin-top: var(--space-1); }
+
+/* ---- motion on the pages around the shop (body.in-flow), DESIGN.md §9 -------------------------
+   Text, decoration and feedback after a choice only. Controls never move before they are used,
+   and nothing here runs on the shop's task pages (body.in-shop). */
+
+/* Landing: headline word by word, kicker bar, stats line drawn and numbers rising */
+.in-flow .words .w { display: inline-block; animation: word .8s var(--ease-out) both;
+                     animation-delay: calc(120ms + var(--i) * 70ms); }
+@keyframes word { from { opacity: 0; transform: translateY(.35em); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+.hero .kicker { display: flex; align-items: center; gap: var(--space-2); }
+.hero .kicker::before { content: ""; width: 32px; height: 2px; background: var(--color-accent); flex: none; }
+.in-flow .hero .kicker::before { transform-origin: left; animation: grow .8s var(--ease-out) both; }
+.in-flow .stats::before { animation: grow 1.2s var(--ease-out) .6s both; }
+.in-flow .stat { animation: rise .8s var(--ease-out) both; }
+.in-flow .stat:nth-child(1) { animation-delay: .8s; }
+.in-flow .stat:nth-child(2) { animation-delay: .9s; }
+.in-flow .stat:nth-child(3) { animation-delay: 1s; }
+@keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* "How it works": each step appears as it scrolls into view (where supported) */
+@supports (animation-timeline: view()) {
+  .in-flow .reveal { animation: rise linear both; animation-timeline: view(); animation-range: entry 0% entry 70%; }
+}
+.how li { position: relative; }
+.how li::after { content: ""; position: absolute; left: 0; top: -1px; width: 48px; height: 2px; background: var(--color-accent); }
+
+/* Journey steps: finished steps tick in one after another, the current one pulses three times */
+.in-flow .steps li.done::before { animation: pop .45s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 120ms); }
+.in-flow .steps li.now::before { animation: ring 1.6s ease-out .4s 3; }
+@keyframes pop { from { transform: scale(0); } 60% { transform: scale(1.2); } to { transform: scale(1); } }
+@keyframes ring { from { box-shadow: 0 0 0 0 rgba(34, 195, 214, 0.6); } to { box-shadow: 0 0 0 12px rgba(34, 195, 214, 0); } }
+
+/* Feedback after a tick or a choice: a ring spreads from the box (the target itself does not move) */
+.check .box { position: relative; }
+.check input:checked + .box::after, .chip input:checked + span::after, .radio input:checked + span::after {
+  content: ""; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
+  animation: ring .6s ease-out 1; }
+.chip span, .radio > label > span { position: relative; }
+
+/* Ticket: the panel opens, then the code prints character by character */
+.in-flow .ticket { animation: open .6s var(--ease-out) both; }
+.in-flow .ticket-code { animation: type 1s steps(10, end) .45s both; }
+.in-flow .ticket-note { animation: rise .6s var(--ease-out) 1.4s both; }
+@keyframes open { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes type { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+
+/* Done page: shield drawn, a burst around it, the code printed */
+.done-badge { position: relative; width: 96px; height: 96px; margin-bottom: var(--space-4); }
+.done-badge .done-mark { margin: 0; position: relative; z-index: 1; }
+.done-badge::before { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--color-accent);
+                      opacity: 0; }
+.in-flow .done-badge::before { animation: halo 1.4s ease-out 1.6s 2; }
+@keyframes halo { from { transform: scale(.6); opacity: .8; } to { transform: scale(1.9); opacity: 0; } }
+.spark { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px; opacity: 0;
+         background: var(--color-accent); transform: rotate(calc(var(--i) * 30deg)); }
+.spark:nth-child(even) { background: var(--color-dominant); width: 6px; height: 6px; margin: -3px; }
+.in-flow .spark { animation: spark 1s var(--ease-out) 1.5s both; }
+@keyframes spark { 0% { opacity: 0; transform: rotate(calc(var(--i) * 30deg)) translateY(0); }
+                   20% { opacity: 1; }
+                   100% { opacity: 0; transform: rotate(calc(var(--i) * 30deg)) translateY(-84px); } }
+.in-flow .code-hero { animation: type 1.1s steps(10, end) 1.2s both; }

@@ -1003,6 +1003,19 @@ Tests: `pytest study/tests` 23 passed. The e2e test passed, with a new browser t
 flow on a phone viewport. Bots: Playwright fast and human, Puppeteer stealth, and the requests forger
 all completed 6/6.
 
+### 2.17 More animation outside the shop (2026-10-16, `UI_VERSION 2026-10-16.2`)
+
+The following animations were added, only on pages outside the shop, and only to text and decoration:
+- the landing hero now draws what the study measures (a person's curved, uneven pointer path vs a
+  script's straight, constant one);
+- the headline appears word by word;
+- the ticket prints like a typewriter;
+- the done page has a halo and a burst.
+
+The task pages are unchanged. "Make my ticket" now jumps back to the ticket (`#ticket`), so the
+participant does not land at the top of the long consent page. Checked again with pytest, the e2e test
+and the bots.
+
 ## 3. Contributions — what can honestly be claimed
 
 | Claim | Status |

@@ -32,7 +32,7 @@ from .db import Database, normalize_code
 from .util import header_shape, parse_user_agent, route_of, sign, unsign
 
 #: Version of the participant-facing layout, stored with every session (DESIGN.md §10)
-UI_VERSION = "2026-10-16"
+UI_VERSION = "2026-10-16.2"
 
 COOKIE = "study_sid"
 LANG_COOKIE = "study_lang"
