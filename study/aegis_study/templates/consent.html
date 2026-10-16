@@ -20,7 +20,7 @@
       {% endif %}
 
       {# Ticket: made here by the participant, or handed out by the researcher #}
-      <h2>{{ t('ticket_title') }}</h2>
+      <h2 id="ticket">{{ t('ticket_title') }}</h2>
       {% if ticket %}
       <div class="ticket" role="status" data-study="ticket">
         <span class="ticket-label">{{ t('ticket_yours') }}</span>
@@ -30,7 +30,7 @@
       {% elif self_tickets %}
       <p class="muted">{{ t('ticket_none') }}</p>
       <div class="actions ticket-actions">
-        <button class="secondary" formaction="/ticket" formnovalidate data-study="make-ticket">{{ t('ticket_make') }}</button>
+        <button class="secondary" formaction="/ticket#ticket" formnovalidate data-study="make-ticket">{{ t('ticket_make') }}</button>
       </div>
       {% endif %}
       <div class="code-field">

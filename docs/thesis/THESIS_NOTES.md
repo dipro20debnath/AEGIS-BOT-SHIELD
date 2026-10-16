@@ -1003,6 +1003,55 @@ Tests: `pytest study/tests` 23 passed. The e2e test passed, with a new browser t
 flow on a phone viewport. Bots: Playwright fast and human, Puppeteer stealth, and the requests forger
 all completed 6/6.
 
+### 2.17 More animation outside the shop (2026-10-16, `UI_VERSION 2026-10-16.2`)
+
+The following animations were added, only on pages outside the shop, and only to text and decoration:
+- the landing hero now draws what the study measures (a person's curved, uneven pointer path vs a
+  script's straight, constant one);
+- the headline appears word by word;
+- the ticket prints like a typewriter;
+- the done page has a halo and a burst.
+
+The task pages are unchanged. "Make my ticket" now jumps back to the ticket (`#ticket`), so the
+participant does not land at the top of the long consent page. Checked again with pytest, the e2e test
+and the bots.
+
+### 2.18 Analysis pipeline for the real study data (2026-10-16)
+
+The thesis results now come from one command once the data are exported:
+`python scripts/study_analysis.py --export <dataset> --out docs/thesis/results/study`
+(code in `aegis_ml/evaluation/study.py`).
+
+**Method:**
+- One row is the final telemetry report of a page view.
+- Folds are split **by participant** (StratifiedGroupKFold).
+- 95% CIs come from a **cluster bootstrap**: participants, not rows, are resampled within each class.
+- Recall is measured at the threshold that flags at most 2% of human page views.
+
+**Reported for three subsets:** all data, researcher-issued codes only (self-made tickets excluded,
+§2.16), and without human sessions flagged in the closing survey.
+
+**Also reported:**
+- the live AEGIS score recorded during the study, i.e. how well training on synthetic data
+  transfers to real data;
+- a feature-group ablation;
+- leave-one-bot-tool-out (unseen automation);
+- time to detection from the 15-second snapshots, with a session-level human false-alarm rate;
+- sample-size warnings (fewer than 30 humans, fewer than 3 runs per bot tool).
+
+**Why grouping matters (a test shows it):** take 40 people whose labels are random but whose rows
+share a personal pattern. Row-wise 5-fold CV gives AUC > 0.9, because the model memorises people.
+Participant-grouped CV gives < 0.75, correctly showing there is nothing to learn. A row split on the
+real data would overstate accuracy in the same way.
+
+**Dry run on a simulated export:** 40 humans and 30 bot runs (6 per synthetic type), 8 page views
+each, takes about 50 s. These numbers are not results. They only show the pipeline and the report
+format work, and how much the CIs widen when the `researcher_codes` subset drops 18 of 40 humans.
+That widening is a reminder to recruit enough invited participants.
+
+**Checked on a real export:** the study bots' export (5 runs) loads correctly: 50 feature columns,
+37 non-zero for bots, live scores present. With no humans the tool stops with a clear message.
+
 ## 3. Contributions — what can honestly be claimed
 
 | Claim | Status |
@@ -1159,8 +1208,10 @@ mean 1.27 ms · p50 1.24 ms · p95 1.66 ms · p99 2.77 ms (target < 5 ms ✔)
 - [ ] Ethics/IRB submission (needs supervisor signature) — planned Oct 21; drafts in `docs/thesis/irb/`
 - [x] Data-collection website + logging endpoint; consent forms EN + BN (§2.14, `study/`)
 - [x] Bot scripts: requests (3 modes), Scrapy, Selenium, Puppeteer-stealth, Playwright stealth + human-like (§2.13). Residential proxy not included (needs a paid proxy service)
-- [ ] Re-run §5 on real data; report 95% confidence intervals (bootstrap) for FPR and recall
-- [ ] Compare against baselines: rule-based, single XGBoost, RF, LR
+- [ ] Re-run §5 on real data; report 95% confidence intervals (bootstrap) for FPR and recall. **Pipeline ready**
+  (§2.18): `packages/ml-engine/scripts/study_analysis.py --export <dataset>`. Only the data is missing.
+- [ ] Compare against baselines: rule-based, single XGBoost, RF, LR. LR, RF, XGBoost, the ensemble and the live
+  score are compared in the same report.
 - [ ] Literature search for "novel" claims (§3)
 - [x] Remove stale duplicate files (see §4, packaging) — done 2026-10-02
 
