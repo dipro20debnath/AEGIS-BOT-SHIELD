@@ -1,7 +1,7 @@
 """Bangla and English text of the study site.
 
 The information sheet itself is not duplicated here: the consent page renders
-docs/thesis/irb/consent_<lang>.md (the text the ethics committee approves),
+docs/thesis/irb/consent_<lang>.md (the information sheet participants agree to),
 up to its "Consent" section. The checkboxes below must say the same as that
 section.
 """
@@ -49,7 +49,7 @@ TEXT: Dict[str, Dict[str, str]] = {
         "choose_lang": "Choose a language",
         "consent_title": "Information and consent",
         "draft_warning": "DRAFT: this information sheet still has unfilled fields. Do not use it with participants "
-                         "before the ethics committee has approved it.",
+                         "until they are filled in.",
         "consent_read": "I have read the information above and could ask questions.",
         "consent_aggregate": "I understand that summary numbers about how I use this website are recorded, "
                              "not what I type.",
@@ -160,7 +160,7 @@ TEXT: Dict[str, Dict[str, str]] = {
                                 "সময় লাগবে প্রায় ১০–১৫ মিনিট। গবেষকের দেওয়া স্টাডি কোড লাগবে।",
         "choose_lang": "ভাষা বেছে নিন",
         "consent_title": "তথ্য ও সম্মতি",
-        "draft_warning": "খসড়া: এই তথ্যপত্রের কিছু ঘর এখনো পূরণ হয়নি। নৈতিকতা কমিটির অনুমোদনের আগে "
+        "draft_warning": "খসড়া: এই তথ্যপত্রের কিছু ঘর এখনো পূরণ হয়নি। সব ঘর পূরণ না হওয়া পর্যন্ত "
                          "অংশগ্রহণকারীদের সাথে এটি ব্যবহার করবেন না।",
         "consent_read": "আমি উপরের তথ্য পড়েছি এবং প্রশ্ন করার সুযোগ পেয়েছি।",
         "consent_aggregate": "আমি বুঝেছি যে এই ওয়েবসাইট ব্যবহারের সারসংক্ষেপ সংখ্যা রেকর্ড হবে, "

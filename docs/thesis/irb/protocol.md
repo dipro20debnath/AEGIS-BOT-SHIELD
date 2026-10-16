@@ -1,8 +1,9 @@
-# Research Protocol (draft for the Ethics Committee)
+# Research Protocol
 
-> Draft prepared from the project's code and plan. Fields in **[brackets]** must be
-> completed by the researcher. Adapt the headings to Metropolitan University's own
-> ethics application form if it prescribes one.
+> How the human study is run and how participants' data are protected. No ethics committee
+> review applies to this B.Sc. thesis at Metropolitan University (2026-10-16). The study still
+> follows the same safeguards: informed consent, data minimisation, the right to withdraw and a
+> fixed retention period. Fields in **[brackets]** are filled in when the website is deployed.
 
 ## 1. Study details
 
@@ -10,9 +11,8 @@
 |------|-------|
 | Title | AEGIS BOT SHIELD: Distinguishing Human and Automated Web Traffic with Behavioural and Network Signals |
 | Principal investigator | Dipro Debnath, B.Sc. CSE student, Metropolitan University, Sylhet |
-| Supervisor | Rishad Amin Pulok, Lecturer, Department of CSE |
-| Contact | **[student e-mail and phone]** |
-| Planned period | Data collection **[start date, after approval]** – **[end date]** (about two weeks) |
+| Contact | diprodebnath200@gmail.com, 01765653786 |
+| Planned period | Data collection for about two weeks, starting when the website is deployed |
 | Funding | None |
 
 ## 2. Purpose
@@ -33,9 +33,8 @@ be submitted to a conference.
 - **Devices:** both computer and phone users are invited, so that results are not limited to one kind
   of device. The device used is recorded (section 5).
 - **Recruitment:** voluntary invitation to students and acquaintances (notice in
-  class / message). No pressure, no academic credit or grade effect, no payment
-  **[or state any small token of appreciation]**. Students taught by the supervisor
-  are told explicitly that participation has no effect on their marks.
+  class / message). No pressure, no academic credit or grade effect, no payment.
+  Participants are told explicitly that participation has no effect on their marks.
 
 ## 4. Procedure (about 10–15 minutes per participant)
 
@@ -57,8 +56,8 @@ own computer or phone.
    information sheet (`consent_bn.md` / `consent_en.md`, shown word for word)
    and give consent by ticking four required boxes. One **optional** box covers
    raw timing events (section 5). **Nothing about their behaviour is recorded
-   before consent.** **[If the committee requires a signature: the participant
-   also signs the paper form, which carries the study code.]**
+   before consent.** A paper form with a signature can be used
+   in addition, for participants met in person; it carries the study code.
 3. A short survey with fixed answer options, all optional: age group, device,
    pointing device, how often they use a browser, keyboard language, hand.
 4. Six ordinary tasks in the test shop, shown one at a time in a bar at the top
@@ -142,13 +141,12 @@ software itself. In summary:
 
 | Risk | Level | Mitigation |
 |------|-------|------------|
-| Re-identification from behaviour data | Low | Summary numbers by default. Raw timings only with separate opt-in, without key identities or text. Data are pseudonymous: the exported dataset uses a salted hash of the study code, and the code list is kept apart from the data. No IP addresses. The dataset is not published in raw form without the committee's approval |
+| Re-identification from behaviour data | Low | Summary numbers by default. Raw timings only with separate opt-in, without key identities or text. Data are pseudonymous: the exported dataset uses a salted hash of the study code, and the code list is kept apart from the data. No IP addresses. The raw dataset is not published |
 | Exposure of personal data or credentials | Very low | Dummy accounts and invented delivery details are shown on screen; participants are told not to enter real data. Typed form contents are checked and discarded, never stored |
 | Discomfort / time | Minimal | 10–15 min; every task can be skipped; participants can stop at any time without giving a reason |
 | Data breach | Low | HTTPS only; no admin web interface; no access logs; server access limited to the researcher; encrypted copies off the server; server deleted after data collection |
 
-No deception is used. The study is believed to be **minimal risk**; the
-researcher requests **[expedited/exempt]** review if the committee's rules allow it.
+No deception is used. The study is believed to be **minimal risk**.
 
 ## 7. Confidentiality and storage
 
@@ -164,18 +162,17 @@ researcher requests **[expedited/exempt]** review if the committee's rules allow
   - Daily backups stay on the same server.
 - **After data collection:**
   - The dataset is exported, and stored on an encrypted drive and in a private
-    repository accessible only to the researcher and supervisor.
+    repository accessible only to the researcher (and the thesis supervisor, once assigned).
   - The server, with its backups, is deleted.
 - **Publication:** results are published only as aggregate statistics. No
   individual session is identifiable.
-- **Retention:** the dataset is kept until **[thesis defence + publication, e.g.
-  2 years, or per university policy]**, then deleted. The code key list is
+- **Retention:** the data are kept for **6 months** after data collection ends, then deleted. The code key list is
   destroyed when the withdrawal period has ended.
 
 ## 8. Voluntary participation and withdrawal
 
 Participation is voluntary. A participant can stop at any time by closing the
-website. They can also withdraw within **[e.g. 2 weeks]** afterwards by giving
+website. They can also withdraw within **2 weeks** afterwards by giving
 their study code. All of their records are then deleted from the server (and
 from any export), using the study software's `withdraw` command. Withdrawal
 has no consequence.
@@ -195,7 +192,7 @@ from automated abuse.
 | # | File | Shows |
 |---|------|-------|
 | 1 | [`01_landing.png`](screenshots/01_landing.png) | Start page: purpose in one sentence, language choice (Bangla / English) |
-| 2 | [`02_consent_bn.png`](screenshots/02_consent_bn.png) | Information sheet in Bangla (shown word for word from `consent_bn.md`), the four required consent boxes, the optional raw-timing box, the "make my ticket" button and the study code field. The yellow DRAFT notice appears until the placeholders are filled in |
+| 2 | [`02_consent_bn.png`](screenshots/02_consent_bn.png) | Information sheet in Bangla (shown word for word from `consent_bn.md`), the four required consent boxes, the optional raw-timing box, the "make my ticket" button and the study code field.|
 | 3 | [`03_consent_en.png`](screenshots/03_consent_en.png) | The same page in English (`consent_en.md`) |
 | 4 | [`04_survey_before.png`](screenshots/04_survey_before.png) | Survey before the tasks: fixed options, every question optional ("Prefer not to say") |
 | 5 | [`05_task1_login.png`](screenshots/05_task1_login.png) | Task 1: the dark bar at the top shows the task and the dummy username and password; every task has a "Skip this task" button |
@@ -210,4 +207,4 @@ from automated abuse.
 | 14 | [`14_phone_task1_login.png`](screenshots/14_phone_task1_login.png) | A task page on a phone |
 | 15 | [`15_phone_ticket_bn.png`](screenshots/15_phone_ticket_bn.png) | A participant without a code made their own ticket: shown large, filled in, with the note to keep it for withdrawal |
 
-The consent pages carry a yellow DRAFT notice until the placeholders in the information sheets are filled in. Re-take the screenshots afterwards with `node docs/thesis/irb/screenshots/capture.mjs`.
+The consent pages showed a yellow DRAFT notice while the information sheets had unfilled fields; they are filled in since 2026-10-16. Re-take the screenshots afterwards with `node docs/thesis/irb/screenshots/capture.mjs`.

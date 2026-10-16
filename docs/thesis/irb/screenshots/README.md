@@ -12,7 +12,7 @@ Start page: purpose in one sentence, language choice (Bangla / English).
 
 ## 2. Consent (Bangla)
 
-Information sheet in Bangla (shown word for word from `consent_bn.md`), the four required consent boxes, the optional raw-timing box and the study code field. The yellow DRAFT notice appears until the placeholders are filled in.
+Information sheet in Bangla (shown word for word from `consent_bn.md`), the four required consent boxes, the optional raw-timing box and the study code field.
 
 ![Consent (Bangla)](02_consent_bn.png)
 
