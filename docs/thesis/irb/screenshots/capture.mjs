@@ -109,6 +109,15 @@ try {
   await Promise.all([phone.waitForURL('**/shop/login'), phone.click('[data-study=survey-next]')]);
   await shot(phone, '14_phone_task1_login');
 
+  // Phone size: a participant without a code makes their own ticket
+  const self = await (await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce' })).newPage();
+  await self.goto(BASE + '/consent?lang=bn');
+  for (const box of ['c_read', 'c_aggregate', 'c_withdraw', 'c_age']) await self.check(`input[name=${box}]`);
+  await self.click('[data-study=make-ticket]');
+  await self.locator('[data-study=ticket]').scrollIntoViewIfNeeded();
+  await self.evaluate(() => window.scrollBy(0, -120));
+  await shot(self, '15_phone_ticket_bn');
+
   await browser.close();
 } finally {
   server.kill();

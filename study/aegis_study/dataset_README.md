@@ -20,9 +20,13 @@ SHA-256 for every file.
 
 ## Labels
 
-`label` is `human` (study code `H-…`, given to a consenting participant) or
+`label` is `human` (study code `H-…`, used by a consenting participant) or
 `bot` (code `B-…`, used by the researcher's bot scripts; `bot_tool` and
-`bot_config` say which). Possible label noise on the human side shows in
+`bot_config` say which). `code_source` says where a code came from:
+`researcher` (handed out to an invited person) or `self` (a ticket the
+participant made on the consent page). Self-made tickets are not checked
+against an invitation list, so anyone who reached the site could make one:
+report results also on `researcher` codes only. Possible label noise on the human side shows in
 `post_autofill`, `post_tools`, `post_assistive` and `post_interrupted`. Report
 results with and without those sessions.
 
@@ -37,6 +41,8 @@ challenge ≥ 50).
 | Column | Meaning |
 |---|---|
 | session_id, participant, label, bot_tool, bot_config | identity and ground truth |
+| code_source | `researcher` (code handed out) or `self` (ticket made on the consent page) |
+| ui_version | layout version of the site for this session |
 | session_no | 1 = first session with this code |
 | lang | `bn` or `en` |
 | consent_version, raw_consent | which information sheet was agreed to; 1 = raw timings recorded |

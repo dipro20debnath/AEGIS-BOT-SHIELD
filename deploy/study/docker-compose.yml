@@ -14,6 +14,8 @@ services:
     environment:
       AEGIS_SECRET_KEY: ${AEGIS_SECRET_KEY:?set AEGIS_SECRET_KEY in .env (at least 32 random characters)}
       STUDY_RAW_EVENTS: ${STUDY_RAW_EVENTS:-true}
+      # Participants may make their own ticket on the consent page (false = researcher codes only)
+      STUDY_SELF_TICKETS: ${STUDY_SELF_TICKETS:-true}
     volumes:
       - study-data:/data
     restart: unless-stopped
