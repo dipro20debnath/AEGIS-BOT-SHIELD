@@ -344,3 +344,13 @@ td a { color: var(--color-dominant); font-weight: 600; }
 .how h2, .section-title { margin: 0; font: 800 var(--size-heading)/1.15 var(--font-display); }
 .rail-title { font-weight: 600; margin-bottom: var(--space-1); }
 .rail-note { margin-top: var(--space-2); }
+
+/* Self-made ticket on the consent page */
+.ticket { display: grid; gap: var(--space-1); margin: var(--space-2) 0; padding: var(--space-3);
+          background: var(--color-dominant); color: var(--color-paper); border-left: 4px solid var(--color-accent); }
+.ticket-label { color: rgba(246, 244, 238, 0.72); }
+.ticket-code { font: 700 clamp(32px, 9vw, 48px)/1.15 var(--font-mono); letter-spacing: .06em; color: var(--color-accent);
+               white-space: nowrap; }
+.ticket-note { display: flex; gap: var(--space-1); align-items: flex-start; }
+.ticket-note svg { margin-top: 5px; color: var(--color-status-monitor); }
+.ticket-actions { margin-top: var(--space-1); }

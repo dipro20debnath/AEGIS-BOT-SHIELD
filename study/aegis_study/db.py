@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS codes (
     kind        TEXT NOT NULL CHECK (kind IN ('human', 'bot')),
     bot_tool    TEXT,              -- e.g. playwright-human (bots only)
     bot_config  TEXT,              -- JSON, e.g. speed and jitter settings (bots only)
-    created     REAL NOT NULL
+    created     REAL NOT NULL,
+    source      TEXT NOT NULL DEFAULT 'researcher'  -- researcher (handed out) | self (made on the consent page)
 );
 CREATE TABLE IF NOT EXISTS sessions (
     id              TEXT PRIMARY KEY,   -- random, also the study cookie value (signed)
@@ -132,6 +133,10 @@ class Database:
         self._conn.execute("PRAGMA synchronous=NORMAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.executescript(SCHEMA)
+        # Databases created before self-made tickets existed lack codes.source
+        columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(codes)")}
+        if "source" not in columns:
+            self._conn.execute("ALTER TABLE codes ADD COLUMN source TEXT NOT NULL DEFAULT 'researcher'")
 
     def close(self) -> None:
         with self._lock:
@@ -152,18 +157,21 @@ class Database:
     # -- codes -------------------------------------------------------------
 
     def create_codes(self, kind: str, count: int, bot_tool: Optional[str] = None,
-                     bot_config: Optional[Dict[str, Any]] = None) -> List[str]:
+                     bot_config: Optional[Dict[str, Any]] = None, source: str = "researcher") -> List[str]:
         if kind not in ("human", "bot"):
             raise ValueError("kind must be human or bot")
+        if source not in ("researcher", "self"):
+            raise ValueError("source must be researcher or self")
         if kind == "bot" and not bot_tool:
             raise ValueError("bot codes need a bot tool name")
         codes = []
         while len(codes) < count:
             code = new_code(kind)
             try:
-                self._exec("INSERT INTO codes VALUES (?, ?, ?, ?, ?)",
+                self._exec("INSERT INTO codes (code, kind, bot_tool, bot_config, created, source)"
+                           " VALUES (?, ?, ?, ?, ?, ?)",
                            (code, kind, bot_tool if kind == "bot" else None,
-                            json.dumps(bot_config) if bot_config else None, time.time()))
+                            json.dumps(bot_config) if bot_config else None, time.time(), source))
                 codes.append(code)
             except sqlite3.IntegrityError:
                 continue  # collision, draw again
@@ -171,6 +179,10 @@ class Database:
 
     def get_code(self, code: str) -> Optional[sqlite3.Row]:
         return self._one("SELECT * FROM codes WHERE code = ?", (code,))
+
+    def self_codes_since(self, since: float) -> int:
+        row = self._one("SELECT COUNT(*) FROM codes WHERE source = 'self' AND created >= ?", (since,))
+        return row[0] if row else 0
 
     # -- sessions ----------------------------------------------------------
 
@@ -273,7 +285,8 @@ class Database:
             return row[0] if row else None
 
         return {
-            "codes": {r["kind"]: r["n"] for r in self._all("SELECT kind, COUNT(*) AS n FROM codes GROUP BY kind")},
+            "codes": {f"{r['kind']}/{r['source']}": r["n"] for r in self._all(
+                "SELECT kind, source, COUNT(*) AS n FROM codes GROUP BY kind, source")},
             "sessions": {f"{r['kind']}/{r['status']}": r["n"] for r in self._all(
                 "SELECT c.kind, s.status, COUNT(*) AS n FROM sessions s JOIN codes c ON c.code = s.code"
                 " GROUP BY c.kind, s.status")},

@@ -93,6 +93,8 @@ def export(db: Database, out_dir: str, secret: str, parquet: bool = True) -> Dic
             "session_id": s["id"], "participant": pid, "label": label,
             "bot_tool": code["bot_tool"] if code else None,
             "bot_config": json.loads(code["bot_config"]) if code and code["bot_config"] else None,
+            # researcher = code handed out; self = ticket made on the consent page (not invitation-checked)
+            "code_source": code["source"] if code else None,
             "session_no": s["session_no"], "lang": s["lang"], "consent_version": s["consent_version"],
             "ui_version": json.loads(s["params"]).get("ui_version"),
             "raw_consent": s["raw_consent"], "status": s["status"],
