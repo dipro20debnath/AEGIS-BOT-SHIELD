@@ -15,12 +15,13 @@
   <link rel="stylesheet" href="/static/study.css">
 </head>
 {# Behaviour is recorded only after consent, i.e. only when there is a study session #}
-<body {% if session %}data-site-key="{{ site_key }}"{% endif %}>
+{# in-shop: the task pages, where nothing moves (DESIGN.md §10); in-flow: every other page #}
+<body class="{{ 'in-shop' if step == 3 else 'in-flow' }}" {% if session %}data-site-key="{{ site_key }}"{% endif %}>
 <header class="masthead">
   <div class="wrap">
     <a class="brand" href="{{ '/shop' if step == 3 else '/' }}" data-study="brand">{{ icon.shield() }}AEGIS</a>
     <ol class="steps" aria-label="{{ t('step_of', n=step, total=steps|length) }}">
-      {% for s in steps %}<li class="{{ 'done' if loop.index < step else ('now' if loop.index == step else '') }}"{% if loop.index == step %} aria-current="step"{% endif %}>{{ s }}</li>{% endfor %}
+      {% for s in steps %}<li class="{{ 'done' if loop.index < step else ('now' if loop.index == step else '') }}" style="--i:{{ loop.index }}"{% if loop.index == step %} aria-current="step"{% endif %}>{{ s }}</li>{% endfor %}
     </ol>
     <div class="steps-compact" aria-hidden="true">
       <span class="meta">{{ step }}/{{ steps|length }}</span>
