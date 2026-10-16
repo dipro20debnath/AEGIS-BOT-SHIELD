@@ -1,18 +1,23 @@
 {% extends "shop_base.html" %}
 {% block content %}
-<div class="card">
-  <div class="product" style="border:0;padding:0">
-    <div class="img" style="height:180px">{{ categories[product.category] }}</div>
+<div class="pd">
+  <div class="visual" aria-hidden="true">{{ product.name[0] }}</div>
+  <div>
+    <p class="muted"><a href="/shop/category/{{ product.category }}">{{ categories[product.category] }}</a></p>
+    <h1>{{ product.name }}</h1>
+    <div class="figure">
+      <span class="price">৳ {{ "{:,}".format(product.price) }}</span>
+      <span><span class="stars">★ {{ "%.1f"|format(product.rating) }}</span>
+        <span class="muted">({{ product.reviews }} {{ t('reviews') }})</span></span>
+    </div>
+    {% if added %}<p class="notice" role="status">{{ icon.check() }}{{ t('added') }}</p>{% endif %}
+    <div class="actions">
+      <form method="post" action="/shop/cart/add">
+        <input type="hidden" name="product_id" value="{{ product.id }}">
+        <button class="primary" data-study="add-to-cart">{{ icon.cart() }}{{ t('add_to_cart') }}</button>
+      </form>
+      <a class="btn secondary" href="/shop/review/{{ product.id }}" data-study="write-review">{{ t('review_title') }}</a>
+    </div>
   </div>
-  <h1>{{ product.name }}</h1>
-  <p><span class="price">৳ {{ "{:,}".format(product.price) }}</span> ·
-     <span class="stars">★ {{ "%.1f"|format(product.rating) }}</span>
-     <span class="muted">({{ product.reviews }} {{ t('reviews') }})</span></p>
-  {% if added %}<p class="notice">{{ t('added') }}</p>{% endif %}
-  <form method="post" action="/shop/cart/add" style="display:inline">
-    <input type="hidden" name="product_id" value="{{ product.id }}">
-    <button data-study="add-to-cart">{{ t('add_to_cart') }}</button>
-  </form>
-  <a class="btn secondary" href="/shop/review/{{ product.id }}" data-study="write-review">{{ t('review_title') }}</a>
 </div>
 {% endblock %}
