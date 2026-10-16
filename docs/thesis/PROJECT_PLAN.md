@@ -15,7 +15,7 @@
 | B | B4 QUICFingerprinter (Initial-packet parser, real Chromium/aioquic fixtures, pcap CLI) | Done |
 | B | B5 Docker for all services + docker-compose, Checkpoint B | Done (Checkpoint B verified) |
 | C | SHAP, model comparison, LSTM/CNN on trajectories, publication plots | Done (PR #8, merged) |
-| — | **IRB final + submit (supervisor signature)** | **Oct 20–21 (student)** |
+| — | ~~IRB submission~~ | Not required (2026-10-16) |
 | D | Redis, WebSocket, GraphQL, Cloudflare Worker edge, load tests | Done (PR #9, merged) |
 | E | OpenAPI contract + Swagger UI, security whitepaper, reference docs, npm/PyPI readiness | Done (THESIS_NOTES §2.12) |
 | F | Self pen-test bots, memory bounds, Prometheus + probes, Helm chart tested on kind, v1.0.0 prepared | Done (THESIS_NOTES §2.13); tag/release after merge, with the student's permission |
@@ -133,7 +133,7 @@ Commit নিয়ম: author `dipro20debnath <dipro20debnath@users.noreply.git
 - **Model comparison:** XGBoost vs RF vs LR vs Ensemble একই CV split-এ; `TrainingPipeline`-এ যোগ (`_out_of_fold_probs` আর `run_group_ablation`-এর pattern পুনর্ব্যবহার)।
 - **Deep model:** mouse trajectory sequence-এর উপর 1D-CNN/LSTM (torch আগেই dependency)। এর জন্য synthetic generator-এ raw trajectory sample লাগবে; `MouseAnalysis.samples` ফরম্যাট মেনে।
 - **Publication plots:** ROC/PR একসাথে, CI band, ৩০০ dpi PDF; `scripts/thesis_experiment.py`-তে।
-- **২০–২১ অক্টোবর:** IRB packet চূড়ান্ত, supervisor-এর সই → **২১ অক্টোবর IRB জমা।**
+- ~~২০–২১ অক্টোবর: IRB জমা~~ — দরকার নেই (১৬ অক্টোবর)। Consent form সম্পূর্ণ।
 
 ---
 
@@ -183,6 +183,6 @@ Commit নিয়ম: author `dipro20debnath <dipro20debnath@users.noreply.git
 5. `THESIS_NOTES.md`-এ সংখ্যা ও সিদ্ধান্ত লেখা।
 
 ## আপনার নিজের করতে হবে (আমি পারব না)
-- ২১ অক্টোবর IRB জমা + supervisor-এর সই
+- ~~IRB জমা~~ — দরকার নেই
 - AbuseIPDB API key (ঐচ্ছিক), Cloudflare account (edge deploy-এর জন্য), VPS
 - v1.0.0 release আর npm/PyPI publish-এর অনুমতি

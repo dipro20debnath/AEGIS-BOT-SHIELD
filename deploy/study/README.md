@@ -9,8 +9,9 @@ export, withdrawal, bots) is described in [`study/README.md`](../../study/README
 - **Size:** Ubuntu 22.04 or 24.04, 2 GB RAM, 1–2 vCPU, 25 GB disk.
   - The image includes the ML model.
   - The study database stays small: estimated well under 5 MB per participant with raw events (gzip-compressed batches). Check this after the pilot.
-- **Region:** where the ethics approval says the data may be stored (see the
-  protocol, §7). Decide this **before** submitting to the ethics committee.
+- **Region:** where the data are stored (see the protocol, §7). A region near Bangladesh
+  (e.g. Singapore) keeps the site fast for participants. Write the provider and region into the
+  protocol, §7.
 - **Domain:** create an A record (e.g. `study.example.com`) pointing to the server's IP.
 - **Firewall:** open ports 22, 80 and 443 only.
 
@@ -25,10 +26,9 @@ git clone https://github.com/dipro20debnath/AEGIS-BOT-SHIELD.git && cd AEGIS-BOT
 ## 3. Fill in the information sheets
 
 `docs/thesis/irb/consent_en.md` and `consent_bn.md` are shown to participants
-exactly as written (up to their "Consent" section). Replace every
-`[placeholder]` with the approved text: contacts, retention period,
-withdrawal period, ethics committee. Until then, the site shows a "DRAFT"
-warning on the consent page.
+exactly as written (up to their "Consent" section). They are complete (contact, 6-month
+retention, 2-week withdrawal period). If a `[placeholder]` is ever added back, the site shows
+a "DRAFT" warning on the consent page and `python -m aegis_study check` reports it.
 
 ## 4. Configure and start
 

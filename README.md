@@ -17,7 +17,7 @@ session patterns, injection payloads) and a machine-learning model. It then
 decides per request: **allow, monitor, challenge or block**.
 
 > **Project status:** research software, built for a B.Sc. thesis at Metropolitan
-> University, Sylhet (supervisor: Rishad Amin Pulok). It works end to end and is
+> University, Sylhet. It works end to end and is
 > tested in CI, but it has **not** been run in production or evaluated on real
 > traffic yet. The ML model is currently trained on **synthetic** data; real
 > human/bot data collection is planned for November 2026. Packages are **not
@@ -935,8 +935,8 @@ option tables must list every option, and every relative link must resolve.
 - **[docs/thesis/PROJECT_PLAN.md](docs/thesis/PROJECT_PLAN.md):** phase plan and
   current status. Done: Phases A–F (F: self pen-test with bots, memory
   profiling and bounds, Prometheus metrics and probes, Helm chart tested on
-  kind, v1.0.0 preparation) and G (data-collection study site). Next: ethics
-  approval, then data collection on a VPS and the real-data experiments.
+  kind, v1.0.0 preparation) and G (data-collection study site). Next: data
+  collection on a VPS, then the real-data experiments (`packages/ml-engine/scripts/study_analysis.py`).
 - **[docs/thesis/THESIS_NOTES.md](docs/thesis/THESIS_NOTES.md):** every design
   decision, measurement, bug and limitation, with reasons.
 - **[docs/thesis/irb/](docs/thesis/irb/):** study protocol, consent forms
