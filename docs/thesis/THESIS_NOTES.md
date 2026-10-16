@@ -4,7 +4,7 @@
 > bug and result that may end up in the thesis is recorded here, newest first
 > inside each section.
 >
-> **Student:** Dipro Debnath · **Supervisor:** Rishad Amin Pulok (Lecturer, CSE, Metropolitan University)
+> **Student:** Dipro Debnath · **Supervisor:** to be assigned
 > **Semester:** Fall 2026 · **Last updated:** 2026-10-03
 
 ---
@@ -16,9 +16,9 @@
 | Thesis proposal (LaTeX) | Done — `docs/thesis_proposal.tex` |
 | ML pipeline runs end-to-end | Done (fixed 2026-10-02, see §4) |
 | Synthetic-data experiment | Done — `docs/thesis/results/synthetic/` |
-| Ethics / IRB application | **Submission planned Oct 21**; drafts ready in `docs/thesis/irb/` (protocol, consent EN+BN, data dictionary) — fill the [bracketed] fields, supervisor review |
-| Real human data (30–50 participants) | Nov 11–25, after IRB approval (see §0.1) |
-| Real bot traffic (5 tools) | Oct 22 – Nov 10 (no IRB needed, see §0.1) |
+| Ethics / IRB application | **Not required** (2026-10-16: no ethics committee review applies to this thesis). Informed consent, data minimisation, withdrawal and 6-month retention still apply; consent sheets EN+BN complete in `docs/thesis/irb/` |
+| Real human data (30–50 participants) | As soon as the study site is deployed on a VPS (see §0.1) |
+| Real bot traffic (5 tools) | Any time, against the deployed site (see §0.1) |
 | Phase D (Redis, live dashboard, GraphQL, edge worker, load test) | Done — §2.11, `docs/thesis/results/phase_d/` |
 | Phase E (OpenAPI contract, whitepaper, reference docs, release readiness) | Done — §2.12, `docs/`, `contracts/openapi.json` |
 | Results on real data | Not started |
@@ -57,9 +57,9 @@ it now runs in parallel with the analysis.
 | Dates | Work | Needs IRB? |
 |-------|------|-----------|
 | Oct 3–20 | Prepare IRB packet (protocol, consent EN+BN, data handling plan); build data-collection website + logging endpoint; write the 5 bot scripts | No |
-| **Oct 21** | **Submit IRB** (supervisor signature) | — |
+| ~~Oct 21~~ | ~~Submit IRB~~: not required (2026-10-16) | — |
 | Oct 22 – Nov 10 | Collect bot traffic against the test site; pilot the full pipeline on real bot data + synthetic humans; dry-run the website with the researcher only | No: no human participants |
-| ~Nov 4–11 | IRB approval expected | — |
+| ~~Nov 4–11~~ | ~~IRB approval~~: not required; human data collection can start once the site is deployed | — |
 | Nov 11–25 | Human data collection (target 30–50; minimum 30) | Yes |
 | Nov 20 – Dec 5 | Train/evaluate on real data, group ablation, bootstrap CIs; write Ch. 1–3 in parallel | — |
 | Dec 1–15 | Ch. 4–8 | — |
@@ -72,9 +72,9 @@ Risks:
   session where 10–15 people take part at once.
 - IEEE ICCIT (deadline est. Oct–Nov) cannot include real human data. Target
   ECCE (Nov–Dec) or ICIEV (Dec–Jan) for a paper with real results.
-- Ask the supervisor whether the study qualifies for expedited/exempt review
-  (minimal risk: anonymised timing data only, no keystroke content, no
-  screenshots); that could shorten approval.
+- No ethics review applies (2026-10-16). State this in the thesis method chapter, together with
+  the safeguards used (informed consent, pseudonymous codes, no typed content, 2-week withdrawal,
+  6-month retention). Some conferences ask about ethics approval: check before submitting a paper.
 
 ---
 
@@ -1205,7 +1205,7 @@ mean 1.27 ms · p50 1.24 ms · p95 1.66 ms · p99 2.77 ms (target < 5 ms ✔)
 
 ## 6. Open TODOs for the thesis
 
-- [ ] Ethics/IRB submission (needs supervisor signature) — planned Oct 21; drafts in `docs/thesis/irb/`
+- [x] Ethics/IRB submission: not required (2026-10-16). Consent sheets EN+BN completed (contact, 6-month retention)
 - [x] Data-collection website + logging endpoint; consent forms EN + BN (§2.14, `study/`)
 - [x] Bot scripts: requests (3 modes), Scrapy, Selenium, Puppeteer-stealth, Playwright stealth + human-like (§2.13). Residential proxy not included (needs a paid proxy service)
 - [ ] Re-run §5 on real data; report 95% confidence intervals (bootstrap) for FPR and recall. **Pipeline ready**
