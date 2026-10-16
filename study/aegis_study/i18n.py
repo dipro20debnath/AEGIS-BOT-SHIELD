@@ -30,9 +30,19 @@ TEXT: Dict[str, Dict[str, str]] = {
         "task_done_tick": "Task done",
         "step_of": "Step {n} of {total}",
         "col_product": "Product", "col_price": "Price", "done_code_label": "Your study code",
+        "ticket_title": "Your ticket",
+        "ticket_none": "No study code from the researcher? Make your own ticket here. It is random and does not contain your name.",
+        "ticket_make": "Make my ticket",
+        "ticket_yours": "Your ticket (study code)",
+        "ticket_keep": "Write it down or take a photo. You need it if you later want your data deleted. "
+                       "It is already filled in below.",
+        "ticket_limit": "Too many tickets were made from this connection. Please try again later or ask the researcher for a code.",
         "landing_title": "Help us tell people from bots",
         "landing_body": "This is a research website of Metropolitan University, Sylhet. "
-                        "It takes about 10–15 minutes. You need the study code the researcher gave you.",
+                        "It takes about 10–15 minutes. Use the study code the researcher gave you, "
+                        "or make your own ticket on the next page.",
+        "landing_body_invited": "This is a research website of Metropolitan University, Sylhet. "
+                                "It takes about 10–15 minutes. You need the study code the researcher gave you.",
         "choose_lang": "Choose a language",
         "consent_title": "Information and consent",
         "draft_warning": "DRAFT: this information sheet still has unfilled fields. Do not use it with participants "
@@ -129,9 +139,19 @@ TEXT: Dict[str, Dict[str, str]] = {
         "task_done_tick": "কাজ শেষ",
         "step_of": "ধাপ {n} / {total}",
         "col_product": "পণ্য", "col_price": "দাম", "done_code_label": "আপনার স্টাডি কোড",
+        "ticket_title": "আপনার টিকিট",
+        "ticket_none": "গবেষকের কাছ থেকে স্টাডি কোড পাননি? এখানে নিজের টিকিট তৈরি করুন। এটি এলোমেলো, এতে আপনার নাম থাকে না।",
+        "ticket_make": "আমার টিকিট তৈরি করুন",
+        "ticket_yours": "আপনার টিকিট (স্টাডি কোড)",
+        "ticket_keep": "এটি লিখে রাখুন বা ছবি তুলে রাখুন। পরে ডেটা মুছতে চাইলে এটি লাগবে। "
+                       "নিচের ঘরে এটি আগেই বসানো আছে।",
+        "ticket_limit": "এই সংযোগ থেকে অনেকগুলো টিকিট তৈরি হয়েছে। পরে আবার চেষ্টা করুন বা গবেষকের কাছ থেকে কোড নিন।",
         "landing_title": "মানুষ আর বট আলাদা করতে আমাদের সাহায্য করুন",
         "landing_body": "এটি মেট্রোপলিটন ইউনিভার্সিটি, সিলেটের একটি গবেষণা ওয়েবসাইট। "
-                        "সময় লাগবে প্রায় ১০–১৫ মিনিট। গবেষকের দেওয়া স্টাডি কোড লাগবে।",
+                        "সময় লাগবে প্রায় ১০–১৫ মিনিট। গবেষকের দেওয়া স্টাডি কোড ব্যবহার করুন, "
+                        "অথবা পরের পাতায় নিজের টিকিট তৈরি করুন।",
+        "landing_body_invited": "এটি মেট্রোপলিটন ইউনিভার্সিটি, সিলেটের একটি গবেষণা ওয়েবসাইট। "
+                                "সময় লাগবে প্রায় ১০–১৫ মিনিট। গবেষকের দেওয়া স্টাডি কোড লাগবে।",
         "choose_lang": "ভাষা বেছে নিন",
         "consent_title": "তথ্য ও সম্মতি",
         "draft_warning": "খসড়া: এই তথ্যপত্রের কিছু ঘর এখনো পূরণ হয়নি। নৈতিকতা কমিটির অনুমোদনের আগে "

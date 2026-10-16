@@ -2,6 +2,7 @@
 import csv
 import gzip
 import json
+import re
 import sqlite3
 
 from conftest import CONSENT, SECRET, UA, enrol, new_client
@@ -82,6 +83,71 @@ def test_consent_page_shows_the_irb_information_sheet_only():
 def raw_batch(seq=0, events=None):
     return json.dumps({"pv": "view-1", "s": seq, "o": 1.0, "p": "/shop/login",
                        "e": events or [["m", 1.0, 10, 20, 0], ["k", 2.0, "c", 1, "username", 0]]})
+
+
+def test_participants_can_make_their_own_ticket(app, db, tmp_path):
+    client = new_client(app)
+    page = client.get("/consent?lang=en").text
+    assert 'data-study="make-ticket"' in page and 'formnovalidate' in page
+    # Ticked boxes survive making the ticket
+    r = client.post("/ticket", data={"lang": "en", "c_read": "1", "c_age": "1"})
+    assert r.status_code == 200
+    ticket = re.search(r'data-study="ticket-code">(H-[A-Z0-9]{8})<', r.text).group(1)
+    assert f'value="{ticket}"' in r.text  # filled into the code field
+    assert re.search(r'name="c_read" value="1" required checked', r.text)
+    assert not re.search(r'name="c_aggregate" value="1" required checked', r.text)
+    row = db.get_code(ticket)
+    assert (row["kind"], row["source"]) == ("human", "self")
+    # Reloading or pressing again shows the same ticket instead of making another one
+    assert ticket in client.get("/consent?lang=en").text
+    client.post("/ticket", data={"lang": "en"})
+    assert db.self_codes_since(0) == 1
+    # The ticket starts the study like a handed-out code and is exported as self-made
+    enrol(client, ticket)
+    complete_all(client, db)
+    export(db, str(tmp_path / "out"), SECRET, parquet=False)
+    sessions = list(csv.DictReader(open(tmp_path / "out" / "sessions.csv")))
+    assert [(s["label"], s["code_source"]) for s in sessions] == [("human", "self")]
+
+
+def test_ticket_limits_and_switch(tmp_path):
+    from fastapi.testclient import TestClient
+    from aegis_study.app import create_app
+    from aegis_study.config import StudyConfig
+    limited = create_app(StudyConfig(db_path=str(tmp_path / "a.db"), secret_key=SECRET, tickets_per_client=2))
+    for _ in range(2):
+        assert new_client(limited).post("/ticket", data={"lang": "bn"}).status_code == 200  # new browser each time
+    r = new_client(limited).post("/ticket", data={"lang": "bn"})
+    assert r.status_code == 429 and 'data-study="ticket-code"' not in r.text
+    assert limited.state.study.db.self_codes_since(0) == 2
+    daily = create_app(StudyConfig(db_path=str(tmp_path / "b.db"), secret_key=SECRET, tickets_per_day=1))
+    assert new_client(daily).post("/ticket", data={"lang": "en"}).status_code == 200
+    assert new_client(daily).post("/ticket", data={"lang": "en"}).status_code == 429
+    off = create_app(StudyConfig(db_path=str(tmp_path / "c.db"), secret_key=SECRET, self_tickets=False))
+    client = TestClient(off)
+    assert client.post("/ticket", data={"lang": "en"}).status_code == 404
+    page = client.get("/consent?lang=en").text
+    assert "make-ticket" not in page and "the study code the researcher gave you" in page
+
+
+def test_forged_ticket_cookie_is_ignored(client, db):
+    client.cookies.set("study_ticket", "ticket:H-AAAAAAAA.0123456789abcdef01234567")
+    assert "H-AAAAAAAA" not in client.get("/consent?lang=en").text
+    assert db.self_codes_since(0) == 0
+
+
+def test_old_databases_get_the_code_source_column(tmp_path):
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE TABLE codes (code TEXT PRIMARY KEY, kind TEXT NOT NULL, bot_tool TEXT, "
+                 "bot_config TEXT, created REAL NOT NULL)")
+    conn.execute("INSERT INTO codes VALUES ('H-OLDCODE2', 'human', NULL, NULL, 1)")
+    conn.commit()
+    conn.close()
+    from aegis_study.db import Database
+    db = Database(str(path))
+    assert db.get_code("H-OLDCODE2")["source"] == "researcher"
+    assert db.create_codes("human", 1, source="self")[0].startswith("H-")
 
 
 def test_raw_events_need_the_optional_consent(app, db):
@@ -221,7 +287,7 @@ def test_cli_codes_and_stats(db, monkeypatch, capsys):
     codes = capsys.readouterr().out.split()
     assert len(codes) == 3 and all(c.startswith("B-") for c in codes)
     assert cli(["stats"]) == 0
-    assert json.loads(capsys.readouterr().out)["codes"] == {"bot": 3}
+    assert json.loads(capsys.readouterr().out)["codes"] == {"bot/researcher": 3}
 
 
 # -- helpers -----------------------------------------------------------------------------------

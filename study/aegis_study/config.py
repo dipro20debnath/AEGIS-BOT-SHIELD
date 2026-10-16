@@ -26,6 +26,12 @@ class StudyConfig:
     log_unlabelled: bool = True
     #: Wrong study-code attempts allowed per client address per 10 minutes
     code_attempts: int = 10
+    #: Let participants make their own human ticket (study code) on the consent page. Anyone who
+    #: reaches the site can then enter as "human", so share the link only with invited people.
+    self_tickets: bool = True
+    #: Tickets one client address may make per hour, and all self-made tickets per day
+    tickets_per_client: int = 3
+    tickets_per_day: int = 300
     consent_version: str = CONSENT_VERSION
     #: Path of the AEGIS SDK bundle on disk (packages/js-sdk/dist)
     sdk_dir: str = field(default_factory=lambda: os.path.join(
@@ -44,6 +50,9 @@ class StudyConfig:
             secure_cookies=flag("STUDY_SECURE_COOKIES", False),
             raw_events_enabled=flag("STUDY_RAW_EVENTS", True),
             log_unlabelled=flag("STUDY_LOG_UNLABELLED", True),
+            self_tickets=flag("STUDY_SELF_TICKETS", True),
+            tickets_per_client=int(os.getenv("STUDY_TICKETS_PER_CLIENT", "3")),
+            tickets_per_day=int(os.getenv("STUDY_TICKETS_PER_DAY", "300")),
         )
         if os.getenv("STUDY_SDK_DIR"):
             config.sdk_dir = os.environ["STUDY_SDK_DIR"]

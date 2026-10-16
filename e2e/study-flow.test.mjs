@@ -194,3 +194,21 @@ function csv(text) {
     return Object.fromEntries(cols.map((c, i) => [c, cells[i]]));
   });
 }
+
+test('a participant without a code makes a ticket on the consent page and starts with it', async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const page = await context.newPage();
+  await page.goto(BASE + '/consent?lang=bn');
+  await page.check('input[name=c_read]');
+  await page.check('input[name=c_age]');
+  // The required boxes must not block making the ticket
+  await page.click('[data-study=make-ticket]');
+  const ticket = (await page.locator('[data-study=ticket-code]').innerText()).trim();
+  assert.match(ticket, /^H-[A-Z0-9]{8}$/);
+  assert.equal(await page.inputValue('#code'), ticket);
+  assert.ok(await page.isChecked('input[name=c_read]') && await page.isChecked('input[name=c_age]'));
+  for (const box of ['c_aggregate', 'c_withdraw']) await page.check(`input[name=${box}]`);
+  await page.click('[data-study=start]');
+  await page.waitForURL('**/survey/pre');
+  await context.close();
+});

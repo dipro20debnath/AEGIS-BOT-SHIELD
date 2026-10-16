@@ -60,9 +60,10 @@ def build() -> str:
         "",
         "| Field | Content | Identifying? |",
         "|-------|---------|--------------|",
-        "| `code` | Study code given by the researcher (e.g. `H-7KQ2M9XA`). In the exported dataset it is replaced "
+        "| `code` | Study code (e.g. `H-7KQ2M9XA`): given by the researcher, or a random ticket the participant "
+        "made on the consent page; `source` says which. In the exported dataset it is replaced "
         "by a salted hash (`participant`) | Pseudonymous: linked to a name only through the researcher's "
-        "separate key list |",
+        "separate key list (self-made tickets are on no list) |",
         "| `session_no`, `started`, `finished`, `status` | Which session of this code, start/end time, completed or not | No |",
         "| `lang`, `consent_version`, `consent_at`, `raw_consent` | Language, version and time of the consent, "
         "whether the optional raw-timing box was ticked | No |",
