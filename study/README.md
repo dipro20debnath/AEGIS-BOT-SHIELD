@@ -88,6 +88,24 @@ Optional: `AEGIS_ML_MODEL_PATH=model.pkl` for live ML scores, and
 | `python -m aegis_study withdraw H-ABCD2345` | deletes every record of that code, then compacts the database file |
 | `python -m aegis_study backup --out backup.db` | consistent copy while the site runs |
 
+## After data collection: the thesis results
+
+```bash
+python -m aegis_study export --out dataset --no-parquet                  # in study/
+cd ../packages/ml-engine
+python scripts/study_analysis.py --export ../../study/dataset --out ../../docs/thesis/results/study
+```
+
+This writes `results.json`, `REPORT.md` and `roc_pr.png/.pdf`. The method:
+- folds are split by participant, and 95% CIs come from a cluster bootstrap over participants;
+- every result is computed on three subsets: all data, researcher-issued codes only, and without
+  flagged sessions;
+- the report also gives the live AEGIS score (how well training on synthetic data transfers), a
+  feature-group ablation, unseen bot tools, time to detection, and sample-size warnings.
+
+`--simulate` runs the same pipeline on a simulated export, to check the setup before real data
+exist. Those numbers are not results.
+
 ## Bot sessions
 
 Bots go through the **same** consent, survey and task flow, reading the task
