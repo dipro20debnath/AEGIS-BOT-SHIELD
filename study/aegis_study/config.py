@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 #: Bump when the information sheet or consent text changes; stored with every session.
-CONSENT_VERSION = "2026-10-25"
+CONSENT_VERSION = "2026-10-25.2"
 
 
 @dataclass
