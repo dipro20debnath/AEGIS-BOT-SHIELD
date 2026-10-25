@@ -26,8 +26,8 @@ git clone https://github.com/dipro20debnath/AEGIS-BOT-SHIELD.git && cd AEGIS-BOT
 ## 3. Fill in the information sheets
 
 `docs/thesis/irb/consent_en.md` and `consent_bn.md` are shown to participants
-exactly as written (up to their "Consent" section). They are complete (contact, 6-month
-retention, 2-week withdrawal period). If a `[placeholder]` is ever added back, the site shows
+exactly as written (up to their "Consent" section). They are complete (contact; data kept
+for research and deleted only on a participant's request, at any time). If a `[placeholder]` is ever added back, the site shows
 a "DRAFT" warning on the consent page and `python -m aegis_study check` reports it.
 
 ## 4. Configure and start
@@ -80,7 +80,7 @@ docker compose cp study:/data/dataset ./dataset
 
 1. Encrypt `dataset/` (e.g. a 7-Zip AES-256 archive) before it leaves the server.
 2. When the study is over, delete the server, including its volumes (`docker compose down -v`).
-3. Keep only the encrypted export, for the retention period in the protocol.
+3. Keep only the encrypted export. Delete a participant's data from it when they ask (protocol §7–8).
 
 ## Notes
 

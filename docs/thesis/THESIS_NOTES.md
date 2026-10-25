@@ -16,7 +16,7 @@
 | Thesis proposal (LaTeX) | Done — `docs/thesis_proposal.tex` |
 | ML pipeline runs end-to-end | Done (fixed 2026-10-02, see §4) |
 | Synthetic-data experiment | Done — `docs/thesis/results/synthetic/` |
-| Ethics / IRB application | **Not required** (2026-10-16: no ethics committee review applies to this thesis). Informed consent, data minimisation, withdrawal and 6-month retention still apply; consent sheets EN+BN complete in `docs/thesis/irb/` |
+| Ethics / IRB application | **Not required** (2026-10-16: no ethics committee review applies to this thesis). Informed consent, data minimisation and withdrawal at any time still apply (data kept for research, deleted only on request, since 2026-10-25); consent sheets EN+BN complete in `docs/thesis/irb/` |
 | Real human data (30–50 participants) | As soon as the study site is deployed on a VPS (see §0.1) |
 | Real bot traffic (5 tools) | Any time, against the deployed site (see §0.1) |
 | Phase D (Redis, live dashboard, GraphQL, edge worker, load test) | Done — §2.11, `docs/thesis/results/phase_d/` |
@@ -73,8 +73,8 @@ Risks:
 - IEEE ICCIT (deadline est. Oct–Nov) cannot include real human data. Target
   ECCE (Nov–Dec) or ICIEV (Dec–Jan) for a paper with real results.
 - No ethics review applies (2026-10-16). State this in the thesis method chapter, together with
-  the safeguards used (informed consent, pseudonymous codes, no typed content, 2-week withdrawal,
-  6-month retention). Some conferences ask about ethics approval: check before submitting a paper.
+  the safeguards used (informed consent, pseudonymous codes, no typed content, deletion at any time
+  on request). Some conferences ask about ethics approval: check before submitting a paper.
 
 ---
 
@@ -1205,7 +1205,7 @@ mean 1.27 ms · p50 1.24 ms · p95 1.66 ms · p99 2.77 ms (target < 5 ms ✔)
 
 ## 6. Open TODOs for the thesis
 
-- [x] Ethics/IRB submission: not required (2026-10-16). Consent sheets EN+BN completed (contact, 6-month retention)
+- [x] Ethics/IRB submission: not required (2026-10-16). Consent sheets EN+BN completed (contact; data deleted only on request)
 - [x] Data-collection website + logging endpoint; consent forms EN + BN (§2.14, `study/`)
 - [x] Bot scripts: requests (3 modes), Scrapy, Selenium, Puppeteer-stealth, Playwright stealth + human-like (§2.13). Residential proxy not included (needs a paid proxy service)
 - [ ] Re-run §5 on real data; report 95% confidence intervals (bootstrap) for FPR and recall. **Pipeline ready**

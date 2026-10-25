@@ -47,12 +47,13 @@ protecting websites from abuse.
 ## Confidentiality
 Your name is kept only on the researcher's separate list (and this form, if you
 sign it on paper), never together with the data. Results are reported only as
-group statistics. Data are stored securely for **6 months** and then deleted.
+group statistics. Data are stored securely and kept for research. They are deleted **only if you ask** for it.
 
 ## Voluntary participation
 Taking part is voluntary and does not affect your grades or any relationship
 with the university. You may stop at any time by closing the website, and you
-may ask to have your data deleted within **2 weeks** by quoting your study code.
+may ask **at any time** to have your data deleted by quoting your study code
+(results already published as group statistics cannot be changed).
 
 ## Questions or concerns
 Researcher: Dipro Debnath — diprodebnath200@gmail.com, phone 01765653786
