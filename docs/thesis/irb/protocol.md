@@ -3,7 +3,7 @@
 > How the human study is run and how participants' data are protected. No ethics committee
 > review applies to this B.Sc. thesis at Metropolitan University (2026-10-16). The study still
 > follows the same safeguards: informed consent, data minimisation, the right to withdraw and a
-> fixed retention period. Fields in **[brackets]** are filled in when the website is deployed.
+> clear rule for keeping and deleting data. Fields in **[brackets]** are filled in when the website is deployed.
 
 ## 1. Study details
 
@@ -166,14 +166,15 @@ No deception is used. The study is believed to be **minimal risk**.
   - The server, with its backups, is deleted.
 - **Publication:** results are published only as aggregate statistics. No
   individual session is identifiable.
-- **Retention:** the data are kept for **6 months** after data collection ends, then deleted. The code key list is
-  destroyed when the withdrawal period has ended.
+- **Retention:** the pseudonymous data are kept for research with no fixed end date. A participant's
+  data are deleted only when that participant asks. The code key list (researcher-issued codes only)
+  is kept apart from the data for as long as the data are kept.
 
 ## 8. Voluntary participation and withdrawal
 
 Participation is voluntary. A participant can stop at any time by closing the
-website. They can also withdraw within **2 weeks** afterwards by giving
-their study code. All of their records are then deleted from the server (and
+website. They can also withdraw **at any time** afterwards by giving
+their study code. Results already published as aggregate statistics cannot be changed. All of their records are then deleted from the server (and
 from any export), using the study software's `withdraw` command. Withdrawal
 has no consequence.
 
