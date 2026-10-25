@@ -1,7 +1,7 @@
 # Participant Information Sheet and Consent Form
 
 **Study:** AEGIS BOT SHIELD — Distinguishing Human and Automated Web Traffic
-**Researcher:** Dipro Debnath, B.Sc. CSE, Metropolitan University, Sylhet — diprodebnath200@gmail.com, 01765653786
+**Researcher:** Gobindo Debnath Dipro, B.Sc. CSE, Metropolitan University, Sylhet — diprodebnath200@gmail.com, 01765653786
 
 ## What is this study about?
 We are testing software that tells real people apart from automated programs
@@ -56,7 +56,7 @@ may ask **at any time** to have your data deleted by quoting your study code
 (results already published as group statistics cannot be changed).
 
 ## Questions or concerns
-Researcher: Dipro Debnath — diprodebnath200@gmail.com, phone 01765653786
+Researcher: Gobindo Debnath Dipro — diprodebnath200@gmail.com, phone 01765653786
 
 ---
 
