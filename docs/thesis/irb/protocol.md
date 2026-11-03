@@ -154,9 +154,11 @@ No deception is used. The study is believed to be **minimal risk**.
   researcher-issued codes) and any signed paper forms. They are kept by the researcher in a locked place or an
   encrypted file.
 - **Study server:**
-  - The data are stored in a database on the study server, hosted at
-    **[provider and region, e.g. a university server in Bangladesh / a cloud
-    server in Singapore]**.
+  - The data are stored in a database on the study server, a Microsoft Azure
+    virtual machine (Ubuntu 24.04) in the **Central India** region, reached over
+    HTTPS at `aegis-study.centralindia.cloudapp.azure.com`. It was set up on
+    3 November 2026 under a 30-day Azure free trial, so the data are exported
+    and the server is deleted before the trial ends (early December 2026).
   - Only the researcher can log in.
   - The web server writes no access logs.
   - Daily backups stay on the same server.
