@@ -12,7 +12,7 @@
 | Title | AEGIS BOT SHIELD: Distinguishing Human and Automated Web Traffic with Behavioural and Network Signals |
 | Principal investigator | Gobindo Debnath Dipro (ID 231-115-118), B.Sc. CSE student, Metropolitan University, Sylhet |
 | Contact | diprodebnath200@gmail.com, 01765653786 |
-| Supervisor | Md. Mahfujul Hasan, Associate Professor and Head, Dept. of CSE, Metropolitan University, Sylhet |
+| Supervisor | Md. Mahfujul Hasan, Associate Professor and Head, Dept. of CSE, Metropolitan University, Sylhet — mahfujul@metrouni.edu.bd |
 | Planned period | Data collection for about two weeks, starting when the website is deployed |
 | Funding | None |
 
