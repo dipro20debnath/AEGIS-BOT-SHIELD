@@ -313,6 +313,7 @@ const sha12 = (s: string) => createHash('sha256').update(s).digest('hex').slice(
 /**
  * JA4 TLS client fingerprint (FoxIO JA4 specification) with protocol "q" for QUIC:
  * q{version}{d|i}{#ciphers}{#extensions}{alpn first+last}_{sha256(sorted ciphers)[:12]}_{sha256(sorted extensions w/o SNI+ALPN "_" sig algs)[:12]}
+ * An ALPN value that starts or ends with a non-alphanumeric byte is written as the first and last hex digit of its bytes.
  */
 export function ja4(hello: ClientHello, protocol: 'q' | 't' = 'q'): string {
   const ciphers = hello.cipherSuites.filter(c => !isGrease(c));
@@ -321,7 +322,10 @@ export function ja4(hello: ClientHello, protocol: 'q' | 't' = 'q'): string {
   const top = versions.length ? Math.max(...versions) : hello.legacyVersion;
   const version = ({ 0x0304: '13', 0x0303: '12', 0x0302: '11', 0x0301: '10' } as Record<number, string>)[top] ?? '00';
   const alpn = hello.alpn[0] ?? '';
-  const alpnCode = alpn ? `${alpn[0]}${alpn[alpn.length - 1]}` : '00';
+  const alnum = (ch: string) => /^[0-9A-Za-z]$/.test(ch);
+  let alpnCode = '00';
+  if (alpn && alnum(alpn[0]) && alnum(alpn[alpn.length - 1])) alpnCode = `${alpn[0]}${alpn[alpn.length - 1]}`;
+  else if (alpn) { const h = Buffer.from(alpn, 'latin1').toString('hex'); alpnCode = `${h[0]}${h[h.length - 1]}`; }
   const count = (n: number) => String(Math.min(n, 99)).padStart(2, '0');
   const a = `${protocol}${version}${hello.sni ? 'd' : 'i'}${count(ciphers.length)}${count(exts.length)}${alpnCode}`;
   const b = ciphers.length ? sha12([...ciphers].sort((x, y) => x - y).map(hex4).join(',')) : '000000000000';
