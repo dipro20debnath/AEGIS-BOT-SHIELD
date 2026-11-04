@@ -2,6 +2,7 @@
 
 **Study:** AEGIS BOT SHIELD — Distinguishing Human and Automated Web Traffic
 **Researcher:** Gobindo Debnath Dipro, B.Sc. CSE, Metropolitan University, Sylhet — diprodebnath200@gmail.com, 01765653786
+**Supervisor:** Md. Mahfujul Hasan, Associate Professor and Head, Department of CSE, Metropolitan University, Sylhet — mahfujul@metrouni.edu.bd
 
 ## What is this study about?
 We are testing software that tells real people apart from automated programs
@@ -57,6 +58,7 @@ may ask **at any time** to have your data deleted by quoting your study code
 
 ## Questions or concerns
 Researcher: Gobindo Debnath Dipro — diprodebnath200@gmail.com, phone 01765653786
+Supervisor: Md. Mahfujul Hasan — mahfujul@metrouni.edu.bd
 
 ---
 
