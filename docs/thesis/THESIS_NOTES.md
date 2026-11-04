@@ -4,7 +4,7 @@
 > bug and result that may end up in the thesis is recorded here, newest first
 > inside each section.
 >
-> **Student:** Dipro Debnath · **Supervisor:** to be assigned
+> **Student:** Gobindo Debnath Dipro (ID 231-115-118) · **Supervisor:** Md. Mahfujul Hasan, Associate Professor and Head, Dept. of CSE
 > **Semester:** Fall 2026 · **Last updated:** 2026-10-03
 
 ---
