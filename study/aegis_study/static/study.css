@@ -168,6 +168,9 @@ textarea { min-height: 96px; resize: vertical; }
 
 /* ---- the task bar: the page's one dark band (DESIGN.md §7) ---------------------------------- */
 .task { position: sticky; top: 0; z-index: 5; background: var(--color-dominant); color: var(--color-paper); }
+/* A field the browser scrolls to (on focus, e.g. when the phone keyboard opens) lands below the sticky
+   task bar, not behind it. --task-h is set by study.js; scrolling only, nothing moves (DESIGN.md §10). */
+html { scroll-padding-top: var(--task-h, 0px); }
 .task .inner { max-width: 1200px; margin: 0 auto; padding: var(--space-2) var(--gutter);
                display: flex; gap: var(--space-2) var(--space-4); align-items: center; flex-wrap: wrap; }
 .task .text { flex: 1 1 480px; line-height: 1.9; }

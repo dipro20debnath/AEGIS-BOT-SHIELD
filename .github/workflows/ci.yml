@@ -70,7 +70,8 @@ jobs:
 
   e2e:
     name: End-to-end (Chromium -> SDK -> Python server -> ML; study site)
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest is now 26.04, where Playwright 1.56 cannot install Chromium's system packages
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

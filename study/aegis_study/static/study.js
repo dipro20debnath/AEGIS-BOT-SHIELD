@@ -17,6 +17,13 @@
     setTimeout(send, 3000);
     setInterval(send, 15000);
   }
+  // Height of the sticky task bar, so fields scrolled into view stay below it (study.css, scroll-padding-top)
+  var panel = document.querySelector('[data-study="task-panel"]');
+  if (panel) {
+    var setPad = function () { document.documentElement.style.setProperty('--task-h', (panel.offsetHeight + 8) + 'px'); };
+    setPad();
+    window.addEventListener('resize', setPad);
+  }
   document.querySelectorAll('form[data-confirm]').forEach(function (form) {
     form.addEventListener('submit', function (e) {
       if (!window.confirm(form.dataset.confirm)) e.preventDefault();

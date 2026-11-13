@@ -1052,6 +1052,28 @@ That widening is a reminder to recruit enough invited participants.
 **Checked on a real export:** the study bots' export (5 runs) loads correctly: 50 feature columns,
 37 non-zero for bots, live scores present. With no humans the tool stops with a clear message.
 
+### 2.19 Task bar stays visible above the phone keyboard (2026-11-13, `UI_VERSION 2026-11-13.1`)
+
+**Problem (pilot feedback, Android phone).** On the login task, tapping a field opened the keyboard and the
+task bar (with the username and password to type) scrolled out of view. The participant had to scroll up to
+read the credentials, type, and scroll back. Since Chrome 108 the Android keyboard shrinks only the visual
+viewport by default, so the sticky task bar stays at the top of the larger layout viewport, off screen.
+
+**Change (no visible layout change at rest):**
+- `base.html`: viewport `interactive-widget=resizes-content`, so the keyboard shrinks the page itself and the
+  sticky bar stays on screen (Chrome 108+, Firefox 132+; iOS Safari ignores it).
+- `study.css` + `study.js`: `scroll-padding-top` = task bar height + 8 px, so a field the browser scrolls to
+  lands below the bar, not behind it.
+
+**Checks.** Phone emulation (390 px, keyboard simulated by shrinking the viewport to 444 px): task bar at
+top 0–171 px, username field at 287 px and password field at 220 px, both below it. `pytest study/tests` 23
+passed; `e2e/study-flow.test.mjs` 2 passed; Playwright fast, stealth and human-like bots each completed 6/6
+tasks. Target sizes and positions at rest are unchanged, so screenshots were not retaken.
+
+**For the analysis.** Sessions before the deploy carry `ui_version` 2026-10-16.2, later ones 2026-11-13.1
+(`sessions.csv`). Earlier phone sessions may show extra scrolling and longer login times from this problem;
+report results by `ui_version` or check that the difference is negligible. No stored data were changed.
+
 ## 3. Contributions — what can honestly be claimed
 
 | Claim | Status |
