@@ -3,7 +3,9 @@
 <html lang="{{ lang }}">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {# interactive-widget: on Android the on-screen keyboard shrinks the page instead of sliding over it,
+     so the sticky task bar stays in view while typing (Chrome 108+, Firefox 132+) #}
+  <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
   <meta name="color-scheme" content="light">
   <title>{{ t('site_title') }}</title>
   {# All fonts are preloaded, so the page has its final layout by the load event and nothing
