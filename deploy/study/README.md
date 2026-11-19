@@ -85,7 +85,9 @@ docker compose cp study:/data/dataset ./dataset
 ## Notes
 
 - **Logging:**
-  - Caddy writes no access log here, so IP addresses are not logged anywhere.
+  - Caddy writes no access log here, and the study app runs uvicorn with `--no-access-log`, so IP addresses
+    and request URLs (which hold search words) are not logged anywhere. Check with
+    `docker compose logs study | grep -c 'HTTP/1.1"'`: it must print 0.
   - The app stores no IP addresses either.
 - **One worker:** `uvicorn` runs with a single worker, because the shop keeps carts in memory and SQLite wants one writer. That is plenty for one participant at a time, or a classroom.
 - **Security:**

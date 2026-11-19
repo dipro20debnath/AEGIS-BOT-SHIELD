@@ -349,3 +349,11 @@ def test_consent_checkboxes_match_the_consent_documents():
         site = [i18n.t(lang, k) for k in ("consent_read", "consent_aggregate", "consent_withdraw", "consent_age")]
         assert boxes[:4] == site, lang
         assert i18n.t(lang, "consent_raw").startswith(boxes[4]), lang
+
+
+def test_study_image_writes_no_access_log():
+    """uvicorn's access log would keep IP addresses and search words (in the URL) in the container log."""
+    from pathlib import Path
+    dockerfile = (Path(__file__).resolve().parents[2] / "Dockerfile").read_text()
+    cmd = next(line for line in dockerfile.splitlines() if line.startswith("CMD") and "aegis_study.app:app" in line)
+    assert '"--no-access-log"' in cmd
