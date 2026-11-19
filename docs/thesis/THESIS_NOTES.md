@@ -1074,6 +1074,26 @@ tasks. Target sizes and positions at rest are unchanged, so screenshots were not
 (`sessions.csv`). Earlier phone sessions may show extra scrolling and longer login times from this problem;
 report results by `ui_version` or check that the difference is negligible. No stored data were changed.
 
+### 2.20 Server log held IP addresses and search words (found 2026-11-19, fixed the same day)
+
+**Problem.** The study container ran uvicorn with its default access log. Each request wrote a line such as
+`203.0.113.77:0 - "GET /shop/search?q=... HTTP/1.1" 200` to the container's Docker log on the server: the
+participant's IP address (uvicorn reads it from Caddy's `X-Forwarded-For`) and the URL, which holds the
+search words typed in the shop. Protocol §7 and `deploy/study/README.md` say IP addresses are not logged
+anywhere and typed text is not kept.
+
+**Scope.** Only the Docker log of the running container on the server. The database, the exports and the
+daily backups never held these (`test_typed_text_is_never_stored` and the IP checks cover the database).
+The log was not copied, exported or analysed. Docker deletes a container's log when the container is
+recreated, so lines from before the 13 November redeploy were already gone.
+
+**Fix.** `Dockerfile` (study target): `--no-access-log`. New test
+`test_study_image_writes_no_access_log`. Redeploying recreates the container, which deletes its old log;
+afterwards `docker compose logs study | grep -c 'HTTP/1.1"'` prints 0.
+
+**For the thesis.** Report it in the ethics section as a deviation from the protocol: found during the
+study, limited to a server log that was never used, and deleted when found. No participant data changed.
+
 ## 3. Contributions — what can honestly be claimed
 
 | Claim | Status |
