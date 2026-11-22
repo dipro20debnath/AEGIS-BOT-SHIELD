@@ -121,4 +121,6 @@ VOLUME /data
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=3s --retries=5 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"
 # One worker: the shop keeps carts in memory and SQLite wants a single writer
-CMD ["uvicorn", "aegis_study.app:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
+# --no-access-log: uvicorn's access log would write each participant's IP address and the search words in
+# the URL (/shop/search?q=...) to the container log; the protocol (§7) promises neither is logged.
+CMD ["uvicorn", "aegis_study.app:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*", "--no-access-log"]
